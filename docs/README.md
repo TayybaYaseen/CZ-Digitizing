@@ -13,6 +13,7 @@ digitizing services, and custom design requests, spanning a public website, a mo
 | See the customer/Admin navigation flow and screen list | [`USER_FLOW.md`](USER_FLOW.md) |
 | See how features depend on each other and what order to build them in | [`../SPEC_INDEX.md`](../SPEC_INDEX.md) |
 | Understand the rules for keeping all of the above in sync | [`../CLAUDE.md`](../CLAUDE.md) |
+| See the branching strategy, branch naming, and PR workflow | [`BRANCHING.md`](BRANCHING.md) |
 | Read the original business requirements this all comes from | [`../CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md`](../CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md) |
 | Read the original technical architecture this all comes from | [`../CZ_DIGITIZING_ARCHITECTURE.md`](../CZ_DIGITIZING_ARCHITECTURE.md) |
 | See the blank template every spec below is written against | [`../TEMPLATE - SPEC.md`](../TEMPLATE%20-%20SPEC.md) |
