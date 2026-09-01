@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 
@@ -85,42 +86,51 @@ function LoginForm() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Log in</h1>
+    <AuthLayout>
+      <div className="space-y-1">
+        <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">Welcome back</h1>
+        <p className="text-[14.5px] text-slate-500">Sign in to your CZ Digitizing account</p>
+      </div>
 
       {searchParams.get('registered') && (
-        <SuccessBanner message="Account created — check your email to verify it, then log in." />
+        <div className="mt-6">
+          <SuccessBanner message="Account created — check your email to verify it, then log in." />
+        </div>
       )}
-      {searchParams.get('reset') && <SuccessBanner message="Password reset — log in with your new password." />}
+      {searchParams.get('reset') && (
+        <div className="mt-6">
+          <SuccessBanner message="Password reset — log in with your new password." />
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
-        <FormField label="Email" htmlFor="email" error={errors.email}>
-          <input id="email" type="email" className={inputClass} {...register('email')} />
+        <FormField label="Email address" htmlFor="email" error={errors.email}>
+          <input id="email" type="email" placeholder="you@company.com" className={inputClass} {...register('email')} />
         </FormField>
 
         <FormField label="Password" htmlFor="password" error={errors.password}>
-          <input id="password" type="password" className={inputClass} {...register('password')} />
+          <input id="password" type="password" placeholder="••••••••" className={inputClass} {...register('password')} />
         </FormField>
 
         <div className="text-right text-sm">
-          <Link href="/forgot-password" className="text-gray-600 underline">
+          <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
             Forgot password?
           </Link>
         </div>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Logging in…' : 'Log in'}
+          {isSubmitting ? 'Logging in…' : 'Sign in'}
         </button>
       </form>
 
-      <p className="text-sm text-gray-600">
+      <p className="mt-8 text-center text-[13.5px] text-slate-600">
         No account yet?{' '}
-        <Link href="/register" className="font-medium text-gray-900 underline">
+        <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
           Register
         </Link>
       </p>
-    </div>
+    </AuthLayout>
   );
 }

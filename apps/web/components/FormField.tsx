@@ -12,8 +12,8 @@ export function FormField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700">
+    <div className="space-y-1.5">
+      <label htmlFor={htmlFor} className="block text-[13px] font-medium text-slate-700">
         {label}
       </label>
       {children}
@@ -23,7 +23,7 @@ export function FormField({
 }
 
 export const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500';
+  'w-full h-11 rounded-lg border border-slate-300 px-3.5 text-[14.5px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-[3px] focus:ring-indigo-100';
 
 export const submitButtonClass =
-  'w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full h-11 rounded-lg bg-indigo-600 px-4 text-[14.5px] font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50';
