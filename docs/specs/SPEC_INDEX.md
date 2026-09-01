@@ -30,9 +30,15 @@ this registry's Order column changes; do not hand-edit it out of sync with this 
   Order strictly respects Level and dependency validation (§Dependency Validation) — a lower Order
   number never depends on a higher one.
 
-As of the 2026-09-01 update: A-002 (Authentication & Account Security) is `Completed` — backend
-implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (AC-1–AC-12), verified with
-26 passing unit tests and a full integration suite against real Postgres/Redis. Every aspect whose
+As of the 2026-09-01 update: A-002 (Authentication & Account Security) is `Completed` — full
+implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (AC-1–AC-12), backend and
+frontend UI (`apps/web`/`apps/admin` per spec §5) both done, verified with 32 passing unit tests
+and a full integration suite against real Postgres/Redis, plus every API contract point (register,
+login incl. new-device and admin 2FA, forgot/reset-password, freelancer-accounts CRUD,
+verify-email) exercised end-to-end against the real running backend and database. UI still uses
+plain Tailwind (no design system — A-001 remains `Not Started`) and localStorage-based token
+storage (not the hardened httpOnly-cookie pattern), both flagged as deliberate, documented
+trade-offs rather than oversights — see `apps/web/lib/auth-context.tsx`'s comments. Every aspect whose
 Dependencies column is now entirely `Completed` (A-004, A-012, A-005f, A-021 — each depends on
 A-002 alone) is mechanically `Not Started` rather than `Blocked`, per the Status rule in
 [`CLAUDE.md`](CLAUDE.md) §5. A-001 (Brand & Visual Identity System) remains `Not Started`, so
