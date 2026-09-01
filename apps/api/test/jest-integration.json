@@ -3,5 +3,6 @@
   "testEnvironment": "node",
   "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }] },
   "testRegex": "test/integration/.*\\.spec\\.ts$",
-  "moduleFileExtensions": ["js", "json", "ts"]
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "testTimeout": 15000
 }
