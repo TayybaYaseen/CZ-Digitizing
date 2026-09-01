@@ -42,7 +42,7 @@ chain completes. This is the correct output of the dependency rule, not an error
 | ID | Aspect | Parent Aspect | Dependencies | Level | Status | Order |
 |---|---|---|---|---|---|---|
 | A-001 | Brand & Visual Identity System | — | — | 1 | Not Started | 1 |
-| A-002 | Authentication & Account Security | — | — | 1 | Not Started | 2 |
+| A-002 | Authentication & Account Security | — | — | 1 | In Progress | 2 |
 | A-003 | Header & Global Navigation (core: logo, nav, search entry, cart badge) | A-002 | A-001, A-002 | 2 | Blocked | 3 |
 | A-004 | Notifications System | A-002 | A-002 | 2 | Blocked | 4 |
 | A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Blocked | 5 |
@@ -323,3 +323,4 @@ build order, and was not assumed to be one anywhere in this file.
 | Date | Change | Reason |
 |---|---|---|
 | 2026-08-30 | Initial registry built from full read of both source documents | First aspect-based dependency pass requested |
+| 2026-08-31 | A-002 Status: Not Started → In Progress | Implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (backend API) started on `feature/01-auth-account-security` |

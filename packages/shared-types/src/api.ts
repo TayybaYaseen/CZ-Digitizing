@@ -23,6 +23,9 @@ export type ApiErrorCode =
   | 'FILE_FORMAT_BLOCKED'
   | 'PAYMENT_NOT_CONFIRMED'
   | 'RATE_LIMITED'
+  // Fallback for uncaught/unexpected errors — never a designed API behavior, but every envelope
+  // needs a code (added 2026-08-31, apps/api/src/common/filters/all-exceptions.filter.ts)
+  | 'INTERNAL_ERROR'
   // Auth spec (docs/specs/2026-08-28-01-auth-account-security.md §3)
   | 'NEW_DEVICE_VERIFICATION_REQUIRED'
   | 'INVALID_OR_EXPIRED_CODE'
