@@ -14,6 +14,7 @@ import { EmailService } from '../../src/email/email.service';
 describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let redis: RedisService;
   let sendMock: jest.SpyInstance;
 
   beforeAll(async () => {
@@ -24,11 +25,14 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
+    redis = app.get(RedisService);
     void app.get(ConfigService); // ensures env validated before tests run
   });
 
+  // app.close() already runs RedisService.onModuleDestroy() -> client.quit() — an extra manual
+  // quit() here double-closes the same connection (harmless in ioredis but throws in tests, plus
+  // a spurious "did not exit" warning from the resulting unhandled rejection).
   afterAll(async () => {
-    await app.get(RedisService).client.quit();
     await app.close();
   });
 
@@ -37,6 +41,11 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     await prisma.adminPermission.deleteMany();
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
+    // Rate-limit counters (RateLimiterService) live in Redis, keyed per IP+route — every test
+    // in this file shares one IP, so a prior test's AC-4 exhaustion would otherwise leak into
+    // later tests hitting the same route (e.g. verify-new-device) and fail them with 429s that
+    // have nothing to do with what they're testing.
+    await redis.client.flushdb();
     sendMock = jest.spyOn(app.get(EmailService), 'send').mockResolvedValue(undefined);
   });
 
