@@ -30,10 +30,14 @@ this registry's Order column changes; do not hand-edit it out of sync with this 
   Order strictly respects Level and dependency validation (§Dependency Validation) — a lower Order
   number never depends on a higher one.
 
-As of this sync, **no implementation exists yet** (this is a specification-stage project) — so
-every aspect's dependencies are, by definition, not yet `Completed`. Only the two Level-1 root
-aspects are `Not Started`; every other aspect is mechanically `Blocked` until its parent/dependency
-chain completes. This is the correct output of the dependency rule, not an error.
+As of the 2026-09-01 update: A-002 (Authentication & Account Security) is `Completed` — backend
+implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (AC-1–AC-12), verified with
+26 passing unit tests and a full integration suite against real Postgres/Redis. Every aspect whose
+Dependencies column is now entirely `Completed` (A-004, A-012, A-005f, A-021 — each depends on
+A-002 alone) is mechanically `Not Started` rather than `Blocked`, per the Status rule in
+[`CLAUDE.md`](CLAUDE.md) §5. A-001 (Brand & Visual Identity System) remains `Not Started`, so
+every aspect that also lists A-001 as a dependency (A-003 and everything downstream of it) is
+still `Blocked`.
 
 ---
 
@@ -42,12 +46,12 @@ chain completes. This is the correct output of the dependency rule, not an error
 | ID | Aspect | Parent Aspect | Dependencies | Level | Status | Order |
 |---|---|---|---|---|---|---|
 | A-001 | Brand & Visual Identity System | — | — | 1 | Not Started | 1 |
-| A-002 | Authentication & Account Security | — | — | 1 | In Progress | 2 |
+| A-002 | Authentication & Account Security | — | — | 1 | Completed | 2 |
 | A-003 | Header & Global Navigation (core: logo, nav, search entry, cart badge) | A-002 | A-001, A-002 | 2 | Blocked | 3 |
-| A-004 | Notifications System | A-002 | A-002 | 2 | Blocked | 4 |
-| A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Blocked | 5 |
-| A-005f | Admin: Admin Users/Roles & Active Sessions | A-002 | A-002 | 2 | Blocked | 6 |
-| A-021 | Internationalization (mechanism) | A-002 | A-002 | 2 | Blocked | 7 |
+| A-004 | Notifications System | A-002 | A-002 | 2 | Not Started | 4 |
+| A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Not Started | 5 |
+| A-005f | Admin: Admin Users/Roles & Active Sessions | A-002 | A-002 | 2 | Not Started | 6 |
+| A-021 | Internationalization (mechanism) | A-002 | A-002 | 2 | Not Started | 7 |
 | A-006 | Design Catalog, Categories & Card Browsing (parent) | A-002 | A-001, A-002, A-003 | 3 | Blocked | 8 |
 | A-005 | Admin Platform Settings, Dashboard, Data Export & Audit (parent) | A-002 | A-002, A-004 | 3 | Blocked | 9 |
 | A-012a | FAQ | A-012 | A-012 | 3 | Blocked | 10 |
@@ -324,3 +328,4 @@ build order, and was not assumed to be one anywhere in this file.
 |---|---|---|
 | 2026-08-30 | Initial registry built from full read of both source documents | First aspect-based dependency pass requested |
 | 2026-08-31 | A-002 Status: Not Started → In Progress | Implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (backend API) started on `feature/01-auth-account-security` |
+| 2026-09-01 | A-002 Status: In Progress → Completed; A-004, A-012, A-005f, A-021 Status: Blocked → Not Started | AC-1–AC-12 backend implementation verified: 26/26 unit tests, 14/14 integration tests against real Postgres/Redis (migration applied and schema-validated). The four aspects whose only Dependency was A-002 are mechanically unblocked per `CLAUDE.md` §5; every aspect that also depends on A-001 (still `Not Started`) remains `Blocked`. UI screens (Register/Login/Admin-2FA/Freelancer-accounts) were out of scope for this pass — deferred to a follow-up PR once `apps/web`/A-001 exist — so `Completed` here covers the backend API only |

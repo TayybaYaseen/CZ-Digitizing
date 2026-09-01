@@ -58,6 +58,13 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     return match[1];
   }
 
+  function lastEmailLinkTokenTo(email: string): string {
+    const call = sendMock.mock.calls.map((c) => c[0]).reverse().find((m) => m.to === email);
+    const match = /[?&]token=([^\s&]+)/.exec(call?.text ?? '');
+    if (!match) throw new Error(`no link token found in email to ${email}`);
+    return decodeURIComponent(match[1]);
+  }
+
   const agent = () => request.agent(app.getHttpServer());
 
   // AC-1
@@ -233,6 +240,41 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     const login = await client.post('/api/auth/login').send({ email: 'mod@example.com', password: 'modpass123' });
     expect(login.status).toBe(401);
     expect(login.body.error.code).toBe('NEW_DEVICE_VERIFICATION_REQUIRED');
+  });
+
+  // AC-12
+  it('logs in via magic link from an already-trusted device', async () => {
+    const client = agent();
+    await client.post('/api/auth/register').send({ email: 'magiclink@example.com', password: 'password123' });
+    await client.post('/api/auth/login').send({ email: 'magiclink@example.com', password: 'password123' });
+    const deviceCode = lastEmailCodeTo('magiclink@example.com');
+    await client.post('/api/auth/verify-new-device').send({ email: 'magiclink@example.com', code: deviceCode });
+
+    const linkRequest = await client.post('/api/auth/magic-link/request').send({ email: 'magiclink@example.com' });
+    expect(linkRequest.status).toBe(200);
+
+    const token = lastEmailLinkTokenTo('magiclink@example.com');
+    const verify = await client.get('/api/auth/magic-link/verify').query({ token });
+    expect(verify.status).toBe(200);
+    expect(verify.body.data.accessToken).toBeDefined();
+  });
+
+  it('still requires new-device verification for a magic-link login from an untrusted device (AC-2/AC-3 apply)', async () => {
+    await agent().post('/api/auth/register').send({ email: 'magiclink2@example.com', password: 'password123' });
+
+    const requester = agent(); // separate cookie jar — an unrecognized device
+    const linkRequest = await requester.post('/api/auth/magic-link/request').send({ email: 'magiclink2@example.com' });
+    expect(linkRequest.status).toBe(200);
+
+    const token = lastEmailLinkTokenTo('magiclink2@example.com');
+    const verify = await requester.get('/api/auth/magic-link/verify').query({ token });
+    expect(verify.status).toBe(401);
+    expect(verify.body.error.code).toBe('NEW_DEVICE_VERIFICATION_REQUIRED');
+  });
+
+  it('never reveals whether an email exists on magic-link request', async () => {
+    const res = await agent().post('/api/auth/magic-link/request').send({ email: 'nobody-magic@example.com' });
+    expect(res.status).toBe(200);
   });
 });
 
