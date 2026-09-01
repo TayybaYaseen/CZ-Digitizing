@@ -45,6 +45,31 @@ A-002 alone) is mechanically `Not Started` rather than `Blocked`, per the Status
 every aspect that also lists A-001 as a dependency (A-003 and everything downstream of it) is
 still `Blocked`.
 
+As of the 2026-09-01 update: A-004 (Notifications System) is `Completed` — backend implementation
+of `docs/specs/2026-08-28-02-notifications-system.md` (AC-1–AC-10), per the approved plan's
+explicit backend-only scope (`apps/api` + `packages/shared-types`; frontend notification-center
+screens per spec §5 were not part of this pass). Covers the internal `NotificationService.notify()`
+contract, admin + customer notification routes (including the proposed `/api/notifications*`
+customer routes and AC-9 preference-center endpoints absent from the architecture's own endpoint
+inventory — spec §8 risk #1), a 19-value consolidated `notification_type` enum (spec §8 risk #2),
+email (branded HTML + unsubscribe link), WhatsApp/SMS via Twilio with the AC-6 24–48hr fallback and
+AC-10 SMS-last-resort logic, per-type/per-channel preferences (AC-9), and `@nestjs/schedule` cron
+jobs for the daily order-status digest, hourly registration digest, and 30-day retention sweep
+(spec §8 risk #3 — resolved as in-process cron, not a queue; see plan's "Open decisions" table).
+Verified with 31 new passing unit tests (63 total in `apps/api`) and a full integration suite
+(10 tests, one per AC) against real Postgres/Redis. Two pieces ship as documented stubs with a
+clear extension seam rather than full implementations, both deliberate per the approved plan, not
+oversights: push notifications (AC-7 — blocked on A-023's push-token table, still `Blocked`) and
+the 1-day-before-expiry subscription reminder (blocked on A-015's Subscription model, still
+`Blocked`) — both flagged in code comments (`notification-push.service.ts`,
+`notification-batching.service.ts`) with a `TODO(A-023)`/`TODO(A-015)` pointer. Wiring
+`NotificationService.notify()` into other feature modules' own trigger points (orders, quotes,
+custom requests, Taebo, subscriptions, auth's new-device-login) is explicitly out of this aspect's
+scope, per the plan — each of those aspects adds its own call site when built. A-005, whose
+Dependencies (`A-002, A-004`) are now both `Completed`, is mechanically `Not Started` rather than
+`Blocked`, per `CLAUDE.md` §5; every aspect still listing A-012, A-014, A-011, A-007, or A-001 among
+its dependencies remains `Blocked` as before.
+
 ---
 
 ## Aspect Registry
@@ -54,12 +79,12 @@ still `Blocked`.
 | A-001 | Brand & Visual Identity System | — | — | 1 | Not Started | 1 |
 | A-002 | Authentication & Account Security | — | — | 1 | Completed | 2 |
 | A-003 | Header & Global Navigation (core: logo, nav, search entry, cart badge) | A-002 | A-001, A-002 | 2 | Blocked | 3 |
-| A-004 | Notifications System | A-002 | A-002 | 2 | Not Started | 4 |
+| A-004 | Notifications System | A-002 | A-002 | 2 | Completed | 4 |
 | A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Not Started | 5 |
 | A-005f | Admin: Admin Users/Roles & Active Sessions | A-002 | A-002 | 2 | Not Started | 6 |
 | A-021 | Internationalization (mechanism) | A-002 | A-002 | 2 | Not Started | 7 |
 | A-006 | Design Catalog, Categories & Card Browsing (parent) | A-002 | A-001, A-002, A-003 | 3 | Blocked | 8 |
-| A-005 | Admin Platform Settings, Dashboard, Data Export & Audit (parent) | A-002 | A-002, A-004 | 3 | Blocked | 9 |
+| A-005 | Admin Platform Settings, Dashboard, Data Export & Audit (parent) | A-002 | A-002, A-004 | 3 | Not Started | 9 |
 | A-012a | FAQ | A-012 | A-012 | 3 | Blocked | 10 |
 | A-012b | Tips for Embroiderers | A-012 | A-012 | 3 | Blocked | 11 |
 | A-012c | Testimonials | A-012 | A-012 | 3 | Blocked | 12 |
@@ -335,3 +360,6 @@ build order, and was not assumed to be one anywhere in this file.
 | 2026-08-30 | Initial registry built from full read of both source documents | First aspect-based dependency pass requested |
 | 2026-08-31 | A-002 Status: Not Started → In Progress | Implementation of `docs/specs/2026-08-28-01-auth-account-security.md` (backend API) started on `feature/01-auth-account-security` |
 | 2026-09-01 | A-002 Status: In Progress → Completed; A-004, A-012, A-005f, A-021 Status: Blocked → Not Started | AC-1–AC-12 backend implementation verified: 26/26 unit tests, 14/14 integration tests against real Postgres/Redis (migration applied and schema-validated). The four aspects whose only Dependency was A-002 are mechanically unblocked per `CLAUDE.md` §5; every aspect that also depends on A-001 (still `Not Started`) remains `Blocked`. UI screens (Register/Login/Admin-2FA/Freelancer-accounts) were out of scope for this pass — deferred to a follow-up PR once `apps/web`/A-001 exist — so `Completed` here covers the backend API only |
+| 2026-09-01 | A-002 scope note updated: `Completed` now explicitly covers frontend UI too, not backend only | Follow-up PR (`0878cc1`) implemented every screen in spec §5 (`apps/web`, `apps/admin`) plus `/verify-email`; header note updated same-day in `6d7d070` but this row was not appended at the time, leaving the log inconsistent with the header — corrected here, no Status/Order/Dependency values changed |
+| 2026-09-01 | A-004 Status: Not Started → In Progress | Backend implementation of `docs/specs/2026-08-28-02-notifications-system.md` (AC-1–AC-10) started; A-002 is `Completed`, the sole Dependency, so this satisfies `CLAUDE.md` §3's before-work check. Implementation plan approved by Admin, covering `apps/api` + `packages/shared-types` only |
+| 2026-09-01 | A-004 Status: In Progress → Completed; A-005 Status: Blocked → Not Started | AC-1–AC-10 backend implementation verified: 31 new unit tests (63 total in `apps/api`), 10/10 integration tests (one per AC) against real Postgres/Redis. Push (AC-7) and the subscription-renewal batch ship as documented stubs pending A-023/A-015 (both still `Blocked`) — a deliberate, plan-approved deferral, not an oversight. Frontend notification-center screens (spec §5) were out of scope for this pass, matching the approved plan's explicit backend-only scope — `Completed` here covers `apps/api` + `packages/shared-types` only. A-005, whose Dependencies (`A-002, A-004`) are now both `Completed`, is mechanically unblocked per `CLAUDE.md` §5 |

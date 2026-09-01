@@ -32,6 +32,20 @@ export const envSchema = z.object({
   // Public base URL used to build OAuth redirect/callback and magic-link URLs.
   API_BASE_URL: z.string().default('http://localhost:4000'),
   WEB_BASE_URL: z.string().default('http://localhost:3000'),
+
+  // Notifications (docs/specs/2026-08-28-02-notifications-system.md). Twilio covers WhatsApp
+  // (AC-6) and SMS (AC-10) — same credential pair, distinct "from" numbers. All optional: unset
+  // means the corresponding channel logs + records a "not configured" delivery-log failure
+  // instead of sending, same no-op-when-unset philosophy as SMTP_* above.
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+  TWILIO_SMS_FROM: z.string().optional(),
+  // Admin "new registration" hourly batch (architecture: "if enabled") — off by default.
+  NOTIFY_REGISTRATION_BATCH_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

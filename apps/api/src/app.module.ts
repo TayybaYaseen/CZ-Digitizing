@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,18 +16,22 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { validateEnv } from './config/env.validation';
 import { EmailModule } from './email/email.module';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    ScheduleModule.forRoot(), // notification-batching.service.ts / notification-cleanup.service.ts
     PrismaModule,
     RedisModule,
     EmailModule,
     AuditModule,
     RateLimitModule,
     HealthModule,
+    // Before AuthModule: auth's new-device-login trigger (AC-3) calls NotificationService.
+    NotificationsModule,
     AuthModule,
     AdminModule,
   ],

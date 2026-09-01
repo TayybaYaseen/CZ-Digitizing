@@ -76,9 +76,20 @@ model User {
   updatedAt        DateTime   @updatedAt @map("updated_at")
   lastLoginAt      DateTime?  @map("last_login_at")
 
-  sessions         Session[]
-  adminPermissions AdminPermission[]
-  auditLogs        AuditLog[]
+  // Last inbound WhatsApp message timestamp — drives the notifications spec's AC-6 24-48hr
+  // fallback-to-email/in-app check (docs/specs/2026-08-28-02-notifications-system.md).
+  lastWhatsappInboundAt DateTime? @map("last_whatsapp_inbound_at")
+  // E.164 phone — no field existed anywhere in the schema before this; WhatsApp (AC-6) and SMS
+  // (AC-10) delivery have nothing to send to without it. Nullable: most users won't set one, and
+  // those channels simply have nothing to dispatch to until they do (same "not configured" path
+  // as an unset Twilio credential).
+  phone String? @map("phone")
+
+  sessions             Session[]
+  adminPermissions     AdminPermission[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -144,4 +155,117 @@ model AuditLog {
 
   @@index([adminUserId], map: "idx_audit_logs_admin_user_id")
   @@map("audit_logs")
+}
+
+// docs/specs/2026-08-28-02-notifications-system.md §4 (aspect A-004). Consolidated across every
+// spec that names a trigger — extend here, never per-feature (spec §8 risk #2):
+// auth-account-security (new_device_login), orders-payment-processing (order_confirmed,
+// payment_received, files_ready, receipt_uploaded, order_status_change), smart-get-a-quote
+// (quote_submitted, quote_response), custom-design-requests (custom_request_status_update),
+// taebo-chatbot (taebo_waiting, taebo_answered), subscriptions-credits (subscription_renewal,
+// subscription_renewal_failed, credit_purchase), auth registration (new_registration), platform
+// (contact_message, admin_alert, system_alert, file_format_available).
+enum NotificationType {
+  order_confirmed
+  payment_received
+  files_ready
+  quote_submitted
+  quote_response
+  custom_request_status_update
+  file_format_available
+  subscription_renewal
+  subscription_renewal_failed
+  credit_purchase
+  new_registration
+  new_device_login
+  taebo_waiting
+  taebo_answered
+  contact_message
+  receipt_uploaded
+  admin_alert
+  system_alert
+  order_status_change
+}
+
+enum NotificationChannel {
+  email
+  whatsapp
+  in_app
+  push
+  sms
+}
+
+enum NotificationDeliveryStatus {
+  queued
+  sent
+  failed
+  retried
+}
+
+model Notification {
+  id                BigInt            @id @default(autoincrement())
+  recipientUserId   BigInt            @map("recipient_user_id")
+  recipient         User              @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  notificationType  NotificationType  @map("notification_type")
+  title             String
+  message           String?
+
+  // Plain nullable BigInt, no @relation — Order/Quote/CustomRequest models don't exist yet
+  // (A-013/A-016/A-017 are still Blocked per docs/specs/SPEC_INDEX.md). Each of those aspects
+  // wires the real @relation + FK constraint in its own migration once its table exists.
+  relatedOrderId         BigInt? @map("related_order_id")
+  relatedQuoteId         BigInt? @map("related_quote_id")
+  relatedCustomRequestId BigInt? @map("related_custom_request_id")
+
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  // 30-day retention for customer-facing types (AC-3), set at insert time; null for Admin-only
+  // types (AC-2 states no equivalent cap for those). The cleanup sweep is a plain range query.
+  expiresAt DateTime? @map("expires_at")
+
+  // Set once an order_status_change row has been included in the daily digest email
+  // (NotificationBatchingService, §8) — lets that job select "since the last digest" without a
+  // separate scheduler-state table. Unused by every other notification_type.
+  batchedAt DateTime? @map("batched_at")
+
+  deliveryLogs NotificationDeliveryLog[]
+
+  @@index([recipientUserId, isRead], map: "idx_notifications_user")
+  @@index([expiresAt], map: "idx_notifications_expires_at")
+  @@map("notifications")
+}
+
+// docs/specs/2026-08-28-02-notifications-system.md §4 — supports AC-5's retry/backoff and
+// debugging delivery failures.
+model NotificationDeliveryLog {
+  id                BigInt                     @id @default(autoincrement())
+  notificationId    BigInt                     @map("notification_id")
+  notification      Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  channel           NotificationChannel
+  status            NotificationDeliveryStatus @default(queued)
+  providerMessageId String?                    @map("provider_message_id")
+  attemptedAt       DateTime                   @default(now()) @map("attempted_at")
+
+  @@index([notificationId], map: "idx_notification_delivery_log_notification")
+  @@map("notification_delivery_log")
+}
+
+// AC-9: per-type/per-channel customer opt-out layered on top of the platform-wide default
+// routing table (NotificationService.DEFAULT_CHANNELS). Absence of a row = default-enabled;
+// a row only exists to record an explicit opt-out or a re-opt-in after one.
+model NotificationPreference {
+  id               BigInt              @id @default(autoincrement())
+  userId           BigInt              @map("user_id")
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notificationType NotificationType    @map("notification_type")
+  channel          NotificationChannel
+  enabled          Boolean             @default(true)
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@unique([userId, notificationType, channel], map: "uq_notification_preferences_user_type_channel")
+  @@map("notification_preferences")
 }
