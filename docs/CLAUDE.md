@@ -1,15 +1,15 @@
 # CLAUDE.md — CZ Digitizing Project Rules
 
 This file defines the **permanent rules** Claude must follow when working on the CZ Digitizing
-project's aspects, features, and user/screen flow. It governs how [`SPEC_INDEX.md`](SPEC_INDEX.md)
+project's aspects, features, and user/screen flow. It governs how [`SPEC_INDEX.md`](specs/SPEC_INDEX.md)
 is built, read, and maintained. These rules do not expire at the end of a session.
 
 ---
 
 ## 1. Aspect Source of Truth
 
-The **Aspect File** — currently [`CZ_DIGITIZING_ARCHITECTURE.md`](CZ_DIGITIZING_ARCHITECTURE.md)
-and [`CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md`](CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md)
+The **Aspect File** — currently [`CZ_DIGITIZING_ARCHITECTURE.md`](../CZ_DIGITIZING_ARCHITECTURE.md)
+and [`CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md`](../CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md)
 together — is the single source of truth for:
 
 - Aspect names
@@ -18,7 +18,7 @@ together — is the single source of truth for:
 - Dependencies
 - Relationships between aspects
 
-[`SPEC_INDEX.md`](SPEC_INDEX.md) is a **derived artifact**. It is never edited to say something
+[`SPEC_INDEX.md`](specs/SPEC_INDEX.md) is a **derived artifact**. It is never edited to say something
 the Aspect File doesn't support. If the two disagree, the Aspect File wins and `SPEC_INDEX.md`
 must be corrected to match — not the other way around.
 
@@ -49,7 +49,7 @@ Flag any conflict between them rather than silently picking one.
 
 Before starting work on an aspect (design, spec, or implementation), Claude must:
 
-1. Find the aspect in [`SPEC_INDEX.md`](SPEC_INDEX.md)'s Aspect Registry.
+1. Find the aspect in [`SPEC_INDEX.md`](specs/SPEC_INDEX.md)'s Aspect Registry.
 2. Identify its Parent Aspect.
 3. Identify all of its Dependencies (not just the parent — the full list).
 4. Check the current Status of every aspect in that Dependencies list.
@@ -70,7 +70,7 @@ Whenever `CZ_DIGITIZING_ARCHITECTURE.md` or `CZ_Digitizing_Master_SRS_COMPLETENE
 changes (or a new/updated Aspect File is provided), Claude must, in this order:
 
 1. Re-read the complete Aspect File — not a diff, not a summary. The full document(s).
-2. Compare it against the current [`SPEC_INDEX.md`](SPEC_INDEX.md) registry, row by row.
+2. Compare it against the current [`SPEC_INDEX.md`](specs/SPEC_INDEX.md) registry, row by row.
 3. Detect:
    - New aspects (present in the Aspect File, absent from the registry)
    - Removed aspects (present in the registry, no longer supported by the Aspect File)
@@ -103,7 +103,7 @@ Only these five values are valid for the Status column. Do not invent others.
 | `Blocked` | A required Parent Aspect or Dependency is not yet `Completed`. This is computed mechanically from the Dependencies column, not asserted freely. |
 | `Needs Review` | The relationship, dependency, or requirement itself is unclear in the Aspect File and must not be guessed at. |
 
-Update [`SPEC_INDEX.md`](SPEC_INDEX.md) every time a status actually changes. Do not batch
+Update [`SPEC_INDEX.md`](specs/SPEC_INDEX.md) every time a status actually changes. Do not batch
 status updates or leave the registry stale relative to real progress.
 
 ---

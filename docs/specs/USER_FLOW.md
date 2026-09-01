@@ -1,9 +1,9 @@
 # User Flow — CZ Digitizing
 
-**Derived from:** [`SPEC_INDEX.md`](../SPEC_INDEX.md) (the dependency-validated Aspect
+**Derived from:** [`SPEC_INDEX.md`](SPEC_INDEX.md) (the dependency-validated Aspect
 Registry), which is itself derived from the Aspect File —
-[`CZ_DIGITIZING_ARCHITECTURE.md`](../CZ_DIGITIZING_ARCHITECTURE.md) +
-[`CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md`](../CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md).
+[`CZ_DIGITIZING_ARCHITECTURE.md`](../../CZ_DIGITIZING_ARCHITECTURE.md) +
+[`CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md`](../../CZ_Digitizing_Master_SRS_COMPLETENESS_VERIFIED_FINAL.md).
 **Governing rules:** [`CLAUDE.md`](../CLAUDE.md) — parent aspects always precede dependents.
 **Last synced against the Aspect Registry:** 2026-08-30
 
