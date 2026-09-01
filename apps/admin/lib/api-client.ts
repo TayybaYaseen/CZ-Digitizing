@@ -23,9 +23,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (body as ApiResponse<T>).data;
 }
 
-// /health is a liveness probe, not part of the ApiResponse<T> envelope
-// (see apps/api/src/health/health.controller.ts) — fetched separately.
+// /health is wrapped in the ApiResponse<T> envelope like every other route, via
+// apps/api/src/common/interceptors/response.interceptor.ts's global interceptor.
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {
-  const res = await fetch(`${API_URL}/health`);
-  return res.json();
+  return apiFetch<{ status: string; timestamp: string }>('/health');
 }
