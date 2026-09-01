@@ -1,0 +1,140 @@
+// Schema for docs/specs/2026-08-28-01-auth-account-security.md (aspect A-002).
+// Modeled on CZ_DIGITIZING_ARCHITECTURE.md § Database Schema (Users/Sessions/Audit Logs) plus
+// the spec's proposed admin_permissions table. Deliberately scoped to only the tables this
+// aspect owns — designs/orders/etc. belong to their own specs' migrations (docs/CLAUDE.md
+// dependency-ordered build rule).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  admin
+  freelancer
+  moderator
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+// docs/specs/2026-08-28-01-auth-account-security.md §4 — derived default list (2026-08-31),
+// covers the resource groups named across the other feature specs. Adding a module later is a
+// non-breaking enum addition.
+enum AdminModule {
+  designs
+  categories
+  bundles
+  orders
+  quotes
+  custom_requests
+  faqs
+  testimonials
+  blog
+  portfolio
+  subscriptions
+  credits
+  notifications
+  settings
+}
+
+enum AdminAccessLevel {
+  read_only
+  crud
+}
+
+model User {
+  id               BigInt     @id @default(autoincrement())
+  email            String     @unique
+  // Nullable: OAuth (AC-10) and magic-link-only (AC-12) users may never set a password.
+  passwordHash     String?    @map("password_hash")
+  username         String?
+  displayName      String?    @map("display_name")
+  avatarUrl        String?    @map("avatar_url")
+  role             Role       @default(customer)
+  gmailVerified    Boolean    @default(false) @map("gmail_verified")
+  twoFactorEnabled Boolean    @default(false) @map("two_factor_enabled")
+  // AES-256-GCM ciphertext (see src/common/crypto/secret-cipher.ts), never the raw TOTP secret.
+  twoFactorSecret  String?    @map("two_factor_secret")
+  status           UserStatus @default(active)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  lastLoginAt      DateTime?  @map("last_login_at")
+
+  sessions         Session[]
+  adminPermissions AdminPermission[]
+  auditLogs        AuditLog[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([role], map: "idx_users_role")
+  @@map("users")
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId BigInt @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Long-lived random id read from the czd_device_id cookie — the device-trust mechanism
+  // chosen for AC-2/AC-3 (spec §8 risk #2 left this open; not part of the original DDL).
+  deviceId   String  @map("device_id")
+  deviceInfo Json?   @map("device_info")
+  ipAddress  String? @map("ip_address")
+  userAgent  String? @map("user_agent")
+
+  isVerified Boolean @default(false) @map("is_verified")
+  // Hash of the 4-digit code (never the plaintext), shared by new-device verification (AC-3/AC-4)
+  // and reused per-purpose for forgot-password (AC-6) via VerificationCodeService.
+  verificationCodeHash  String?   @map("verification_code_hash")
+  verificationAttempts  Int       @default(0) @map("verification_attempts")
+  verificationExpiresAt DateTime? @map("verification_expires_at")
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at")
+  expiresAt      DateTime? @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+
+  @@index([userId], map: "idx_sessions_user_id")
+  @@index([expiresAt], map: "idx_sessions_expires_at")
+  @@index([userId, deviceId], map: "idx_sessions_device_user")
+  @@map("sessions")
+}
+
+model AdminPermission {
+  id     BigInt @id @default(autoincrement())
+  userId BigInt @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  module      AdminModule
+  accessLevel AdminAccessLevel @map("access_level")
+  revokedAt   DateTime?        @map("revoked_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([userId], map: "idx_admin_permissions_user_id")
+  @@map("admin_permissions")
+}
+
+model AuditLog {
+  id           BigInt  @id @default(autoincrement())
+  adminUserId  BigInt? @map("admin_user_id")
+  adminUser    User?   @relation(fields: [adminUserId], references: [id])
+
+  actionType   String  @map("action_type")
+  resourceType String  @map("resource_type")
+  resourceId   String? @map("resource_id")
+  changes      Json?
+  ipAddress    String? @map("ip_address")
+  userAgent    String? @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([adminUserId], map: "idx_audit_logs_admin_user_id")
+  @@map("audit_logs")
+}
