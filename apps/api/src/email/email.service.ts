@@ -7,6 +7,9 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  // Optional HTML alternative (notifications-system.md AC-5's branded template) — nodemailer
+  // sends a multipart message when both are present; plain-text callers are unaffected.
+  html?: string;
 }
 
 // SMTP-if-configured, else logs to the console — so local dev and CI work with zero email infra.

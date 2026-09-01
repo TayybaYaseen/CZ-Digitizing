@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { checkHealth } from '@/lib/api-client';
 
 export default async function AdminHomePage() {
@@ -5,9 +6,12 @@ export default async function AdminHomePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Admin Portal (skeleton)</h1>
+      <h1 className="text-2xl font-bold">Admin Portal</h1>
       <p className="text-gray-400">
-        No auth guard wired up yet — /admin/login and the 2FA gate land with Spec 01.
+        <Link href="/login" className="underline">
+          Log in
+        </Link>{' '}
+        (mandatory 2FA) to manage freelancer/limited-admin accounts and platform settings.
       </p>
       <p className="text-sm">
         API health:{' '}

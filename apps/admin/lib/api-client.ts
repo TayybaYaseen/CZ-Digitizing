@@ -11,6 +11,11 @@ export class ApiClientError extends Error {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
+    // admin (:3002) and api (:4000) are different origins — without this, the browser never
+    // sends/stores the httpOnly czd_device_id cookie the backend's device-trust flow relies on
+    // (AC-2/AC-3, and admin login's device-id-scoped pending-2FA token). The API's CORS config
+    // already allows it (credentials: true in main.ts).
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
 

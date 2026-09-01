@@ -29,4 +29,6 @@ export type ApiErrorCode =
   // Auth spec (docs/specs/2026-08-28-01-auth-account-security.md §3)
   | 'NEW_DEVICE_VERIFICATION_REQUIRED'
   | 'INVALID_OR_EXPIRED_CODE'
-  | 'EMAIL_ALREADY_REGISTERED';
+  | 'EMAIL_ALREADY_REGISTERED'
+  // Notifications spec (docs/specs/2026-08-28-02-notifications-system.md §3)
+  | 'NOTIFICATION_NOT_FOUND';

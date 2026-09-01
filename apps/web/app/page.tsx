@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { checkHealth } from '@/lib/api-client';
 
 export default async function HomePage() {
@@ -5,9 +6,16 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">CZ Digitizing — public web (skeleton)</h1>
+      <h1 className="text-2xl font-bold">CZ Digitizing</h1>
       <p className="text-gray-600">
-        Design catalog, cart, checkout, and account pages land here as their specs are built.
+        <Link href="/login" className="underline">
+          Log in
+        </Link>{' '}
+        or{' '}
+        <Link href="/register" className="underline">
+          register
+        </Link>
+        . Design catalog, cart, checkout, and account pages land here as their specs are built.
       </p>
       <p className="text-sm">
         API health:{' '}
