@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AdminPermission, User } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import { toUserProfileDto, type UserProfileDto } from '../auth/dto/user-profile.dto';
 import { SessionService } from '../auth/services/session.service';
@@ -66,9 +67,9 @@ export class FreelancerAccountsService {
       include: { adminPermissions: { where: { revokedAt: null } } },
       orderBy: { createdAt: 'desc' },
     });
-    return users.map((user) => ({
+    return users.map((user: User & { adminPermissions: AdminPermission[] }) => ({
       ...toUserProfileDto(user),
-      permissions: user.adminPermissions.map((grant) => ({ module: grant.module, accessLevel: grant.accessLevel })),
+      permissions: user.adminPermissions.map((grant: AdminPermission) => ({ module: grant.module, accessLevel: grant.accessLevel })),
     }));
   }
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Session } from '@prisma/client';
+import type { Session } from '../../generated/prisma';
 import { ApiException } from '../../common/exceptions/api-exception';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SESSION_INACTIVITY_TTL_MS } from '../auth.constants';

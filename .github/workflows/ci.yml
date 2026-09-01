@@ -40,6 +40,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Belt-and-suspenders alongside apps/api's own "postinstall": "prisma generate" —
+      # @prisma/client's own postinstall hook fails to auto-locate a schema that isn't at a
+      # default location (ours is apps/api/prisma/schema.prisma) and silently no-ops instead
+      # of erroring, so a missing/stale client here shows up much later as confusing
+      # "Module has no exported member 'User'" failures in lint/typecheck instead. Making it
+      # an explicit, visible CI step catches that class of failure immediately and clearly.
+      - name: Generate Prisma Client
+        run: pnpm --filter @czd/api exec prisma generate
+
       - name: Lint
         run: pnpm lint
 

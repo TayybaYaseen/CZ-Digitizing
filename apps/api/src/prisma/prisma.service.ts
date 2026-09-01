@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma';
 
 // Deliberately no eager $connect() in onModuleInit: Prisma connects lazily on
 // the first query, so the API can boot and serve /health before Postgres is

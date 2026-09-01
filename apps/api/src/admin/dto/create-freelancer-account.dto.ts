@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
-import { AdminAccessLevel, AdminModule } from '@prisma/client';
+import { AdminAccessLevel, AdminModule } from '../../generated/prisma';
 
 export class PermissionGrantDto {
   @IsEnum(AdminModule)

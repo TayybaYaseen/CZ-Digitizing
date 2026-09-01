@@ -1,4 +1,4 @@
-import type { Session } from '@prisma/client';
+import type { Session } from '../../generated/prisma';
 import { SessionService } from './session.service';
 
 function baseSession(overrides: Partial<Session>): Session {

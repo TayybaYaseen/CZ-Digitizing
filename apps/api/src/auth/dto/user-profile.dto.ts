@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import type { User } from '../../generated/prisma';
 import type { Role } from '@czd/shared-types';
 
 // Never return a raw Prisma `User` row — this excludes passwordHash/twoFactorSecret by

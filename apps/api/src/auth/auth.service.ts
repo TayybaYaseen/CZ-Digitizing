@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { User } from '@prisma/client';
+import type { AdminPermission, User } from '../generated/prisma';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { Env } from '../config/env.validation';
 import { EmailService } from '../email/email.service';
@@ -274,7 +274,7 @@ export class AuthService {
   private async computePermissions(user: User): Promise<string[]> {
     if (user.role !== 'freelancer' && user.role !== 'moderator') return [];
     const grants = await this.prisma.adminPermission.findMany({ where: { userId: user.id, revokedAt: null } });
-    return grants.map((grant) => `${grant.module}:${grant.accessLevel}`);
+    return grants.map((grant: AdminPermission) => `${grant.module}:${grant.accessLevel}`);
   }
 
   private async getUserOrThrow(id: bigint): Promise<User> {

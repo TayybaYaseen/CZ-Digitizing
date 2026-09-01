@@ -1,4 +1,4 @@
-import type { Session } from '@prisma/client';
+import type { Session } from '../../generated/prisma';
 import { VerificationCodeService } from './verification-code.service';
 import { DEVICE_CODE_MAX_ATTEMPTS, RESET_CODE_MAX_ATTEMPTS } from '../auth.constants';
 

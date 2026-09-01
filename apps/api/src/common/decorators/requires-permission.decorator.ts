@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import type { AdminAccessLevel, AdminModule } from '@prisma/client';
+import type { AdminAccessLevel, AdminModule } from '../../generated/prisma';
 
 export const REQUIRES_PERMISSION_KEY = 'requiresPermission';
 

@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import type { AdminPermission } from '../../src/generated/prisma';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
@@ -228,7 +229,7 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     await adminClient.delete(`/api/admin/freelancer-accounts/${created.body.data.id}`).set(adminAuth);
 
     const permissions = await prisma.adminPermission.findMany({ where: { userId: BigInt(created.body.data.id) } });
-    expect(permissions.every((p) => p.revokedAt !== null)).toBe(true);
+    expect(permissions.every((p: AdminPermission) => p.revokedAt !== null)).toBe(true);
   });
 
   // AC-11

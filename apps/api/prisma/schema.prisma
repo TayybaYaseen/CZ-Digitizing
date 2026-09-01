@@ -4,8 +4,15 @@
 // aspect owns — designs/orders/etc. belong to their own specs' migrations (docs/CLAUDE.md
 // dependency-ordered build rule).
 
+// Generated to a project-local path and imported by relative path (not the "@prisma/client"
+// package name) everywhere in apps/api. In a pnpm workspace, "@prisma/client"'s own postinstall
+// hook can't auto-locate a non-default-path schema (silently no-ops instead of erroring), and
+// even once generation is wired up explicitly, Node's symlink-following module resolution can
+// land the output and the package-name lookup in different places depending on what invoked
+// `prisma generate` and from where — this sidesteps that whole class of bug outright.
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
