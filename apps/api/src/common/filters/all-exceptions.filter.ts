@@ -63,6 +63,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 
   private fieldFromMessage(message: string): string {
+    // forbidNonWhitelisted violations read "property <field> should not exist" — the field name
+    // is the second word there, unlike every other class-validator message ("<field> must be...").
+    const forbidNonWhitelisted = /^property (\S+) should not exist$/.exec(message);
+    if (forbidNonWhitelisted) return forbidNonWhitelisted[1];
     return message.split(' ')[0] ?? 'unknown';
   }
 
