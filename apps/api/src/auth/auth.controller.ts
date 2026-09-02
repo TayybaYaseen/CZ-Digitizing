@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { Request, Response } from 'express';
 import { ApiException } from '../common/exceptions/api-exception';
@@ -34,6 +35,8 @@ function assertProvider(provider: string): OAuthProvider {
   return provider as OAuthProvider;
 }
 
+@ApiTags('auth')
+@ApiBearerAuth()
 @Controller('api/auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}

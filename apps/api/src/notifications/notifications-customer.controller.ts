@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
@@ -16,6 +17,8 @@ import { NotificationService } from './services/notification.service';
 // absent from the architecture's own endpoint inventory, per spec §8 risk #1) plus the AC-9
 // preference-center endpoints, also proposed since none exist in the architecture inventory
 // either. No @Roles() — any authenticated role, scoped to the caller's own notifications.
+@ApiTags('notifications')
+@ApiBearerAuth()
 @Controller('api/notifications')
 export class NotificationsCustomerController {
   private readonly cipher: SecretCipher;

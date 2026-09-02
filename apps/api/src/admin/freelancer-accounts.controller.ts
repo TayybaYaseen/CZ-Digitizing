@@ -1,10 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { CreateFreelancerAccountDto } from './dto/create-freelancer-account.dto';
 import { FreelancerAccountsService } from './freelancer-accounts.service';
 
+@ApiTags('admin/freelancer-accounts')
+@ApiBearerAuth()
 @Controller('api/admin/freelancer-accounts')
 @Roles('admin')
 export class FreelancerAccountsController {
