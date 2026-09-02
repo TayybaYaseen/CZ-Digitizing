@@ -41,14 +41,23 @@ storage (not the hardened httpOnly-cookie pattern), both flagged as deliberate, 
 trade-offs rather than oversights — see `apps/web/lib/auth-context.tsx`'s comments. Every aspect whose
 Dependencies column is now entirely `Completed` (A-004, A-012, A-005f, A-021 — each depends on
 A-002 alone) is mechanically `Not Started` rather than `Blocked`, per the Status rule in
-[`CLAUDE.md`](CLAUDE.md) §5. A-001 (Brand & Visual Identity System) remains `Not Started`, so
-every aspect that also lists A-001 as a dependency (A-003 and everything downstream of it) is
-still `Blocked`.
+[`CLAUDE.md`](CLAUDE.md) §5.
+
+As of the 2026-09-02 update: A-001 (Brand & Visual Identity System) is `Completed` — see
+`docs/specs/2026-09-02-01-brand-visual-identity.md` (AC-1–AC-6): brand color tokens, a single
+font family, and a placeholder text wordmark (no logo image asset exists in the repo — spec §1/§8,
+tracked as an open item for Admin) applied to both `apps/web` and `apps/admin`'s shared chrome and
+form components. A-003 (Header & Global Navigation), whose Dependencies (`A-001, A-002`) are now
+both `Completed`, is mechanically unblocked to `Not Started` per `CLAUDE.md` §5 — note this only
+unblocks A-003 itself; A-006 and everything else still listing A-003 among its own Dependencies
+stays `Blocked` until A-003 is actually built, not just unblocked.
 
 As of the 2026-09-01 update: A-004 (Notifications System) is `Completed` — backend implementation
 of `docs/specs/2026-08-28-02-notifications-system.md` (AC-1–AC-10), per the approved plan's
-explicit backend-only scope (`apps/api` + `packages/shared-types`; frontend notification-center
-screens per spec §5 were not part of this pass). Covers the internal `NotificationService.notify()`
+explicit backend-only scope (`apps/api` + `packages/shared-types`). As of the 2026-09-02 follow-up,
+`Completed` now also covers the frontend: `/notifications` (`apps/admin`) and `/account/notifications`
+(`apps/web`) per spec §5, plus the AC-9 preference-center UI and the AC-5 unsubscribe-link landing
+page. Covers the internal `NotificationService.notify()`
 contract, admin + customer notification routes (including the proposed `/api/notifications*`
 customer routes and AC-9 preference-center endpoints absent from the architecture's own endpoint
 inventory — spec §8 risk #1), a 19-value consolidated `notification_type` enum (spec §8 risk #2),
@@ -76,9 +85,9 @@ its dependencies remains `Blocked` as before.
 
 | ID | Aspect | Parent Aspect | Dependencies | Level | Status | Order |
 |---|---|---|---|---|---|---|
-| A-001 | Brand & Visual Identity System | — | — | 1 | Not Started | 1 |
+| A-001 | Brand & Visual Identity System | — | — | 1 | Completed | 1 |
 | A-002 | Authentication & Account Security | — | — | 1 | Completed | 2 |
-| A-003 | Header & Global Navigation (core: logo, nav, search entry, cart badge) | A-002 | A-001, A-002 | 2 | Blocked | 3 |
+| A-003 | Header & Global Navigation (core: logo, nav, search entry, cart badge) | A-002 | A-001, A-002 | 2 | Not Started | 3 |
 | A-004 | Notifications System | A-002 | A-002 | 2 | Completed | 4 |
 | A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Not Started | 5 |
 | A-005f | Admin: Admin Users/Roles & Active Sessions | A-002 | A-002 | 2 | Not Started | 6 |
@@ -364,3 +373,5 @@ build order, and was not assumed to be one anywhere in this file.
 | 2026-09-01 | A-004 Status: Not Started → In Progress | Backend implementation of `docs/specs/2026-08-28-02-notifications-system.md` (AC-1–AC-10) started; A-002 is `Completed`, the sole Dependency, so this satisfies `CLAUDE.md` §3's before-work check. Implementation plan approved by Admin, covering `apps/api` + `packages/shared-types` only |
 | 2026-09-01 | A-004 Status: In Progress → Completed; A-005 Status: Blocked → Not Started | AC-1–AC-10 backend implementation verified: 31 new unit tests (63 total in `apps/api`), 10/10 integration tests (one per AC) against real Postgres/Redis. Push (AC-7) and the subscription-renewal batch ship as documented stubs pending A-023/A-015 (both still `Blocked`) — a deliberate, plan-approved deferral, not an oversight. Frontend notification-center screens (spec §5) were out of scope for this pass, matching the approved plan's explicit backend-only scope — `Completed` here covers `apps/api` + `packages/shared-types` only. A-005, whose Dependencies (`A-002, A-004`) are now both `Completed`, is mechanically unblocked per `CLAUDE.md` §5 |
 | 2026-09-01 | Added `docs/specs/2026-09-01-20-landing-page-experience.md` (Status: Draft, no registry rows changed) | Planning-only spec composing A-003, A-018/A-018a/A-018b/A-018c, A-009, and A-012c into the customer-facing home/landing page, written per explicit Admin request at Admin's chosen option: author the document now but keep it honestly `Blocked`, since every one of those aspects still traces back to A-001 (Brand & Visual Identity System), still `Not Started`. No new Aspect Registry row was added — the spec cites each composed aspect's existing Parent/Dependencies rather than inventing a new one, per `CLAUDE.md` §6's rule against inventing relationships. No aspect's Status, Order, or Dependencies changed as a result of this entry |
+| 2026-09-02 | A-004 scope note updated: `Completed` now explicitly covers frontend UI too, not backend only | Built the notification-center screens deferred by the 2026-09-01 backend-only pass: `/notifications` (`apps/admin`) and `/account/notifications` (`apps/web`) list views with loading/empty/error states, mark-read/delete, unread-count bell in both apps' headers, the AC-9 preference-center toggle grid, and the AC-5 unsubscribe-link landing page (`apps/web/app/account/notifications/preferences`). Also closed two AC-5 gaps found during the frontend pass, not part of the original backend-only scope: `NotificationDispatchService` had no actual retry logic despite the AC's "retries with exponential backoff" requirement (added a 3-attempt/500ms-2000ms backoff for the `email` channel only, per its `NotificationDeliveryStatus.retried` enum value that previously went unused), and the unsubscribe link the email template already generated had no backing route (added a `@Public()` `GET /api/notifications/unsubscribe` endpoint). Verified with 3 new unit tests (69 total in `apps/api`), 1 new + 1 corrected integration test (12 total in the notifications suite — the AC-5 failure-path test previously rejected only once, which the new retry logic would now silently resolve on the retry), and `tsc --noEmit` clean across `apps/api`/`apps/web`/`apps/admin`. No Status/Order/Dependency values changed — A-004 was already `Completed` |
+| 2026-09-02 | A-001 Status: Not Started → Completed; A-003 Status: Blocked → Not Started | Added `docs/specs/2026-09-02-01-brand-visual-identity.md` (AC-1–AC-6) and implemented it: brand color tokens (`brand.navy`/`navyLight`/`gold`/`silver`/`lightGray`) added to both apps' `tailwind.config.ts`, a single `next/font` Inter family replacing the default system stack, and a shared `Logo` component rendering a styled text wordmark. No logo image asset exists anywhere in this repository — only a narrative SRS description ("moon-shaped C + metallic Z + needle/thread") — so per Admin's explicit choice (asked directly, not assumed) this ships a text-wordmark placeholder behind one component, tracked as spec §8 risk #1 pending the real asset. Existing shared components built before this spec existed (`FormField`, both apps' headers/footers, the two notification-center pages) were re-pointed from ad hoc indigo/gray colors onto the new tokens with no behavioral change. Exact hex values are this spec's own concretization of the SRS's narrative palette — flagged as spec §8 risk #2 for Admin to review. Verified with `tsc --noEmit` and lint clean across all packages, plus live rendering confirmed against the running dev servers. A-003, whose Dependencies (`A-001, A-002`) are now both `Completed`, is mechanically unblocked per `CLAUDE.md` §5 — this does not unblock A-006 or anything else still listing A-003 itself as a dependency, since A-003 is only `Not Started`, not `Completed` |

@@ -22,8 +22,10 @@ export function FormField({
   );
 }
 
+// docs/specs/2026-09-02-01-brand-visual-identity.md AC-5 — re-pointed from the pre-brand-system
+// indigo palette onto the brand navy/gold tokens; no behavioral change.
 export const inputClass =
-  'w-full h-11 rounded-lg border border-slate-300 px-3.5 text-[14.5px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-[3px] focus:ring-indigo-100';
+  'w-full h-11 rounded-lg border border-slate-300 px-3.5 text-[14.5px] text-slate-900 placeholder:text-slate-400 focus:border-brand-navy focus:outline-none focus:ring-[3px] focus:ring-brand-gold/20';
 
 export const submitButtonClass =
-  'w-full h-11 rounded-lg bg-indigo-600 px-4 text-[14.5px] font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full h-11 rounded-lg bg-brand-navy px-4 text-[14.5px] font-semibold text-white hover:bg-brand-navyLight disabled:cursor-not-allowed disabled:opacity-50';

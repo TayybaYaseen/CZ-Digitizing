@@ -115,7 +115,7 @@ function LoginForm() {
         </FormField>
 
         <div className="text-right text-sm">
-          <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+          <Link href="/forgot-password" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
             Forgot password?
           </Link>
         </div>
@@ -127,7 +127,7 @@ function LoginForm() {
 
       <p className="mt-8 text-center text-[13.5px] text-slate-600">
         No account yet?{' '}
-        <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+        <Link href="/register" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
           Register
         </Link>
       </p>

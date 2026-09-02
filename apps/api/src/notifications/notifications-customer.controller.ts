@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
+import { SecretCipher } from '../common/crypto/secret-cipher';
+import type { Env } from '../config/env.validation';
 import { RateLimiterService } from '../common/rate-limit/rate-limiter.service';
+import type { NotificationType } from '../generated/prisma';
 import { NotificationQueryDto } from './dto/notification-query.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { NotificationPreferenceService } from './services/notification-preference.service';
@@ -13,11 +18,16 @@ import { NotificationService } from './services/notification.service';
 // either. No @Roles() — any authenticated role, scoped to the caller's own notifications.
 @Controller('api/notifications')
 export class NotificationsCustomerController {
+  private readonly cipher: SecretCipher;
+
   constructor(
     private readonly service: NotificationService,
     private readonly preferences: NotificationPreferenceService,
     private readonly rateLimiter: RateLimiterService,
-  ) {}
+    config: ConfigService<Env, true>,
+  ) {
+    this.cipher = SecretCipher.fromBase64Key(config.get('APP_ENCRYPTION_KEY', { infer: true }));
+  }
 
   @Get()
   async list(@Query() query: NotificationQueryDto, @CurrentUser() user: AccessTokenPayload) {
@@ -46,5 +56,28 @@ export class NotificationsCustomerController {
   async updatePreferences(@Body() dto: UpdateNotificationPreferencesDto, @CurrentUser() user: AccessTokenPayload) {
     await this.rateLimiter.consume(`notifications:preferences:${user.sub}`, 20, 60);
     await this.preferences.upsertMany(BigInt(user.sub), dto.preferences);
+  }
+
+  // AC-5 — one-click email unsubscribe link target. Public: the token itself (opaque, encrypted
+  // "userId:type") is the authorization — a signed-in session shouldn't be required just to stop
+  // an email, matching standard email-unsubscribe UX. Only ever turns the email channel off for
+  // that one notification type; other channels/types are untouched.
+  @Public()
+  @Get('unsubscribe')
+  async unsubscribe(@Query('token') token: string) {
+    if (!token) throw new BadRequestException('Missing token');
+
+    let userId: bigint;
+    let notificationType: NotificationType;
+    try {
+      const [rawUserId, rawType] = this.cipher.decrypt(decodeURIComponent(token)).split(':');
+      userId = BigInt(rawUserId);
+      notificationType = rawType as NotificationType;
+    } catch {
+      throw new BadRequestException('Invalid or expired unsubscribe link');
+    }
+
+    await this.preferences.upsertMany(userId, [{ notificationType, channel: 'email', enabled: false }]);
+    return { notificationType, channel: 'email', enabled: false };
   }
 }
