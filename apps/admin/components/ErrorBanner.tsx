@@ -6,7 +6,7 @@ export function ErrorBanner({ error }: { error: ApiError | null }) {
   if (!error || error.code === 'VALIDATION_ERROR') return null;
 
   return (
-    <div className="rounded-md border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-300">
+    <div className="rounded-field border border-red-200 bg-status-redBg px-4 py-3 text-sm text-status-redFg">
       {error.message}
     </div>
   );
@@ -14,7 +14,7 @@ export function ErrorBanner({ error }: { error: ApiError | null }) {
 
 export function SuccessBanner({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-green-900 bg-green-950 px-4 py-3 text-sm text-green-300">
+    <div className="rounded-field border border-green-200 bg-status-greenBg px-4 py-3 text-sm text-status-greenFg">
       {message}
     </div>
   );

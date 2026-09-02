@@ -13,19 +13,20 @@ export function FormField({
 }) {
   return (
     <div className="space-y-1">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-300">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-600">
         {label}
       </label>
       {children}
-      {error && <p className="text-sm text-red-400">{error.message}</p>}
+      {error && <p className="text-sm text-status-redFg">{error.message}</p>}
     </div>
   );
 }
 
-// docs/specs/2026-09-02-01-brand-visual-identity.md AC-5 — re-pointed onto the brand navy/gold
-// tokens instead of the achromatic gray palette chosen before a design system existed.
+// docs/CZ Digitizing Admin Panel.html's decoded field/button styling — light-surface admin panel
+// (the design's Card/Field components sit on white, not navy — see components/ui/Card.tsx),
+// superseding the interim dark-on-navy treatment used before this reference existed.
 export const inputClass =
-  'w-full rounded-md border border-brand-silver/20 bg-brand-navy px-3 py-2 text-sm text-brand-silver focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40';
+  'w-full rounded-field border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500/40';
 
 export const submitButtonClass =
-  'w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full rounded-field bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-800 hover:brightness-105 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500';

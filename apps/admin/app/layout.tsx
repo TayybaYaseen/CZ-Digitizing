@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Montserrat, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/NotificationBell';
-import { Logo } from '@/components/Logo';
+import { Sidebar } from '@/components/Sidebar';
 
-// docs/specs/2026-09-02-01-brand-visual-identity.md AC-4 — same font token as apps/web.
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+// Brand kit fonts per docs/CZ Digitizing Admin Panel.html's design tokens (Playfair Display for
+// headings, Montserrat for body) — supersedes the interim Inter-only choice used before this
+// reference existed (docs/specs/2026-09-02-01-brand-visual-identity.md AC-4).
+const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
+const montserrat = Montserrat({ subsets: ['latin'], variable: '--font-montserrat' });
 
 export const metadata: Metadata = {
   title: 'CZ Digitizing — Admin',
@@ -15,14 +18,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-brand-navy font-sans text-brand-silver antialiased">
+    <html lang="en" className={`${playfair.variable} ${montserrat.variable}`}>
+      <body className="min-h-screen bg-gray-100 font-sans text-gray-700 antialiased">
         <AuthProvider>
-          <header className="flex items-center justify-between border-b border-brand-silver/10 bg-brand-navyLight px-6 py-4">
-            <Logo variant="dark" />
-            <NotificationBell />
-          </header>
-          <main className="p-6">{children}</main>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-end gap-3 border-b border-gray-200 bg-white px-6 py-3">
+                <NotificationBell />
+              </div>
+              <main className="p-6">{children}</main>
+            </div>
+          </div>
         </AuthProvider>
       </body>
     </html>

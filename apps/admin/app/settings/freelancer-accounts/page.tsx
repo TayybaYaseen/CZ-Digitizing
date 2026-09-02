@@ -10,6 +10,7 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { Card } from '@/components/ui/Card';
 
 // Mirrors apps/api/prisma/schema.prisma's AdminModule/AdminAccessLevel enums exactly.
 const ADMIN_MODULES = [
@@ -137,35 +138,36 @@ export default function FreelancerAccountsPage() {
   if (!isReady || !user) return null; // still checking localStorage, or redirecting to /login
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Freelancer &amp; limited-admin accounts</h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <h1 className="font-display text-3xl font-bold text-navy-800">Freelancer &amp; limited-admin accounts</h1>
+        <p className="mt-1 text-sm text-gray-500">
           Scoped accounts with read-only or CRUD access to specific modules. Revoking immediately
           invalidates their active sessions (AC-8).
         </p>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Existing accounts</h2>
-        <ErrorBanner error={listError} />
+      <Card title="Existing accounts" padding="p-0">
+        <div className="p-4 pb-0">
+          <ErrorBanner error={listError} />
+        </div>
         {accounts === null ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p className="p-4 text-sm text-gray-400">Loading…</p>
         ) : accounts.length === 0 ? (
-          <p className="text-sm text-gray-400">No freelancer accounts yet.</p>
+          <p className="p-4 text-sm text-gray-400">No freelancer accounts yet.</p>
         ) : (
-          <ul className="divide-y divide-gray-800 rounded-md border border-gray-800">
+          <ul className="divide-y divide-gray-100">
             {accounts.map((account) => (
               <li key={account.id} className="flex items-center justify-between gap-4 px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium">{account.email}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm font-medium text-navy-800">{account.email}</p>
+                  <p className="text-xs text-gray-500">
                     {account.role} — {account.permissions.map((p) => `${p.module}:${p.accessLevel}`).join(', ') || 'no active permissions'}
                   </p>
                 </div>
                 <button
                   onClick={() => onRevoke(account.id)}
-                  className="rounded-md border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950"
+                  className="rounded-field border border-status-redFg/30 px-3 py-1 text-xs text-status-redFg hover:bg-status-redBg"
                 >
                   Revoke
                 </button>
@@ -173,13 +175,12 @@ export default function FreelancerAccountsPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Create account</h2>
+      <Card title="Create account">
         {successMessage && <SuccessBanner message={successMessage} />}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-3 space-y-4" noValidate>
           <ErrorBanner error={apiError} />
 
           <FormField label="Email" htmlFor="email" error={errors.email}>
@@ -191,23 +192,23 @@ export default function FreelancerAccountsPage() {
           </FormField>
 
           <fieldset className="space-y-1">
-            <legend className="text-sm font-medium text-gray-300">Role</legend>
-            <label className="mr-4 text-sm text-gray-300">
+            <legend className="text-sm font-medium text-gray-600">Role</legend>
+            <label className="mr-4 text-sm text-gray-700">
               <input type="radio" value="freelancer" className="mr-1" {...register('role')} /> Freelancer
             </label>
-            <label className="text-sm text-gray-300">
+            <label className="text-sm text-gray-700">
               <input type="radio" value="moderator" className="mr-1" {...register('role')} /> Moderator
             </label>
           </fieldset>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-300">Module permissions</legend>
+            <legend className="text-sm font-medium text-gray-600">Module permissions</legend>
             <div className="grid grid-cols-2 gap-2">
               {ADMIN_MODULES.map((module) => {
                 const grant = permissions.find((p) => p.module === module);
                 return (
-                  <div key={module} className="flex items-center justify-between rounded-md border border-gray-800 px-2 py-1.5">
-                    <label className="text-sm text-gray-300">
+                  <div key={module} className="flex items-center justify-between rounded-field border border-gray-200 px-2 py-1.5">
+                    <label className="text-sm text-gray-700">
                       <input type="checkbox" checked={!!grant} onChange={() => togglePermission(module)} className="mr-2" />
                       {module}
                     </label>
@@ -215,7 +216,7 @@ export default function FreelancerAccountsPage() {
                       <select
                         value={grant.accessLevel}
                         onChange={(e) => setPermissionLevel(module, e.target.value as PermissionGrant['accessLevel'])}
-                        className="rounded border border-gray-700 bg-gray-900 text-xs text-gray-100"
+                        className="rounded border border-gray-300 bg-white text-xs text-gray-700"
                       >
                         {ACCESS_LEVELS.map((level) => (
                           <option key={level} value={level}>
@@ -234,7 +235,7 @@ export default function FreelancerAccountsPage() {
             {isSubmitting ? 'Creating…' : 'Create account'}
           </button>
         </form>
-      </section>
+      </Card>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function NotificationBell() {
   if (!user) return null;
 
   return (
-    <Link href="/notifications" className="relative inline-flex items-center rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5">
+    <Link href="/notifications" className="relative inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">
       Notifications
       {!!count && (
         <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-semibold text-white">
