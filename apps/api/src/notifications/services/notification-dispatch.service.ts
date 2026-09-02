@@ -37,23 +37,44 @@ export class NotificationDispatchService {
     return outcomes;
   }
 
+  // AC-5 — email retries with exponential backoff on transient failure (target 99.9% delivery).
+  // Other channels don't carry that AC and stay single-attempt, matching their own dedicated ACs
+  // (AC-6/AC-10 describe fallback-to-another-channel, not retry-the-same-channel).
+  private static readonly RETRY_BACKOFF_MS = [500, 2000];
+
   private async dispatchOne(notification: Notification, recipient: User, channel: NotificationChannel): Promise<boolean> {
     const log = await this.prisma.notificationDeliveryLog.create({
       data: { notificationId: notification.id, channel, status: 'queued' },
     });
 
-    try {
-      const providerMessageId = await this.send(notification, recipient, channel);
-      await this.prisma.notificationDeliveryLog.update({
-        where: { id: log.id },
-        data: { status: 'sent', providerMessageId },
-      });
-      return true;
-    } catch (err) {
-      this.logger.warn(`Notification ${notification.id} delivery failed on ${channel}: ${(err as Error).message}`);
-      await this.prisma.notificationDeliveryLog.update({ where: { id: log.id }, data: { status: 'failed' } });
-      return false;
+    const maxAttempts = channel === 'email' ? NotificationDispatchService.RETRY_BACKOFF_MS.length + 1 : 1;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const providerMessageId = await this.send(notification, recipient, channel);
+        await this.prisma.notificationDeliveryLog.update({
+          where: { id: log.id },
+          data: { status: 'sent', providerMessageId },
+        });
+        return true;
+      } catch (err) {
+        lastError = err as Error;
+        const isLastAttempt = attempt === maxAttempts;
+        this.logger.warn(
+          `Notification ${notification.id} delivery failed on ${channel} (attempt ${attempt}/${maxAttempts}): ${lastError.message}`,
+        );
+        await this.prisma.notificationDeliveryLog.update({
+          where: { id: log.id },
+          data: { status: isLastAttempt ? 'failed' : 'retried' },
+        });
+        if (!isLastAttempt) {
+          await new Promise((resolve) => setTimeout(resolve, NotificationDispatchService.RETRY_BACKOFF_MS[attempt - 1]));
+        }
+      }
     }
+
+    return false;
   }
 
   private async send(notification: Notification, recipient: User, channel: NotificationChannel): Promise<string | undefined> {

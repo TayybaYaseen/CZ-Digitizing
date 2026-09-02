@@ -135,6 +135,15 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(setup.status).toBe(200);
     expect(setup.body.data.secret).toBeDefined();
 
+    // Regression: /2fa/setup must be idempotent while setup is still in progress. A page refresh,
+    // React StrictMode's double-effect in dev, or a retried request calling this a second time
+    // must not silently mint a new secret and invalidate the QR code the user already scanned —
+    // that was a real bug (fixed alongside this test) where every call overwrote
+    // users.two_factor_secret, so whichever call happened last silently won.
+    const secondSetup = await client.post('/api/auth/2fa/setup').set(pendingAuth).send();
+    expect(secondSetup.status).toBe(200);
+    expect(secondSetup.body.data.secret).toBe(setup.body.data.secret);
+
     const { authenticator } = await import('otplib');
     const code = authenticator.generate(setup.body.data.secret);
     const confirm = await client.post('/api/auth/2fa/confirm').set(pendingAuth).send({ code });

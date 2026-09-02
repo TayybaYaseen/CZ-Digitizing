@@ -22,8 +22,10 @@ export function FormField({
   );
 }
 
+// docs/specs/2026-09-02-01-brand-visual-identity.md AC-5 — re-pointed onto the brand navy/gold
+// tokens instead of the achromatic gray palette chosen before a design system existed.
 export const inputClass =
-  'w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400';
+  'w-full rounded-md border border-brand-silver/20 bg-brand-navy px-3 py-2 text-sm text-brand-silver focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40';
 
 export const submitButtonClass =
-  'w-full rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50';

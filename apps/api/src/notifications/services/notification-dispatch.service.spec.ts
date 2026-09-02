@@ -65,4 +65,45 @@ describe('NotificationDispatchService', () => {
 
     expect(prisma.logs).toEqual([expect.objectContaining({ channel: 'whatsapp', status: 'failed' })]);
   });
+
+  // AC-5 — email retries with exponential backoff on transient failure.
+  it('retries email up to 3 attempts total and marks sent once a retry succeeds', async () => {
+    const prisma = createFakePrisma();
+    const email = {
+      send: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('transient SMTP error'))
+        .mockRejectedValueOnce(new Error('transient SMTP error'))
+        .mockResolvedValueOnce(undefined),
+    };
+    const dispatch = new NotificationDispatchService(prisma as never, email as never, {} as never, {} as never, {} as never);
+
+    const outcomes = await dispatch.dispatchAll(notification, recipient, ['email']);
+
+    expect(outcomes).toEqual({ email: true });
+    expect(email.send).toHaveBeenCalledTimes(3);
+    expect(prisma.logs).toEqual([expect.objectContaining({ channel: 'email', status: 'sent' })]);
+  }, 10_000);
+
+  it('marks email failed only after exhausting all retry attempts', async () => {
+    const prisma = createFakePrisma();
+    const email = { send: jest.fn().mockRejectedValue(new Error('permanently down')) };
+    const dispatch = new NotificationDispatchService(prisma as never, email as never, {} as never, {} as never, {} as never);
+
+    const outcomes = await dispatch.dispatchAll(notification, recipient, ['email']);
+
+    expect(outcomes).toEqual({ email: false });
+    expect(email.send).toHaveBeenCalledTimes(3);
+    expect(prisma.logs).toEqual([expect.objectContaining({ channel: 'email', status: 'failed' })]);
+  }, 10_000);
+
+  it('does not retry non-email channels (single attempt only)', async () => {
+    const prisma = createFakePrisma();
+    const whatsapp = { send: jest.fn().mockRejectedValue(new Error('down')) };
+    const dispatch = new NotificationDispatchService(prisma as never, {} as never, whatsapp as never, {} as never, {} as never);
+
+    await dispatch.dispatchAll(notification, recipient, ['whatsapp']);
+
+    expect(whatsapp.send).toHaveBeenCalledTimes(1);
+  });
 });

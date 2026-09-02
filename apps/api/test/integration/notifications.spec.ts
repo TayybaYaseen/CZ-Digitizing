@@ -144,14 +144,18 @@ describe('Notifications API (docs/specs/2026-08-28-02-notifications-system.md)',
     await notifications.notify({ recipientUserId: customer.id.toString(), type: 'order_confirmed', title: 'Order confirmed', message: 'Thanks', channels: ['email'] });
     expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ html: expect.stringContaining('Order confirmed') }));
 
-    sendMock.mockRejectedValueOnce(new Error('SMTP down'));
+    // Persistently failing (not just once) — dispatch retries with backoff before giving up, so a
+    // single rejection would resolve on the retry and never reach 'failed' (see the dedicated
+    // retry-behavior unit tests in notification-dispatch.service.spec.ts).
+    sendMock.mockRejectedValue(new Error('SMTP down'));
     await expect(
       notifications.notify({ recipientUserId: customer.id.toString(), type: 'order_confirmed', title: 'Order confirmed again', message: 'x', channels: ['email'] }),
     ).resolves.toBeUndefined();
 
     const failedLog = await prisma.notificationDeliveryLog.findFirst({ where: { channel: 'email', status: 'failed' } });
     expect(failedLog).not.toBeNull();
-  });
+    expect(sendMock).toHaveBeenCalledTimes(1 + 3); // 1 success above + 3 attempts for the persistent failure
+  }, 10_000);
 
   // AC-6
   it('falls back to email/in-app when the customer has not messaged WhatsApp recently', async () => {
@@ -248,5 +252,28 @@ describe('Notifications API (docs/specs/2026-08-28-02-notifications-system.md)',
     const row = await prisma.notification.findFirstOrThrow({ where: { recipientUserId: customer.id } });
     const smsLog = await prisma.notificationDeliveryLog.findFirst({ where: { notificationId: row.id, channel: 'sms' } });
     expect(smsLog).not.toBeNull(); // attempted (fails at the Twilio-not-configured layer in this test env, still proves the fallback fired)
+  });
+
+  // AC-5's unsubscribe link target — public, token-authorized, no login required.
+  it('one-click email unsubscribe disables only that type/channel and requires no auth', async () => {
+    const customer = await createUser();
+    await notifications.notify({ recipientUserId: customer.id.toString(), type: 'order_confirmed', title: 'Order confirmed', message: 'x', channels: ['email'] });
+
+    const emailArg = sendMock.mock.calls[0][0] as { html: string };
+    const unsubscribeUrl = /href="([^"]*)"/.exec(emailArg.html)?.[1];
+    expect(unsubscribeUrl).toBeTruthy();
+    const token = new URL(unsubscribeUrl!.replace(/&amp;/g, '&')).searchParams.get('token')!;
+
+    const res = await agent().get(`/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ notificationType: 'order_confirmed', channel: 'email', enabled: false });
+
+    const pref = await prisma.notificationPreference.findFirst({
+      where: { userId: customer.id, notificationType: 'order_confirmed', channel: 'email' },
+    });
+    expect(pref?.enabled).toBe(false);
+
+    const bad = await agent().get('/api/notifications/unsubscribe?token=not-a-real-token');
+    expect(bad.status).toBe(400);
   });
 });

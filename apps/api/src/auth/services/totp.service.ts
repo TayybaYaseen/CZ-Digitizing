@@ -21,8 +21,16 @@ export class TotpService {
     return {
       secret,
       encryptedSecret: this.cipher.encrypt(secret),
-      otpauthUrl: authenticator.keyuri(email, 'CZ Digitizing', secret),
+      otpauthUrl: this.otpauthUrl(email, secret),
     };
+  }
+
+  otpauthUrl(email: string, secret: string): string {
+    return authenticator.keyuri(email, 'CZ Digitizing', secret);
+  }
+
+  decryptSecret(encryptedSecret: string): string {
+    return this.cipher.decrypt(encryptedSecret);
   }
 
   verify(code: string, encryptedSecret: string): void {

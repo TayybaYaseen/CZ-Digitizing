@@ -28,6 +28,24 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (body as ApiResponse<T>).data;
 }
 
+// Same as apiFetch, but returns the full envelope — needed by paginated list views that read
+// `meta.total` (apiFetch discards it, which is fine for every non-paginated caller).
+export async function apiFetchWithMeta<T>(path: string, init?: RequestInit): Promise<ApiResponse<T>> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  });
+
+  const body = await res.json();
+
+  if (!res.ok) {
+    throw new ApiClientError((body as { error: ApiError }).error);
+  }
+
+  return body as ApiResponse<T>;
+}
+
 // /health is wrapped in the ApiResponse<T> envelope like every other route, via
 // apps/api/src/common/interceptors/response.interceptor.ts's global interceptor.
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {

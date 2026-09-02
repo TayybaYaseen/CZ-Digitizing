@@ -1,4 +1,5 @@
 import { Controller, Delete, Get, HttpCode, Param, Put, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
@@ -9,6 +10,8 @@ import { NotificationService } from './services/notification.service';
 // maps onto the codebase's existing ApiResponse<T[]> + meta convention (packages/shared-types) —
 // no separate paging type introduced. Scoped to the calling admin's own notifications, same as
 // the customer controller — the only difference is the @Roles('admin') gate.
+@ApiTags('admin/notifications')
+@ApiBearerAuth()
 @Controller('api/admin/notifications')
 @Roles('admin')
 export class NotificationsAdminController {
