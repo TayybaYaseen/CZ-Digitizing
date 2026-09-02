@@ -139,6 +139,17 @@ export class AuthService {
 
   async setupTwoFactor(pending: PartialSessionTokenPayload): Promise<TwoFactorSetupDto> {
     const user = await this.getUserOrThrow(BigInt(pending.sub));
+
+    // Idempotent while setup is still in progress (twoFactorEnabled still false) — a page
+    // refresh, React StrictMode's double-effect in dev (exactly what triggers this on
+    // /login/2fa's mount), or a retried request must never silently invalidate a secret the user
+    // already scanned into their authenticator app. Only mint a new one when there truly isn't
+    // one yet, or when 2FA was previously enabled and this is a deliberate re-setup.
+    if (user.twoFactorSecret && !user.twoFactorEnabled) {
+      const secret = this.totp.decryptSecret(user.twoFactorSecret);
+      return { otpauthUrl: this.totp.otpauthUrl(user.email, secret), secret };
+    }
+
     const enrollment = this.totp.generateEnrollment(user.email);
     await this.prisma.user.update({ where: { id: user.id }, data: { twoFactorSecret: enrollment.encryptedSecret } });
     return { otpauthUrl: enrollment.otpauthUrl, secret: enrollment.secret };
