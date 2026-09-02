@@ -26,7 +26,9 @@ export interface RefreshTokenPayload {
 export interface MagicLinkTokenPayload {
   purpose: 'magic_link';
   sub: string;
+  email: string; // lets the frontend prefill /verify-device without a second round trip
   device_id: string;
+  jti: string; // single-use marker — consumed via Redis on first verification, see auth.service.ts
   iat: number;
   exp: number;
 }

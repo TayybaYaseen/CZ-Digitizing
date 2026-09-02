@@ -241,6 +241,40 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(permissions.every((p: AdminPermission) => p.revokedAt !== null)).toBe(true);
   });
 
+  // AC-11 — moderator's content-moderation baseline (testimonials/blog/portfolio/faqs) is granted
+  // automatically, not something Admin has to remember to configure per account like a
+  // freelancer's fully custom scope.
+  it('grants a moderator its default content-moderation permission set automatically', async () => {
+    const admin = await prisma.user.create({
+      data: { email: 'admin3@example.com', passwordHash: await hashForTest('adminpass123'), role: 'admin', twoFactorEnabled: false },
+    });
+    const adminClient = agent();
+    const login = await adminClient.post('/api/auth/login').send({ email: admin.email, password: 'adminpass123' });
+    const pendingAuth = { Authorization: `Bearer ${login.body.data.pendingTwoFactorToken}` };
+    const setup = await adminClient.post('/api/auth/2fa/setup').set(pendingAuth).send();
+    const { authenticator } = await import('otplib');
+    const confirm = await adminClient.post('/api/auth/2fa/confirm').set(pendingAuth).send({ code: authenticator.generate(setup.body.data.secret) });
+    const adminAuth = { Authorization: `Bearer ${confirm.body.data.accessToken}` };
+
+    // Admin grants only one extra module explicitly — the moderator baseline should still show up
+    // alongside it, not be silently dropped.
+    const created = await adminClient
+      .post('/api/admin/freelancer-accounts')
+      .set(adminAuth)
+      .send({ email: 'moderator2@example.com', role: 'moderator', permissions: [{ module: 'settings', accessLevel: 'read_only' }] });
+    expect(created.status).toBe(201);
+
+    const permissions = await prisma.adminPermission.findMany({ where: { userId: BigInt(created.body.data.id), revokedAt: null } });
+    const byModule = Object.fromEntries(permissions.map((p: AdminPermission) => [p.module, p.accessLevel]));
+    expect(byModule).toMatchObject({
+      testimonials: 'crud',
+      blog: 'crud',
+      portfolio: 'crud',
+      faqs: 'crud',
+      settings: 'read_only',
+    });
+  });
+
   // AC-11
   it('logs a moderator in with the same device-trust flow as a customer', async () => {
     await prisma.user.create({
@@ -267,6 +301,12 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     const verify = await client.get('/api/auth/magic-link/verify').query({ token });
     expect(verify.status).toBe(200);
     expect(verify.body.data.accessToken).toBeDefined();
+
+    // Regression: a signature-valid, unexpired JWT is otherwise replayable indefinitely — a
+    // magic link (sent over email, easily forwarded/cached/re-clicked) must be single-use.
+    const replay = await client.get('/api/auth/magic-link/verify').query({ token });
+    expect(replay.status).toBe(401);
+    expect(replay.body.error.code).toBe('INVALID_OR_EXPIRED_CODE');
   });
 
   it('still requires new-device verification for a magic-link login from an untrusted device (AC-2/AC-3 apply)', async () => {

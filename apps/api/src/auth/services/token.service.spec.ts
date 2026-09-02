@@ -49,7 +49,7 @@ describe('TokenService', () => {
   });
 
   it('rejects a magic-link token presented as a pending-2FA token (purpose mismatch)', () => {
-    const magicLink = service.signMagicLinkToken({ userId: 1n, deviceId: 'device-1' });
+    const magicLink = service.signMagicLinkToken({ userId: 1n, email: 'user@example.com', deviceId: 'device-1' });
     expect(() => service.verifyPendingTwoFactorToken(magicLink)).toThrow();
   });
 });
