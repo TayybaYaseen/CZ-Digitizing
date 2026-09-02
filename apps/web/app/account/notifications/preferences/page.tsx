@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
@@ -13,6 +13,14 @@ function humanize(value: string) {
 // AC-5 — target of the one-click unsubscribe link in notification emails. Public page: no login
 // required, the token in the URL is the authorization (mirrors the backend's @Public() route).
 export default function UnsubscribePage() {
+  return (
+    <Suspense>
+      <UnsubscribeContent />
+    </Suspense>
+  );
+}
+
+function UnsubscribeContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const [result, setResult] = useState<{ notificationType: string } | null>(null);

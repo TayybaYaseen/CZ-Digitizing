@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { randomUUID } from 'crypto';
 import type { Role } from '@czd/shared-types';
 import { ApiException } from '../../common/exceptions/api-exception';
 import type { Env } from '../../config/env.validation';
@@ -59,11 +60,13 @@ export class TokenService {
     return this.verify<RefreshTokenPayload>(token, this.refreshSecret);
   }
 
-  signMagicLinkToken(input: { userId: bigint; deviceId: string }): string {
+  signMagicLinkToken(input: { userId: bigint; email: string; deviceId: string }): string {
     const payload: Omit<MagicLinkTokenPayload, 'iat' | 'exp'> = {
       purpose: 'magic_link',
       sub: input.userId.toString(),
+      email: input.email,
       device_id: input.deviceId,
+      jti: randomUUID(),
     };
     return this.jwt.sign(payload, { secret: this.accessSecret, expiresIn: MAGIC_LINK_TTL_SECONDS });
   }

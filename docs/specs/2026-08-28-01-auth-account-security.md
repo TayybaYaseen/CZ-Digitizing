@@ -161,6 +161,7 @@ passwordless/magic-link login) has been folded into AC-10–AC-12 above.
 | 1 | Exact freelancer permission granularity (per-module vs. per-category vs. per-record) is described narratively only; `admin_permissions.module` needs an agreed enum of module names before implementation | Admin / Engineering | Open |
 | 2 | Device fingerprinting method (cookie, browser fingerprint library, or IP+UA heuristic) not specified | Engineering | Open |
 | 3 | Whether "logout on all devices" is a customer-facing self-service action or admin-only | Admin | Open |
+| 4 | AC-11's "handle support tickets" and "view basic analytics" have no corresponding module/table anywhere in the schema — no support-ticket aspect exists in `SPEC_INDEX.md`, and analytics belongs to A-005d (Admin Dashboard), still `Not Started`. Implemented: an automatic default `admin_permissions` grant for the "approve/reject user-submitted content" portion (`testimonials`, `blog`, `portfolio`, `faqs` — all `crud`) on every moderator account, since those modules do exist (`freelancer-accounts.service.ts`). The other two capabilities cannot be granted until their owning aspects are built | Engineering | Open — revisit once a support-ticket aspect and A-005d exist |
 
 ---
 

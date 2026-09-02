@@ -266,6 +266,11 @@ export class AuthService {
     if (payload.device_id !== device.deviceId) {
       throw new ApiException('INVALID_OR_EXPIRED_CODE', 401, 'Invalid or expired magic link');
     }
+    // AC-12 — a signature-valid, unexpired JWT is otherwise replayable indefinitely within its
+    // 15-minute window; a link sent over email must be single-use, not just time-bounded.
+    if (!(await this.magicLink.claimSingleUse(payload.jti))) {
+      throw new ApiException('INVALID_OR_EXPIRED_CODE', 401, 'This login link has already been used');
+    }
     const user = await this.getUserOrThrow(BigInt(payload.sub));
     return this.completeCredentialCheck(user, device);
   }

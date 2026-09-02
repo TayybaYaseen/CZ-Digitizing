@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AdminPermission, User } from '../generated/prisma';
+import type { AdminAccessLevel, AdminModule, AdminPermission, User } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import { toUserProfileDto, type UserProfileDto } from '../auth/dto/user-profile.dto';
 import { SessionService } from '../auth/services/session.service';
@@ -13,6 +13,22 @@ import type { CreateFreelancerAccountDto } from './dto/create-freelancer-account
 export interface FreelancerAccountDto extends UserProfileDto {
   permissions: { module: string; accessLevel: string }[];
 }
+
+// AC-11 — moderator's "approve/reject user-submitted content" baseline, granted automatically so
+// it's an inherent property of the role rather than something Admin must remember to configure
+// per account, the way a freelancer's fully custom scope is. Limited to modules that actually
+// exist today (AdminModule enum) — AC-11 also names "handle support tickets" and "view basic
+// analytics", which have no corresponding module/table anywhere in the schema yet (no
+// support-ticket aspect exists in SPEC_INDEX.md; analytics belongs to A-005d Admin Dashboard,
+// still `Not Started`) and so cannot be granted here without inventing a module the architecture
+// never defined — tracked as an open risk in docs/specs/2026-08-28-01-auth-account-security.md §8
+// rather than faked with a fabricated enum value.
+const DEFAULT_MODERATOR_PERMISSIONS: { module: AdminModule; accessLevel: AdminAccessLevel }[] = [
+  { module: 'testimonials', accessLevel: 'crud' },
+  { module: 'blog', accessLevel: 'crud' },
+  { module: 'portfolio', accessLevel: 'crud' },
+  { module: 'faqs', accessLevel: 'crud' },
+];
 
 // AC-8 — freelancer/limited-admin account management: scoped creation, listing, and immediate
 // revocation (permissions + all active sessions).
@@ -39,8 +55,9 @@ export class FreelancerAccountsService {
       },
     });
 
+    const permissions = this.resolvePermissions(dto.role, dto.permissions);
     await this.prisma.adminPermission.createMany({
-      data: dto.permissions.map((grant) => ({ userId: user.id, module: grant.module, accessLevel: grant.accessLevel })),
+      data: permissions.map((grant) => ({ userId: user.id, module: grant.module, accessLevel: grant.accessLevel })),
     });
 
     const code = await this.codes.issueResetCode(user.id);
@@ -55,10 +72,24 @@ export class FreelancerAccountsService {
       actionType: 'FREELANCER_ACCOUNT_CREATED',
       resourceType: 'user',
       resourceId: user.id.toString(),
-      changes: { role: dto.role, permissions: dto.permissions },
+      changes: { role: dto.role, permissions },
     });
 
     return toUserProfileDto(user);
+  }
+
+  // Union, not override — an explicit grant Admin already chose for a moderator-baseline module
+  // wins (e.g. a different access level), but the baseline itself is never something Admin has to
+  // remember to add. Freelancer accounts are untouched: fully Admin-configured, per AC-8.
+  private resolvePermissions(
+    role: 'freelancer' | 'moderator',
+    explicit: { module: AdminModule; accessLevel: AdminAccessLevel }[],
+  ): { module: AdminModule; accessLevel: AdminAccessLevel }[] {
+    if (role !== 'moderator') return explicit;
+
+    const explicitModules = new Set(explicit.map((g) => g.module));
+    const defaults = DEFAULT_MODERATOR_PERMISSIONS.filter((g) => !explicitModules.has(g.module));
+    return [...explicit, ...defaults];
   }
 
   async list(): Promise<FreelancerAccountDto[]> {
