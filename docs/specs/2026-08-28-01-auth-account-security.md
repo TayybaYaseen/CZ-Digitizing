@@ -172,3 +172,17 @@ passwordless/magic-link login) has been folded into AC-10–AC-12 above.
   dependent data).
 - **Observability:** alert on abnormal login-failure rate per IP (possible brute force) and on
   `NEW_DEVICE_VERIFICATION_REQUIRED` rate spikes (possible credential-stuffing).
+- **Admin account bootstrap:** there is deliberately no public admin-registration route —
+  `POST /api/auth/register` (AC-1) always creates `role=customer`, and every other admin/
+  freelancer/moderator account can only be created by an *already-authenticated* admin via
+  `POST /api/admin/freelancer-accounts` (AC-8), itself `@Roles('admin')`-gated. A public "create
+  admin account" page would let anyone self-elevate to full system access, defeating AC-5/AC-8's
+  entire purpose — this is a security boundary, not a gap. The one legitimate bootstrap problem
+  this creates — how does the *first* admin account get created, with zero admins yet in the
+  database — is solved by `apps/api/scripts/seed-admin.ts`, a one-time CLI script (`pnpm --filter
+  @czd/api run seed:admin -- --email <email> --password <password>`) run from a trusted machine
+  with direct `DATABASE_URL` access, never exposed as an HTTP route. It hashes the password with
+  the same bcrypt/12-rounds as AC-1, refuses to run if the target email already exists, and refuses
+  a second admin without an explicit `--force` flag (ongoing admin creation belongs to the
+  freelancer-accounts flow above, once at least one admin can log in). The seeded account still
+  hits AC-5's mandatory-2FA gate on first login like any other admin.
