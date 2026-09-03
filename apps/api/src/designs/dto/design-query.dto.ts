@@ -32,6 +32,10 @@ export class DesignQueryDto {
   category?: string[];
 
   @IsOptional()
+  @IsString()
+  subcategoryId?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -60,6 +64,12 @@ export class DesignQueryDto {
   @IsInt()
   @Min(0)
   maxStitchCount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  threadColorCount?: number;
 
   @IsOptional()
   @IsIn(['newest', 'price_asc', 'price_desc'])

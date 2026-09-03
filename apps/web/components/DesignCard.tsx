@@ -36,6 +36,30 @@ interface DesignBackDetail {
 
 const AUTO_SWAP_INTERVAL_MS = 2000; // AC-5
 
+// AC-3 — the front of every card must show its category/subcategory tag. categoryIds/
+// subcategoryId are ids only, so names are resolved from these two module-level caches, fetched
+// once and shared across every DesignCard instance on the page rather than once per card.
+let categoryNameCache: Promise<Map<string, string>> | null = null;
+let subcategoryNameCache: Promise<Map<string, string>> | null = null;
+
+function loadCategoryNames(): Promise<Map<string, string>> {
+  if (!categoryNameCache) {
+    categoryNameCache = apiFetch<{ id: string; name: string }[]>('/api/categories')
+      .then((rows) => new Map(rows.map((r) => [r.id, r.name])))
+      .catch(() => new Map());
+  }
+  return categoryNameCache;
+}
+
+function loadSubcategoryNames(): Promise<Map<string, string>> {
+  if (!subcategoryNameCache) {
+    subcategoryNameCache = apiFetch<{ id: string; name: string }[]>('/api/subcategories')
+      .then((rows) => new Map(rows.map((r) => [r.id, r.name])))
+      .catch(() => new Map());
+  }
+  return subcategoryNameCache;
+}
+
 // AC-3/AC-4/AC-5/AC-8 — front/back flip card with dual-media auto-swap and a favorite toggle.
 export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
   const { user, accessToken } = useAuth();
@@ -44,6 +68,24 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
   const [backDetail, setBackDetail] = useState<DesignBackDetail | null>(null);
   const [showingEmbroidery, setShowingEmbroidery] = useState(false);
   const [userSelectedMedia, setUserSelectedMedia] = useState(false);
+  const [tagName, setTagName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (design.subcategoryId) {
+      loadSubcategoryNames().then((names) => {
+        if (!cancelled) setTagName(names.get(design.subcategoryId!) ?? null);
+      });
+    } else if (design.categoryIds[0]) {
+      const firstCategoryId = design.categoryIds[0];
+      loadCategoryNames().then((names) => {
+        if (!cancelled) setTagName(names.get(firstCategoryId) ?? null);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [design.subcategoryId, design.categoryIds]);
 
   const hasDualMedia = !!(design.vectorImageUrl || design.vectorVideoUrl) && !!(design.embroideryImageUrl || design.embroideryVideoUrl);
 
@@ -114,6 +156,9 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                 ♥
               </button>
             </div>
+            {tagName && (
+              <span className="w-fit rounded-full bg-brand-lightGray px-2 py-0.5 text-[10px] font-medium text-brand-navy">{tagName}</span>
+            )}
             {hasDualMedia && (
               <div className="flex gap-1 text-[10px] text-gray-400">
                 <button onClick={(e) => onSelectMedia(e, false)} className={showingEmbroidery ? '' : 'font-semibold text-brand-navy'}>
@@ -167,6 +212,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
               </div>
               {backDetail.stitchCount !== null && <p>Stitch count: {backDetail.stitchCount}</p>}
               {backDetail.threadColorCount !== null && <p>Thread colors: {backDetail.threadColorCount}</p>}
+              {backDetail.threadColorChanges !== null && <p>Thread color changes: {backDetail.threadColorChanges}</p>}
               {design.tags.length > 0 && <p className="text-gray-400">Tags: {design.tags.join(', ')}</p>}
               <div className="flex items-center justify-between pt-2">
                 <Link href={`/designs/${design.id}`} onClick={(e) => e.stopPropagation()} className="text-brand-navy underline">

@@ -2,20 +2,37 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
-import { ApiClientError, apiFetchWithMeta } from '@/lib/api-client';
+import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
+interface CategoryDto {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 // docs/specs/2026-08-28-04-design-catalog-browsing.md AC-7/AC-9 — All Designs with faceted
-// filters (category/price/tags deferred to a follow-up: this pass wires price range and sort,
-// the ones with the simplest, least ambiguous UI) and pagination (limit 50, enforced server-side).
+// filters (category, price range, tags, stitch-count range, thread-color) and pagination
+// (limit 50, enforced server-side). Service-type filter renders disabled — Services (A-014) is
+// still Blocked, so there's nothing yet for it to filter against.
 export default function AllDesignsPage() {
   const [designs, setDesigns] = useState<DesignSummaryDto[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<ApiError | null>(null);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [sort, setSort] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [tags, setTags] = useState('');
+  const [minStitchCount, setMinStitchCount] = useState('');
+  const [maxStitchCount, setMaxStitchCount] = useState('');
+  const [threadColorCount, setThreadColorCount] = useState('');
+
+  useEffect(() => {
+    apiFetch<CategoryDto[]>('/api/categories').then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   const load = useCallback(async () => {
     setError(null);
@@ -23,13 +40,18 @@ export default function AllDesignsPage() {
       const params = new URLSearchParams({ sort, pageSize: '50' });
       if (minPrice) params.set('minPricePkr', minPrice);
       if (maxPrice) params.set('maxPricePkr', maxPrice);
+      if (categoryId) params.set('category', categoryId);
+      if (tags.trim()) params.set('tags', tags.trim());
+      if (minStitchCount) params.set('minStitchCount', minStitchCount);
+      if (maxStitchCount) params.set('maxStitchCount', maxStitchCount);
+      if (threadColorCount) params.set('threadColorCount', threadColorCount);
       const { data, meta } = await apiFetchWithMeta<DesignSummaryDto[]>(`/api/designs?${params.toString()}`);
       setDesigns(data);
       setTotal(meta?.total ?? data.length);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load designs.', traceId: '' });
     }
-  }, [sort, minPrice, maxPrice]);
+  }, [sort, minPrice, maxPrice, categoryId, tags, minStitchCount, maxStitchCount, threadColorCount]);
 
   useEffect(() => {
     load();
@@ -58,6 +80,61 @@ export default function AllDesignsPage() {
         <label className="text-sm text-gray-600">
           Max price
           <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+        </label>
+        <label className="text-sm text-gray-600">
+          Category
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ml-2 rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <option value="">All</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm text-gray-600">
+          Tags
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="floral,caps"
+            className="ml-2 w-32 rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+        </label>
+        <label className="text-sm text-gray-600">
+          Min stitches
+          <input
+            type="number"
+            value={minStitchCount}
+            onChange={(e) => setMinStitchCount(e.target.value)}
+            className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+        </label>
+        <label className="text-sm text-gray-600">
+          Max stitches
+          <input
+            type="number"
+            value={maxStitchCount}
+            onChange={(e) => setMaxStitchCount(e.target.value)}
+            className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+        </label>
+        <label className="text-sm text-gray-600">
+          Thread colors
+          <input
+            type="number"
+            value={threadColorCount}
+            onChange={(e) => setThreadColorCount(e.target.value)}
+            className="ml-2 w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+        </label>
+        {/* TODO(A-014): Services doesn't exist yet — filter renders disabled until it does. */}
+        <label className="text-sm text-gray-400">
+          Service type
+          <select disabled className="ml-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-400">
+            <option>Coming soon</option>
+          </select>
         </label>
       </div>
 

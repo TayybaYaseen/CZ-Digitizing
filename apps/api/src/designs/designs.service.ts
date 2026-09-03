@@ -89,6 +89,44 @@ export class DesignsService {
     return rows.map((r) => toDesignSummaryDto(r, customerId));
   }
 
+  // AC-6 — live suggestions across design name/tags plus category/subcategory name matches, for
+  // the header's debounced dropdown. Services/Blog/FAQ inclusion is a documented follow-up
+  // (TODO(A-014, A-012d)) — those aspects are still Blocked, so this merge point only covers what
+  // is actually indexable today. AC-10's Elasticsearch swap keeps this same return shape.
+  async searchSuggestions(q: string): Promise<{
+    designs: DesignSummaryDto[];
+    categories: { id: string; name: string; slug: string }[];
+    subcategories: { id: string; name: string; slug: string }[];
+  }> {
+    if (!q.trim()) return { designs: [], categories: [], subcategories: [] };
+
+    const [designs, categories, subcategories] = await Promise.all([
+      this.search(q),
+      this.prisma.designCategory.findMany({
+        where: { isPublished: true, name: { contains: q, mode: 'insensitive' } },
+        take: 5,
+      }),
+      this.prisma.designSubcategory.findMany({
+        where: { isPublished: true, name: { contains: q, mode: 'insensitive' } },
+        take: 5,
+      }),
+    ]);
+
+    return {
+      designs,
+      categories: categories.map((c) => ({ id: c.id.toString(), name: c.name, slug: c.slug })),
+      subcategories: subcategories.map((s) => ({ id: s.id.toString(), name: s.name, slug: s.slug })),
+    };
+  }
+
+  // AC-11 — "Customers also bought", computed from co-purchase order-history data. That data
+  // (orders/order_items) doesn't exist yet — A-013 is still Blocked per docs/specs/SPEC_INDEX.md —
+  // so this ships as a documented empty-state stub rather than a fabricated/random list.
+  // TODO(A-013): replace with a real co-purchase query once Orders exists.
+  async related(_id: string): Promise<DesignSummaryDto[]> {
+    return [];
+  }
+
   async get(id: string, customerId?: bigint, includeUnpublished = false): Promise<DesignDetailDto> {
     const row = await this.prisma.design.findFirst({
       where: { id: BigInt(id), deletedAt: null, ...(includeUnpublished ? {} : { isPublished: true }) },
@@ -222,6 +260,17 @@ export class DesignsService {
     await this.prisma.favorite.deleteMany({ where: { customerId, designId: BigInt(designId) } });
   }
 
+  // AC-8 — "My Account → Favorites" list, sourced directly from the Favorite table rather than
+  // filtering a paginated catalog page (which would silently miss favorites outside that page).
+  async listFavorites(customerId: bigint): Promise<DesignSummaryDto[]> {
+    const rows = await this.prisma.design.findMany({
+      where: { deletedAt: null, isPublished: true, favorites: { some: { customerId } } },
+      include: { ...DESIGN_INCLUDE, favorites: { where: { customerId } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => toDesignSummaryDto(r, customerId));
+  }
+
   private async findOrThrow(id: string) {
     const row = await this.prisma.design.findFirst({ where: { id: BigInt(id), deletedAt: null } });
     if (!row) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Design not found');
@@ -231,6 +280,7 @@ export class DesignsService {
   private buildWhere(query: DesignQueryDto, includeUnpublished = false): Prisma.DesignWhereInput {
     const where: Prisma.DesignWhereInput = { deletedAt: null, ...(includeUnpublished ? {} : { isPublished: true }) };
     if (query.category?.length) where.categoryAssignments = { some: { categoryId: { in: query.category.map(BigInt) } } };
+    if (query.subcategoryId) where.subcategoryId = BigInt(query.subcategoryId);
     if (query.tags?.length) where.tags = { hasSome: query.tags };
     if (query.minPricePkr !== undefined || query.maxPricePkr !== undefined) {
       where.pricePkr = { ...(query.minPricePkr !== undefined ? { gte: query.minPricePkr } : {}), ...(query.maxPricePkr !== undefined ? { lte: query.maxPricePkr } : {}) };
@@ -238,6 +288,7 @@ export class DesignsService {
     if (query.minStitchCount !== undefined || query.maxStitchCount !== undefined) {
       where.stitchCount = { ...(query.minStitchCount !== undefined ? { gte: query.minStitchCount } : {}), ...(query.maxStitchCount !== undefined ? { lte: query.maxStitchCount } : {}) };
     }
+    if (query.threadColorCount !== undefined) where.threadColorCount = query.threadColorCount;
     return where;
   }
 

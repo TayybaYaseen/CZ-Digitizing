@@ -78,6 +78,12 @@ export class CategoriesController {
 export class SubcategoriesController {
   constructor(private readonly service: CategoriesService) {}
 
+  @Get()
+  @Public()
+  list(@Req() req: AuthenticatedRequest) {
+    return this.service.listAllSubcategories(publishedOnlyFor(req));
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @Roles('admin', 'freelancer', 'moderator')

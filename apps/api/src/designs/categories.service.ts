@@ -35,6 +35,17 @@ export class CategoriesService {
     return rows.map(toSubcategoryDto);
   }
 
+  // Flat cross-category listing — used by the web app to resolve a design card's
+  // categoryIds/subcategoryId into display names in one request (AC-3) instead of one call per
+  // parent category.
+  async listAllSubcategories(publishedOnly: boolean): Promise<SubcategoryDto[]> {
+    const rows = await this.prisma.designSubcategory.findMany({
+      where: publishedOnly ? { isPublished: true } : undefined,
+      orderBy: { sortOrder: 'asc' },
+    });
+    return rows.map(toSubcategoryDto);
+  }
+
   async createCategory(dto: CreateCategoryDto, admin: AccessTokenPayload): Promise<CategoryDto> {
     await this.assertSlugAvailable('designCategory', dto.slug);
     const row = await this.prisma.designCategory.create({

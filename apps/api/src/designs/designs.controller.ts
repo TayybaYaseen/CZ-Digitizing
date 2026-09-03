@@ -36,6 +36,14 @@ export class DesignsController {
     return this.service.search(q ?? '', optionalCustomerId(req));
   }
 
+  // AC-6 — header live-suggestions dropdown; distinct from the plain design-only `search` route
+  // above so `/search?q=` (View All Results) can keep using the simpler shape.
+  @Get('search/suggestions')
+  @Public()
+  searchSuggestions(@Query('q') q: string) {
+    return this.service.searchSuggestions(q ?? '');
+  }
+
   @Get('category/:categoryId')
   @Public()
   async listByCategory(@Param('categoryId') categoryId: string, @Query() query: DesignQueryDto, @Req() req: AuthenticatedRequest) {
@@ -50,6 +58,15 @@ export class DesignsController {
     return { data: items, meta: { page: query.page, pageSize: query.pageSize, total } };
   }
 
+  // AC-8 — "My Account → Favorites". Placed before the ':id' GET so 'favorites' as a literal
+  // segment doesn't get swallowed by that param route (same pattern as 'search' above).
+  @Get('favorites')
+  @ApiBearerAuth()
+  @Roles('customer')
+  listFavorites(@CurrentUser() user: AccessTokenPayload) {
+    return this.service.listFavorites(BigInt(user.sub));
+  }
+
   @Get(':id')
   @Public()
   get(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
@@ -60,6 +77,14 @@ export class DesignsController {
   @Public()
   getSizes(@Param('id') id: string) {
     return this.service.getSizes(id);
+  }
+
+  // AC-11 — "Customers also bought". Ships as a documented empty-state stub pending A-013 (Orders,
+  // still Blocked) — see DesignsService.related().
+  @Get(':id/related')
+  @Public()
+  related(@Param('id') id: string) {
+    return this.service.related(id);
   }
 
   @Post()
