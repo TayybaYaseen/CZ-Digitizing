@@ -23,6 +23,7 @@ import { BundlesModule } from './bundles/bundles.module';
 import { CartModule } from './cart/cart.module';
 import { CartSessionMiddleware } from './cart/cart-session.middleware';
 import { FilesModule } from './files/files.module';
+import { OrdersModule } from './orders/orders.module';
 import { RedisModule } from './redis/redis.module';
 import { SettingsModule } from './settings/settings.module';
 
@@ -43,6 +44,10 @@ import { SettingsModule } from './settings/settings.module';
     SettingsModule,
     DesignsModule,
     BundlesModule,
+    // Before CartModule: CartService.checkout() calls OrdersService.createFromCart() directly
+    // (CartModule itself also imports OrdersModule — listed here too for the same top-level
+    // feature-module visibility every other module gets in this list).
+    OrdersModule,
     CartModule,
     FilesModule,
   ],

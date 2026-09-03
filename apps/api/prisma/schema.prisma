@@ -93,6 +93,9 @@ model User {
   favorites            Favorite[]
   authorizedFiles      CustomerAuthorizedFile[]
   cart                 Cart?
+  // AC-7 — every past/future order accumulates against this one persistent identity.
+  orders               Order[]
+  reviewedReceipts     PaymentReceipt[] @relation("ReceiptReviewedByAdmin")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -187,6 +190,60 @@ enum PaymentMethodType {
   credit_card
 }
 
+// docs/specs/2026-08-28-08-orders-payment-processing.md §4 (aspect A-013). Deliberately NOT reusing
+// PaymentMethodType above: that enum is display-config keyed (payment_method_settings.method,
+// includes 'credit_card' as a generic label) and is owned by A-005's settings module. This enum is
+// the order's actual settlement rail and needs 'stripe' as its own value (Stripe ≠ "credit_card" —
+// the settings toggle is what Admin shows on checkout; this is what actually processed the charge).
+enum PaymentMethod {
+  paypal
+  stripe
+  bank_transfer
+}
+
+// Authoritative state machine, spec §3. paymentStatus (below) is intentionally a *separate* field
+// from status even though they mostly move in lockstep — see Order.paymentStatus doc comment for
+// why one field alone can't carry both meanings.
+enum OrderStatus {
+  pending
+  payment_pending
+  payment_confirmed
+  processing
+  ready
+  completed
+  cancelled
+  refunded
+}
+
+// AC-5's "Rejected/Pending" outcome needs a payment-status concept distinct from the order's
+// fulfillment status — a rejected receipt returns paymentStatus to 'pending' while the order
+// itself may still show 'payment_pending' (awaiting a fresh receipt) or move to 'cancelled'
+// depending on Admin's action. Kept as its own enum (not reusing OrderStatus) because "refunded"
+// here means "money was returned", which is orthogonal to OrderStatus.refunded meaning "the whole
+// order's terminal state is refunded" — a partial refund sets paymentStatus while status stays
+// completed/processing.
+enum OrderPaymentStatus {
+  pending
+  completed
+  refunded
+  partially_refunded
+  failed
+}
+
+// AC-12 — tags a renewal charge processed through this same payment layer. The renewal trigger
+// itself belongs to A-015 (Subscriptions & Credits, still Blocked per SPEC_INDEX.md); this field
+// only exists so that future caller can set it.
+enum PaymentTransactionType {
+  purchase
+  renewal
+}
+
+enum ReceiptReviewStatus {
+  pending
+  confirmed
+  rejected
+}
+
 // AC-2/AC-10 — non-secret display config only (e.g. bank name/account-title for customer
 // display, enabled currencies). Secrets (PayPal client secret, bank account number) live in the
 // secrets manager per spec §8 risk #2, never in this table — storage mechanism still Open.
@@ -254,10 +311,13 @@ model Notification {
   title             String
   message           String?
 
-  // Plain nullable BigInt, no @relation — Order/Quote/CustomRequest models don't exist yet
-  // (A-013/A-016/A-017 are still Blocked per docs/specs/SPEC_INDEX.md). Each of those aspects
-  // wires the real @relation + FK constraint in its own migration once its table exists.
-  relatedOrderId         BigInt? @map("related_order_id")
+  // relatedQuoteId/relatedCustomRequestId stay plain BigInt, no @relation — Quote/CustomRequest
+  // models don't exist yet (A-016/A-017 still Blocked per docs/specs/SPEC_INDEX.md). Those aspects
+  // wire the real @relation + FK constraint in their own migration once their table exists.
+  // relatedOrderId now has a real FK: wired by A-013 (Orders & Payment Processing) once Order
+  // exists, per this field's own former TODO(A-013) comment.
+  relatedOrderId         BigInt?  @map("related_order_id")
+  order                  Order?   @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
   relatedQuoteId         BigInt? @map("related_quote_id")
   relatedCustomRequestId BigInt? @map("related_custom_request_id")
 
@@ -277,6 +337,7 @@ model Notification {
 
   @@index([recipientUserId, isRead], map: "idx_notifications_user")
   @@index([expiresAt], map: "idx_notifications_expires_at")
+  @@index([relatedOrderId], map: "idx_notifications_related_order")
   @@map("notifications")
 }
 
@@ -402,6 +463,7 @@ model Design {
   files              DesignFile[]
   bundleMemberships  BundleDesign[]
   cartItems          CartItem[]
+  orderItems         OrderItem[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -419,6 +481,7 @@ model DesignSize {
   createdAt    DateTime @default(now()) @map("created_at")
 
   cartItems CartItem[]
+  orderItems OrderItem[]
 
   @@index([designId], map: "idx_design_sizes_design")
   @@map("design_sizes")
@@ -496,16 +559,15 @@ model DesignFile {
   // way every other DB-level invariant not expressible in the schema DSL is added in this repo.
 }
 
-// AC-4/5/6/8/9/11 — customer-authorized download records. orderId is a plain BigInt with NO FK
-// yet: `orders` (A-013 Orders & Payment Processing) doesn't exist, and per SPEC_INDEX.md, A-013
-// depends on THIS aspect, not the reverse — a real circularity in the spec's own data model
-// section. TODO(A-013): add `order Order @relation(...)` once that table exists. customerId is
-// included (with a real FK, since User exists today) so the authorization check has something
-// concrete to key on even before orderId is enforced at the DB level.
+// AC-4/5/6/8/9/11 — customer-authorized download records. orderId now carries a real FK
+// (docs/specs/2026-08-28-08-orders-payment-processing.md, aspect A-013) — the circularity noted
+// below is resolved: Order rows are created first (CartService.checkout -> OrdersService), and
+// CustomerAuthorizedFile rows are only ever created afterward, at payment_confirmed time.
 model CustomerAuthorizedFile {
   id BigInt @id @default(autoincrement())
 
-  orderId    BigInt @map("order_id") // TODO(A-013): no FK yet — orders table doesn't exist
+  orderId    BigInt @map("order_id")
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   customerId BigInt @map("customer_id")
   customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -543,6 +605,7 @@ model DesignBundle {
 
   designs   BundleDesign[]
   cartItems CartItem[]
+  orderItems OrderItem[]
 
   @@index([isPublished], map: "idx_design_bundles_published")
   @@map("design_bundles")
@@ -638,4 +701,113 @@ model CartItem {
 
   @@index([cartId], map: "idx_cart_items_cart")
   @@map("cart_items")
+}
+
+// docs/specs/2026-08-28-08-orders-payment-processing.md §4 (aspect A-013). Created by
+// OrdersService.createFromCart(), called from CartService.checkout() once cart validation passes
+// (AC-6 of the Cart spec) — never created any other way, so every order always starts from a real,
+// validated cart snapshot. AC-7: customerId is a required (non-nullable) FK — orders are a
+// customer-purchasing concept only, same posture as Cart.customerId being the "real identity" side
+// of that model's exactly-one-of-customer-or-guest split (there is no guest-order concept here).
+model Order {
+  id         BigInt @id @default(autoincrement())
+  customerId BigInt @map("customer_id")
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  status        OrderStatus        @default(pending)
+  // Deliberately a field distinct from `status` (see OrderPaymentStatus's own doc comment above)
+  // rather than folding payment state into the order-status enum — a partial refund, for example,
+  // needs to be representable while the order's own fulfillment status stays `completed`.
+  paymentStatus OrderPaymentStatus @default(pending) @map("payment_status")
+
+  paymentMethod   PaymentMethod          @map("payment_method")
+  transactionType PaymentTransactionType @default(purchase) @map("transaction_type")
+
+  totalPkr     Decimal @map("total_pkr") @db.Decimal(10, 2)
+  currencyCode String  @default("PKR") @map("currency_code")
+
+  // AC-3 — unique per bank-transfer order, generated by OrdersService at creation time
+  // (BankTransferReferenceGenerator). Null for paypal/stripe orders, which never need one.
+  bankTransferReference String? @unique @map("bank_transfer_reference")
+
+  // AC-1/AC-2 — set once PayPal's capture webhook is verified and processed.
+  paypalOrderId   String? @map("paypal_order_id")
+  paypalCaptureId String? @map("paypal_capture_id")
+
+  // AC-10 — set once Stripe's payment_intent.succeeded webhook is verified and processed.
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+
+  // AC-11 — null until a refund is issued; full refund sets this to totalPkr and paymentStatus to
+  // 'refunded', a partial refund sets a lesser amount and paymentStatus to 'partially_refunded'.
+  refundedAmountPkr Decimal? @map("refunded_amount_pkr") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items            OrderItem[]
+  receipts         PaymentReceipt[]
+  authorizedFiles  CustomerAuthorizedFile[]
+  notifications    Notification[]
+
+  @@index([customerId], map: "idx_orders_customer")
+  @@index([status], map: "idx_orders_status")
+  @@map("orders")
+}
+
+// AC-1/AC-3 (Cart spec) mirrored at order time — a snapshot, never re-derived: unitPricePkr is
+// copied from CartItem.priceAtAddPkr (or the live bundle/design total at checkout, whichever the
+// service resolves) so a later price change never rewrites historical order records.
+model OrderItem {
+  id      BigInt @id @default(autoincrement())
+  orderId BigInt @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  designId BigInt? @map("design_id")
+  design   Design? @relation(fields: [designId], references: [id], onDelete: Restrict)
+  bundleId BigInt? @map("bundle_id")
+  bundle   DesignBundle? @relation(fields: [bundleId], references: [id], onDelete: Restrict)
+  sizeId   BigInt? @map("size_id")
+  size     DesignSize? @relation(fields: [sizeId], references: [id], onDelete: SetNull)
+
+  quantity      Int     @default(1)
+  unitPricePkr  Decimal @map("unit_price_pkr") @db.Decimal(10, 2)
+
+  @@index([orderId], map: "idx_order_items_order")
+  @@map("order_items")
+  // CHECK: an order_item is a design line or a bundle line, never both/neither — same posture as
+  // cart_items' cart_item_exactly_one_of_design_or_bundle. Hand-appended to this model's migration
+  // (Prisma 5.x schema DSL has no @@check clause).
+}
+
+// AC-3/AC-4/AC-5 — bank-transfer receipt upload + Admin review. fileUrl is a StorageService
+// storage path (private-disk posture, same as DesignFile.storagePath) — never a public URL, per
+// spec §4 retention note (receipts may contain the sender's own bank details).
+model PaymentReceipt {
+  id      BigInt @id @default(autoincrement())
+  orderId BigInt @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  fileUrl  String @map("file_url")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  reviewStatus       ReceiptReviewStatus @default(pending) @map("review_status")
+  reviewedByAdminId  BigInt?             @map("reviewed_by_admin_id")
+  reviewedByAdmin    User?               @relation("ReceiptReviewedByAdmin", fields: [reviewedByAdminId], references: [id])
+  reviewedAt         DateTime?           @map("reviewed_at")
+  rejectionReason    String?             @map("rejection_reason")
+
+  @@index([orderId], map: "idx_payment_receipts_order")
+  @@map("payment_receipts")
+}
+
+// AC-8 — hourly-refreshed PKR conversion rates (ExchangeRateService cron, see
+// cart-cleanup.service.ts for the @nestjs/schedule pattern this reuses). currencyCode is the
+// non-PKR side of the pair; PKR itself is always the implicit "1.0" source of truth and never
+// stored as its own row.
+model ExchangeRate {
+  currencyCode String   @id @map("currency_code")
+  rateToPkr    Decimal  @map("rate_to_pkr") @db.Decimal(14, 6)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("exchange_rates")
 }

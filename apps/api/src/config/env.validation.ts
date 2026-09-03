@@ -57,6 +57,22 @@ export const envSchema = z.object({
   // embroidery-file storage above; these files are meant to be publicly viewable, served via
   // main.ts's static mount at /uploads.
   STORAGE_PUBLIC_ROOT: z.string().default('./storage/public'),
+
+  // Orders & Payment Processing (docs/specs/2026-08-28-08-orders-payment-processing.md, A-013).
+  // All optional: unset PayPal/Stripe credentials mean their webhook routes verify nothing and
+  // reject every event (never a silent bypass — see WebhooksController), same "not configured"
+  // posture as SMTP_*/TWILIO_* above. Real secrets never live in payment_method_settings.config
+  // (that JSON column is non-secret display config only, per that model's own comment).
+  PAYPAL_CLIENT_ID: z.string().optional(),
+  PAYPAL_CLIENT_SECRET: z.string().optional(),
+  PAYPAL_WEBHOOK_ID: z.string().optional(),
+  // sandbox vs live — defaults to sandbox so a fresh clone never accidentally hits production.
+  PAYPAL_API_BASE: z.string().default('https://api-m.sandbox.paypal.com'),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // AC-8 — spec §8 risk #3 (provider not finalized): unset uses the hardcoded fallback rate table
+  // in ExchangeRateService instead of a live provider.
+  EXCHANGE_RATE_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

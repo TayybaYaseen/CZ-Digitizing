@@ -41,11 +41,11 @@ export class ApplyCreditsDto {
   amountPkr!: number;
 }
 
-// Present for documentation/symmetry with the DTO-per-route convention even though this route
-// currently takes no body — kept minimal rather than omitted so a future field (e.g. a chosen
-// payment method) has an obvious home.
+// docs/specs/2026-08-28-08-orders-payment-processing.md §3 (aspect A-013) — the customer's chosen
+// settlement rail, passed through to OrdersService.createFromCart(). Values match the real
+// PaymentMethod enum (not PaymentMethodType's display-config-keyed 'credit_card' label) since this
+// is what actually processes the order, not what Admin toggles on/off in Settings.
 export class CheckoutDto {
-  @IsOptional()
-  @IsIn(['paypal', 'bank_transfer', 'credit_card'])
-  paymentMethod?: 'paypal' | 'bank_transfer' | 'credit_card';
+  @IsIn(['paypal', 'stripe', 'bank_transfer'])
+  paymentMethod!: 'paypal' | 'stripe' | 'bank_transfer';
 }
