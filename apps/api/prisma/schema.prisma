@@ -90,6 +90,7 @@ model User {
   auditLogs            AuditLog[]
   notifications        Notification[]
   notificationPreferences NotificationPreference[]
+  favorites            Favorite[]
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -155,6 +156,46 @@ model AuditLog {
 
   @@index([adminUserId], map: "idx_audit_logs_admin_user_id")
   @@map("audit_logs")
+}
+
+// docs/specs/2026-08-28-03-admin-platform-settings.md §4 (aspect A-005/A-005a/A-005b/A-005c).
+// True singleton: always id=1, enforced by PlatformSettingsService, not a DB constraint — the
+// simplest correct shape for "one row of global config". Seeded by the AddPlatformSettings
+// migration so the public site never renders with null contact info (spec §4 backfill note).
+model PlatformSettings {
+  id                  Int      @id @default(1)
+  whatsappNumber      String?  @map("whatsapp_number")
+  contactEmail        String?  @map("contact_email")
+  domain              String?
+  facebookUrl         String?  @map("facebook_url")
+  instagramUrl        String?  @map("instagram_url")
+  linkedinUrl         String?  @map("linkedin_url")
+  xTwitterUrl         String?  @map("x_twitter_url")
+  youtubeUrl          String?  @map("youtube_url")
+  experienceStartYear Int      @map("experience_start_year")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  updatedByAdminId    BigInt?  @map("updated_by_admin_id")
+
+  @@map("platform_settings")
+}
+
+enum PaymentMethodType {
+  paypal
+  bank_transfer
+  credit_card
+}
+
+// AC-2/AC-10 — non-secret display config only (e.g. bank name/account-title for customer
+// display, enabled currencies). Secrets (PayPal client secret, bank account number) live in the
+// secrets manager per spec §8 risk #2, never in this table — storage mechanism still Open.
+model PaymentMethodSetting {
+  id        BigInt            @id @default(autoincrement())
+  method    PaymentMethodType @unique
+  isEnabled Boolean           @default(false) @map("is_enabled")
+  config    Json?
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@map("payment_method_settings")
 }
 
 // docs/specs/2026-08-28-02-notifications-system.md §4 (aspect A-004). Consolidated across every
@@ -268,4 +309,122 @@ model NotificationPreference {
 
   @@unique([userId, notificationType, channel], map: "uq_notification_preferences_user_type_channel")
   @@map("notification_preferences")
+}
+
+// docs/specs/2026-08-28-04-design-catalog-browsing.md §4 (aspect A-006). Two-level category tree
+// per architecture's own DDL (`designs.subcategory_id REFERENCES design_subcategories(id)` — a
+// distinct table, not a self-referencing one).
+model DesignCategory {
+  id          BigInt   @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  sortOrder   Int      @default(0) @map("sort_order")
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subcategories DesignSubcategory[]
+  assignments   DesignCategoryAssignment[]
+
+  @@map("design_categories")
+}
+
+model DesignSubcategory {
+  id               BigInt   @id @default(autoincrement())
+  name             String
+  slug             String   @unique
+  parentCategoryId BigInt   @map("parent_category_id")
+  parentCategory   DesignCategory @relation(fields: [parentCategoryId], references: [id], onDelete: Cascade)
+  sortOrder        Int      @default(0) @map("sort_order")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  designs Design[]
+
+  @@index([parentCategoryId], map: "idx_design_subcategories_parent")
+  @@map("design_subcategories")
+}
+
+// AC-2 — a design assigned to multiple categories via this join table (spec §4: supersedes the
+// architecture DDL's single `designs.category_id` FK). Subcategory stays a single optional FK
+// (architecture DDL, spec §8 risk #2) — only category membership is many-to-many.
+model DesignCategoryAssignment {
+  designId   BigInt @map("design_id")
+  design     Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+  categoryId BigInt @map("category_id")
+  category   DesignCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([designId, categoryId])
+  @@map("design_category_assignments")
+}
+
+model Design {
+  id               BigInt   @id @default(autoincrement())
+  name             String
+  description      String?
+  previewImageUrl  String   @map("preview_image_url")
+  galleryImageUrls String[] @map("gallery_image_urls")
+
+  subcategoryId BigInt?            @map("subcategory_id")
+  subcategory   DesignSubcategory? @relation(fields: [subcategoryId], references: [id])
+
+  // AC-5 — dual-media (Vector vs. Embroidery) auto-swap. All nullable: a design may have only
+  // one media type uploaded, in which case autoSwapEnabled has nothing to swap between.
+  vectorImageUrl     String?  @map("vector_image_url")
+  vectorVideoUrl     String?  @map("vector_video_url")
+  embroideryImageUrl String?  @map("embroidery_image_url")
+  embroideryVideoUrl String?  @map("embroidery_video_url")
+  autoSwapEnabled    Boolean  @default(false) @map("auto_swap_enabled")
+
+  tags String[] @default([])
+
+  pricePkr      Decimal  @map("price_pkr") @db.Decimal(10, 2)
+  salePricePkr  Decimal? @map("sale_price_pkr") @db.Decimal(10, 2)
+  discountBadge String?  @map("discount_badge")
+
+  stitchCount        Int? @map("stitch_count")
+  threadColorCount    Int? @map("thread_color_count")
+  threadColorChanges  Int? @map("thread_color_changes")
+
+  isPublished      Boolean   @default(false) @map("is_published")
+  createdByAdminId BigInt?   @map("created_by_admin_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  sizes              DesignSize[]
+  categoryAssignments DesignCategoryAssignment[]
+  favorites          Favorite[]
+
+  @@index([subcategoryId], map: "idx_designs_subcategory")
+  @@index([isPublished], map: "idx_designs_published")
+  @@map("designs")
+}
+
+model DesignSize {
+  id           BigInt   @id @default(autoincrement())
+  designId     BigInt   @map("design_id")
+  design       Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  sizeLabel    String   @map("size_label")
+  sizeWidthMm  Decimal  @map("size_width_mm") @db.Decimal(8, 2)
+  sizeHeightMm Decimal  @map("size_height_mm") @db.Decimal(8, 2)
+  sizeOrder    Int      @default(0) @map("size_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([designId], map: "idx_design_sizes_design")
+  @@map("design_sizes")
+}
+
+// AC-8 — persists per-customer across sessions.
+model Favorite {
+  id         BigInt   @id @default(autoincrement())
+  customerId BigInt   @map("customer_id")
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  designId   BigInt   @map("design_id")
+  design     Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([customerId, designId], map: "uq_favorites_customer_design")
+  @@map("favorites")
 }

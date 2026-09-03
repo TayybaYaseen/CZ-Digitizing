@@ -5,7 +5,7 @@ export function Logo({ variant = 'dark' }: { variant?: 'dark' | 'light' }) {
   const titleColor = variant === 'dark' ? 'text-white' : 'text-brand-navy';
   return (
     <span className="inline-flex flex-col leading-none">
-      <span className={`text-lg font-bold tracking-tight ${titleColor}`}>
+      <span className={`font-display text-lg font-bold tracking-tight ${titleColor}`}>
         CZ <span className="text-brand-gold">Digitizing</span>
       </span>
       <span className="text-[9px] font-medium tracking-[0.2em] text-brand-silver">MACHINE EMBROIDERY DESIGN</span>

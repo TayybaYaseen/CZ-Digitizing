@@ -18,7 +18,9 @@ import { EmailModule } from './email/email.module';
 import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { DesignsModule } from './designs/designs.module';
 import { RedisModule } from './redis/redis.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { RedisModule } from './redis/redis.module';
     NotificationsModule,
     AuthModule,
     AdminModule,
+    SettingsModule,
+    DesignsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

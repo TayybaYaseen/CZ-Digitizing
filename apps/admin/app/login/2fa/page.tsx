@@ -64,7 +64,7 @@ export default function TwoFactorPage() {
       });
       clearPendingTwoFactor();
       login(tokens);
-      router.push('/');
+      router.push('/dashboard');
     } catch (err) {
       // Covers a wrong/expired 6-digit code and an expired pending-session token alike.
       setApiError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });

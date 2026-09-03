@@ -94,10 +94,10 @@ export default function AdminNotificationsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <h1 className="font-display text-3xl font-bold text-navy-800">Notifications</h1>
+        <p className="mt-1 text-sm text-gray-500">
           New quotes, orders, payments needing attention, registrations, unanswered Taebo questions,
           and system alerts.
         </p>
@@ -109,25 +109,25 @@ export default function AdminNotificationsPage() {
       {notifications === null && !listError ? (
         <ul className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <li key={i} className="h-16 animate-pulse rounded-md border border-gray-800 bg-gray-900" />
+            <li key={i} className="h-16 animate-pulse rounded-card bg-white shadow-cz-sm" />
           ))}
         </ul>
       ) : notifications === null ? null : notifications.length === 0 ? (
-        <p className="rounded-md border border-gray-800 px-4 py-6 text-center text-sm text-gray-400">
+        <p className="rounded-card border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-400">
           You&apos;re all caught up.
         </p>
       ) : (
         <>
-          <ul className="divide-y divide-gray-800 rounded-md border border-gray-800">
+          <ul className="divide-y divide-gray-100 rounded-card border border-gray-200 bg-white shadow-cz-sm">
             {notifications.map((n) => (
-              <li key={n.id} className={`flex items-start justify-between gap-4 px-4 py-3 ${n.isRead ? '' : 'bg-gray-900'}`}>
+              <li key={n.id} className={`flex items-start justify-between gap-4 px-4 py-3 ${n.isRead ? '' : 'bg-gold-100/40'}`}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    {!n.isRead && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-gold" aria-label="unread" />}
-                    <p className="truncate text-sm font-medium">{n.title}</p>
+                    {!n.isRead && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-gold-500" aria-label="unread" />}
+                    <p className="truncate text-sm font-medium text-navy-800">{n.title}</p>
                   </div>
-                  {n.message && <p className="mt-0.5 text-sm text-gray-400">{n.message}</p>}
-                  <p className="mt-1 text-xs text-gray-500">
+                  {n.message && <p className="mt-0.5 text-sm text-gray-500">{n.message}</p>}
+                  <p className="mt-1 text-xs text-gray-400">
                     {humanize(n.notificationType)} — {formatTimestamp(n.createdAt)}
                   </p>
                 </div>
@@ -135,14 +135,14 @@ export default function AdminNotificationsPage() {
                   {!n.isRead && (
                     <button
                       onClick={() => onMarkRead(n.id)}
-                      className="rounded-md border border-gray-700 px-3 py-1 text-xs text-gray-300 hover:bg-gray-800"
+                      className="rounded-field border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
                     >
                       Mark read
                     </button>
                   )}
                   <button
                     onClick={() => onDelete(n.id)}
-                    className="rounded-md border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950"
+                    className="rounded-field border border-status-redFg/30 px-3 py-1 text-xs text-status-redFg hover:bg-status-redBg"
                   >
                     Delete
                   </button>
@@ -152,11 +152,11 @@ export default function AdminNotificationsPage() {
           </ul>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between text-sm text-gray-400">
+            <div className="flex items-center justify-between text-sm text-gray-500">
               <button
                 disabled={page <= 1}
                 onClick={() => loadNotifications(page - 1)}
-                className="rounded-md border border-gray-800 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-field border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
@@ -166,7 +166,7 @@ export default function AdminNotificationsPage() {
               <button
                 disabled={page >= totalPages}
                 onClick={() => loadNotifications(page + 1)}
-                className="rounded-md border border-gray-800 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-field border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
