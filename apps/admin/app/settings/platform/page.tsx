@@ -48,6 +48,26 @@ type ExperienceValues = z.infer<typeof experienceSchema>;
 type DomainValues = z.infer<typeof domainSchema>;
 
 const PAYMENT_METHODS = ['paypal', 'bank_transfer', 'credit_card'] as const;
+type PaymentMethodKey = (typeof PAYMENT_METHODS)[number];
+
+// Non-secret display config per method (spec §4/§8 risk #2) — shown to the customer at checkout
+// (bank_transfer via GET /api/settings/public's bankTransferConfig) or kept here purely for
+// Admin's own reference. Real API credentials (PayPal client id/secret, Stripe secret key) are
+// never entered here — those stay in server .env and are never editable from this screen.
+const PAYMENT_METHOD_FIELDS: Record<PaymentMethodKey, { key: string; label: string }[]> = {
+  paypal: [{ key: 'accountEmail', label: 'PayPal business account email' }],
+  bank_transfer: [
+    { key: 'bankName', label: 'Bank name' },
+    { key: 'accountTitle', label: 'Account title' },
+    { key: 'accountNumber', label: 'Account number' },
+    { key: 'iban', label: 'IBAN (optional)' },
+  ],
+  credit_card: [{ key: 'statementDescriptor', label: 'Statement / merchant display name' }],
+};
+
+function emptyConfig(method: PaymentMethodKey): Record<string, string> {
+  return Object.fromEntries(PAYMENT_METHOD_FIELDS[method].map((f) => [f.key, '']));
+}
 
 export default function PlatformSettingsPage() {
   const router = useRouter();
@@ -57,6 +77,11 @@ export default function PlatformSettingsPage() {
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<Record<string, boolean>>({});
+  const [paymentConfigs, setPaymentConfigs] = useState<Record<PaymentMethodKey, Record<string, string>>>({
+    paypal: emptyConfig('paypal'),
+    bank_transfer: emptyConfig('bank_transfer'),
+    credit_card: emptyConfig('credit_card'),
+  });
 
   const contactForm = useForm<ContactValues>({ resolver: zodResolver(contactSchema) });
   const socialForm = useForm<SocialValues>({ resolver: zodResolver(socialSchema) });
@@ -82,6 +107,17 @@ export default function PlatformSettingsPage() {
       experienceForm.reset({ experienceStartYear: dto.experienceStartYear });
       domainForm.reset({ domain: dto.domain ?? '' });
       setPaymentMethods(Object.fromEntries(dto.paymentMethods.map((m) => [m.method, m.isEnabled])));
+      setPaymentConfigs({
+        paypal: { ...emptyConfig('paypal'), ...(dto.paymentMethods.find((m) => m.method === 'paypal')?.config as Record<string, string> | undefined) },
+        bank_transfer: {
+          ...emptyConfig('bank_transfer'),
+          ...(dto.paymentMethods.find((m) => m.method === 'bank_transfer')?.config as Record<string, string> | undefined),
+        },
+        credit_card: {
+          ...emptyConfig('credit_card'),
+          ...(dto.paymentMethods.find((m) => m.method === 'credit_card')?.config as Record<string, string> | undefined),
+        },
+      });
     } catch (err) {
       setLoadError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load settings.', traceId: '' });
     }
@@ -117,8 +153,19 @@ export default function PlatformSettingsPage() {
 
   async function onSavePaymentMethods() {
     await save('/api/admin/settings/payment-methods', {
-      methods: PAYMENT_METHODS.map((method) => ({ method, isEnabled: !!paymentMethods[method] })),
+      methods: PAYMENT_METHODS.map((method) => ({
+        method,
+        isEnabled: !!paymentMethods[method],
+        config: paymentConfigs[method],
+      })),
     });
+  }
+
+  // Clears a method's details locally — takes effect once "Save payment methods" is pressed,
+  // same as every other edit on this screen, rather than deleting on click (no separate
+  // delete endpoint exists; PUT with an emptied config is how "delete" is expressed here).
+  function onClearConfig(method: PaymentMethodKey) {
+    setPaymentConfigs((prev) => ({ ...prev, [method]: emptyConfig(method) }));
   }
 
   if (!isReady || !user) return null; // still checking localStorage, or redirecting to /login
@@ -244,6 +291,39 @@ export default function PlatformSettingsPage() {
                 </label>
               ))}
             </div>
+
+            {PAYMENT_METHODS.filter((method) => paymentMethods[method]).map((method) => (
+              <div key={method} className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700">{method.replace('_', ' ')} details</p>
+                  <button
+                    type="button"
+                    onClick={() => onClearConfig(method)}
+                    className="text-xs font-medium text-red-600 hover:underline"
+                  >
+                    Clear details
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {method === 'bank_transfer'
+                    ? 'Shown to the customer at checkout so they know where to send the transfer — not secret.'
+                    : 'For your own reference only. Real API credentials (client id/secret, secret key) are configured separately via server environment variables, never here.'}
+                </p>
+                {PAYMENT_METHOD_FIELDS[method].map((field) => (
+                  <FormField key={field.key} label={field.label} htmlFor={`${method}-${field.key}`}>
+                    <input
+                      id={`${method}-${field.key}`}
+                      className={inputClass}
+                      value={paymentConfigs[method][field.key] ?? ''}
+                      onChange={(e) =>
+                        setPaymentConfigs((prev) => ({ ...prev, [method]: { ...prev[method], [field.key]: e.target.value } }))
+                      }
+                    />
+                  </FormField>
+                ))}
+              </div>
+            ))}
+
             <button type="button" onClick={onSavePaymentMethods} className={`${submitButtonClass} mt-3`}>
               Save payment methods
             </button>

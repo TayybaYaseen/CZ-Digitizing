@@ -76,6 +76,7 @@ export default function BankTransferCheckoutPage() {
         {bankConfig?.bankName && <p>Bank: {bankConfig.bankName}</p>}
         {bankConfig?.accountTitle && <p>Account Title: {bankConfig.accountTitle}</p>}
         {bankConfig?.accountNumber && <p>Account Number: {bankConfig.accountNumber}</p>}
+        {bankConfig?.iban && <p>IBAN: {bankConfig.iban}</p>}
         <p className="mt-2 rounded bg-gray-50 px-3 py-2 font-mono text-base font-semibold text-brand-navy">{order.bankTransferReference}</p>
       </div>
 
