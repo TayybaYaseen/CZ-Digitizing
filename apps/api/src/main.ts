@@ -1,8 +1,10 @@
+import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import express from 'express';
 import { AppModule } from './app.module';
 import type { Env } from './config/env.validation';
 
@@ -16,6 +18,10 @@ async function bootstrap() {
     credentials: true,
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+
+  // Serves ImageUploadService's public design-image uploads — deliberately separate from A-007's
+  // private embroidery-file storage, which is never served like this.
+  app.use('/uploads', express.static(join(config.get('STORAGE_PUBLIC_ROOT', { infer: true }))));
 
   // Dev-only API reference, not a documented product surface — every route already carries its
   // real contract in docs/specs/*.md. Skipped in production so internal route shapes aren't
