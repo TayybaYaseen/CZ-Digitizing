@@ -33,4 +33,11 @@ export type ApiErrorCode =
   | 'INVALID_OR_EXPIRED_CODE'
   | 'EMAIL_ALREADY_REGISTERED'
   // Notifications spec (docs/specs/2026-08-28-02-notifications-system.md §3)
-  | 'NOTIFICATION_NOT_FOUND';
+  | 'NOTIFICATION_NOT_FOUND'
+  // Shopping Cart & Checkout spec (docs/specs/2026-08-28-07-shopping-cart-checkout.md §3)
+  | 'ITEM_NOT_PUBLISHED'
+  | 'SIZE_REQUIRED'
+  | 'INSUFFICIENT_CREDITS'
+  // Checkout's real pre-validation passes (item published, size selected) before failing at the
+  // one step Orders & Payment Processing (A-013, still Blocked) owns — never a fabricated success.
+  | 'ORDERS_NOT_AVAILABLE';

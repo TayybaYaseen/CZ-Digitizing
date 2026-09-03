@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { useCart } from '@/lib/cart-context';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
@@ -29,18 +30,41 @@ interface DesignDetailDto {
 // exist yet.
 export default function DesignDetailPage() {
   const params = useParams<{ id: string }>();
+  const { addItem } = useCart();
   const [design, setDesign] = useState<DesignDetailDto | null>(null);
   const [related, setRelated] = useState<DesignSummaryDto[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
+  const [selectedSizeId, setSelectedSizeId] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     apiFetch<DesignDetailDto>(`/api/designs/${params.id}`)
-      .then(setDesign)
+      .then((d) => {
+        setDesign(d);
+        if (d.sizes[0]) setSelectedSizeId(d.sizes[0].id);
+      })
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load design.', traceId: '' }));
     apiFetch<DesignSummaryDto[]>(`/api/designs/${params.id}/related`)
       .then(setRelated)
       .catch(() => setRelated([]));
   }, [params.id]);
+
+  async function onAddToCart() {
+    if (!design || !selectedSizeId) return;
+    setAddError(null);
+    setAdding(true);
+    try {
+      await addItem({ designId: design.id, sizeId: selectedSizeId, quantity: 1 });
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+    } finally {
+      setAdding(false);
+    }
+  }
 
   if (error) return <ErrorBanner error={error} />;
   if (!design) {
@@ -89,8 +113,30 @@ export default function DesignDetailPage() {
             </div>
           )}
 
-          {/* TODO(A-011): Shopping Cart doesn't exist yet — button is a stub. */}
-          <button className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy">Add to Cart</button>
+          {design.sizes.length > 0 && (
+            <label className="block text-sm">
+              Size
+              <select
+                value={selectedSizeId}
+                onChange={(e) => setSelectedSizeId(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {design.sizes.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {addError && <p className="text-sm text-red-600">{addError}</p>}
+          <button
+            onClick={onAddToCart}
+            disabled={adding || !selectedSizeId}
+            className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
+          >
+            {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
+          </button>
         </div>
       </div>
 

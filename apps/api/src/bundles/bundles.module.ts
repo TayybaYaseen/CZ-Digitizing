@@ -11,5 +11,8 @@ import { DynamicBundleRulesService } from './dynamic-bundle-rules.service';
 @Module({
   controllers: [DynamicBundleRulesController, BundlesController],
   providers: [BundlesService, DynamicBundleRulesService],
+  // BundlesService.computeBundleTotal() is reused by CartModule (apps/api/src/cart/cart.service.ts)
+  // for bundle line-item pricing — the single source of truth for a bundle's AC-7 price-override sum.
+  exports: [BundlesService],
 })
 export class BundlesModule {}

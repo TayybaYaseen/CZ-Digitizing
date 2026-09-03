@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { useCart } from '@/lib/cart-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 // Mirrors apps/api/src/bundles/dto/bundle.dto.ts's BundleDetailDto.
@@ -20,14 +21,33 @@ interface BundleDetailDto {
 // spec §5 — clicking a bundle card opens this detail listing included designs.
 export default function BundleDetailPage() {
   const params = useParams<{ id: string }>();
+  const { addItem } = useCart();
   const [bundle, setBundle] = useState<BundleDetailDto | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     apiFetch<BundleDetailDto>(`/api/bundles/${params.id}`)
       .then(setBundle)
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load bundle.', traceId: '' }));
   }, [params.id]);
+
+  async function onAddToCart() {
+    if (!bundle) return;
+    setAddError(null);
+    setAdding(true);
+    try {
+      await addItem({ bundleId: bundle.id, quantity: 1 });
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+    } finally {
+      setAdding(false);
+    }
+  }
 
   if (error) return <ErrorBanner error={error} />;
   if (!bundle) {
@@ -62,9 +82,14 @@ export default function BundleDetailPage() {
           {bundle.description && <p className="text-sm text-gray-600">{bundle.description}</p>}
           <p className="text-sm text-gray-500">{bundle.includedDesigns.length} design{bundle.includedDesigns.length === 1 ? '' : 's'} included</p>
 
-          {/* TODO(A-011): Shopping Cart doesn't exist yet — button is a stub, same posture as
-              DesignCard's "Add to Cart". */}
-          <button className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy">Add to Cart</button>
+          {addError && <p className="text-sm text-red-600">{addError}</p>}
+          <button
+            onClick={onAddToCart}
+            disabled={adding}
+            className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
+          >
+            {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
+          </button>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -20,6 +20,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DesignsModule } from './designs/designs.module';
 import { BundlesModule } from './bundles/bundles.module';
+import { CartModule } from './cart/cart.module';
+import { CartSessionMiddleware } from './cart/cart-session.middleware';
 import { FilesModule } from './files/files.module';
 import { RedisModule } from './redis/redis.module';
 import { SettingsModule } from './settings/settings.module';
@@ -27,7 +29,7 @@ import { SettingsModule } from './settings/settings.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    ScheduleModule.forRoot(), // notification-batching.service.ts / notification-cleanup.service.ts
+    ScheduleModule.forRoot(), // notification-batching.service.ts / notification-cleanup.service.ts / cart-cleanup.service.ts
     PrismaModule,
     RedisModule,
     EmailModule,
@@ -41,6 +43,7 @@ import { SettingsModule } from './settings/settings.module';
     SettingsModule,
     DesignsModule,
     BundlesModule,
+    CartModule,
     FilesModule,
   ],
   providers: [
@@ -57,5 +60,9 @@ import { SettingsModule } from './settings/settings.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(TraceIdMiddleware).forRoutes('*');
+    // Mints/reads the guest-cart-session cookie on every cart route regardless of auth state —
+    // see cart-session.middleware.ts for why this can't just reuse the @Public()/JwtAuthGuard
+    // optional-auth pattern (cart needs a real identity even with zero user ever issued).
+    consumer.apply(CartSessionMiddleware).forRoutes({ path: 'api/cart*', method: RequestMethod.ALL });
   }
 }
