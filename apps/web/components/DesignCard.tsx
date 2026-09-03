@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 
 // Mirrors apps/api/src/designs/dto/design.dto.ts's DesignSummaryDto.
 export interface DesignSummaryDto {
@@ -63,12 +64,17 @@ function loadSubcategoryNames(): Promise<Map<string, string>> {
 // AC-3/AC-4/AC-5/AC-8 — front/back flip card with dual-media auto-swap and a favorite toggle.
 export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
   const { user, accessToken } = useAuth();
+  const { addItem } = useCart();
   const [design, setDesign] = useState(initial);
   const [flipped, setFlipped] = useState(false);
   const [backDetail, setBackDetail] = useState<DesignBackDetail | null>(null);
   const [showingEmbroidery, setShowingEmbroidery] = useState(false);
   const [userSelectedMedia, setUserSelectedMedia] = useState(false);
   const [tagName, setTagName] = useState<string | null>(null);
+  const [selectedSizeId, setSelectedSizeId] = useState<string>('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,9 +108,29 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
       try {
         const detail = await apiFetch<DesignBackDetail>(`/api/designs/${design.id}`);
         setBackDetail(detail);
+        if (detail.sizes[0]) setSelectedSizeId(detail.sizes[0].id);
       } catch {
         // back stays in its loading state; the card itself doesn't break
       }
+    }
+  }
+
+  // AC-1 (Shopping Cart) — sizes aren't known until the back-detail fetch above, so the front
+  // button just flips the card (same posture as clicking the card itself) rather than adding
+  // blind; the real add-to-cart control lives on the back face where a size can be chosen.
+  async function onAddToCart(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!selectedSizeId) return;
+    setAddError(null);
+    setAdding(true);
+    try {
+      await addItem({ designId: design.id, sizeId: selectedSizeId, quantity: 1 });
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -181,8 +207,15 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                   <span className="font-semibold text-brand-navy">Rs {design.pricePkr}</span>
                 )}
               </p>
-              {/* TODO(A-011): Shopping Cart doesn't exist yet — button is a stub. */}
-              <button onClick={(e) => e.stopPropagation()} className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy">
+              {/* Sizes aren't known until the back-detail fetch — this flips to the back face,
+                  where a size is chosen and the real "Add to Cart" lives. */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!flipped) onFlip();
+                }}
+                className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy"
+              >
                 Add to Cart
               </button>
             </div>
@@ -214,12 +247,33 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
               {backDetail.threadColorCount !== null && <p>Thread colors: {backDetail.threadColorCount}</p>}
               {backDetail.threadColorChanges !== null && <p>Thread color changes: {backDetail.threadColorChanges}</p>}
               {design.tags.length > 0 && <p className="text-gray-400">Tags: {design.tags.join(', ')}</p>}
+
+              {backDetail.sizes.length > 0 && (
+                <select
+                  value={selectedSizeId}
+                  onChange={(e) => setSelectedSizeId(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+                >
+                  {backDetail.sizes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {addError && <p className="text-red-600">{addError}</p>}
+
               <div className="flex items-center justify-between pt-2">
                 <Link href={`/designs/${design.id}`} onClick={(e) => e.stopPropagation()} className="text-brand-navy underline">
                   View details
                 </Link>
-                <button onClick={(e) => e.stopPropagation()} className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy">
-                  Add to Cart
+                <button
+                  onClick={onAddToCart}
+                  disabled={adding || !selectedSizeId}
+                  className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy disabled:opacity-50"
+                >
+                  {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
                 </button>
               </div>
             </div>

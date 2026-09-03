@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 import { Logo } from './Logo';
 import { NotificationBell } from './NotificationBell';
 
@@ -152,6 +153,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Header() {
   const { user } = useAuth();
+  const { itemCount } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -198,14 +200,17 @@ export function Header() {
             <SearchBox />
           </div>
 
-          {/* TODO(A-011): Shopping Cart & Checkout doesn't exist yet — item count is always 0
-              until that aspect ships and can report a real cart size. */}
           <Link
             href="/cart"
             aria-label="Cart"
             className="relative inline-flex items-center rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5"
           >
             Cart
+            {itemCount > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-xs font-semibold text-brand-navy">
+                {itemCount}
+              </span>
+            )}
           </Link>
 
           {user ? (
@@ -244,7 +249,7 @@ export function Header() {
               </Link>
             ))}
             <Link href="/cart" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm text-brand-silver hover:bg-white/5">
-              Cart
+              Cart{itemCount > 0 ? ` (${itemCount})` : ''}
             </Link>
             {!user && (
               <Link

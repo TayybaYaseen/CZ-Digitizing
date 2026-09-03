@@ -92,6 +92,7 @@ model User {
   notificationPreferences NotificationPreference[]
   favorites            Favorite[]
   authorizedFiles      CustomerAuthorizedFile[]
+  cart                 Cart?
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -400,6 +401,7 @@ model Design {
   favorites          Favorite[]
   files              DesignFile[]
   bundleMemberships  BundleDesign[]
+  cartItems          CartItem[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -415,6 +417,8 @@ model DesignSize {
   sizeHeightMm Decimal  @map("size_height_mm") @db.Decimal(8, 2)
   sizeOrder    Int      @default(0) @map("size_order")
   createdAt    DateTime @default(now()) @map("created_at")
+
+  cartItems CartItem[]
 
   @@index([designId], map: "idx_design_sizes_design")
   @@map("design_sizes")
@@ -537,7 +541,8 @@ model DesignBundle {
   updatedAt        DateTime @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  designs BundleDesign[]
+  designs   BundleDesign[]
+  cartItems CartItem[]
 
   @@index([isPublished], map: "idx_design_bundles_published")
   @@map("design_bundles")
@@ -580,4 +585,57 @@ model DynamicBundleRule {
 
   @@index([categoryId], map: "idx_dynamic_bundle_rules_category")
   @@map("dynamic_bundle_rules")
+}
+
+// docs/specs/2026-08-28-07-shopping-cart-checkout.md §4 (aspect A-011). One cart per customer
+// and, separately, one per guest-session cookie (czd_cart_session, minted by
+// CartSessionMiddleware) — never both at once for the same physical visitor; AC-5's merge-on-login
+// folds a guest cart's items into the customer's cart via CartService.mergeGuestCartInto() rather
+// than repointing customerId onto the guest row, so a guest cart is always deletable afterward
+// without touching the customer's own cart id.
+model Cart {
+  id             BigInt   @id @default(autoincrement())
+  customerId     BigInt?  @unique @map("customer_id")
+  customer       User?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  guestSessionId String?  @unique @map("guest_session_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+enum CartItemStatus {
+  active
+  saved_for_later
+}
+
+// AC-1/AC-2/AC-8 — designId/bundleId is exactly one of the two (CHECK constraint hand-appended to
+// this model's migration, same posture as design_files' emb_never_public). sizeId is required for
+// a design item (every Design has >=1 DesignSize per CreateDesignDto's own validation) and always
+// null for a bundle item (bundles have no size concept). priceAtAddPkr is captured once at add
+// time (feeds CartItemDto.linePriceAtSelectionPkr); the live unitPricePkr shown to the customer is
+// always recomputed fresh from Design/BundlesService.computeBundleTotal() at read time, never
+// trusted stale — this field exists purely so the UI can show "price changed since you added this".
+model CartItem {
+  id     BigInt @id @default(autoincrement())
+  cartId BigInt @map("cart_id")
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  designId BigInt? @map("design_id")
+  design   Design? @relation(fields: [designId], references: [id], onDelete: Cascade)
+  bundleId BigInt? @map("bundle_id")
+  bundle   DesignBundle? @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  sizeId   BigInt? @map("size_id")
+  size     DesignSize? @relation(fields: [sizeId], references: [id], onDelete: SetNull)
+
+  quantity      Int            @default(1)
+  status        CartItemStatus @default(active)
+  priceAtAddPkr Decimal        @map("price_at_add_pkr") @db.Decimal(10, 2)
+
+  addedAt DateTime @default(now()) @map("added_at")
+
+  @@index([cartId], map: "idx_cart_items_cart")
+  @@map("cart_items")
 }
