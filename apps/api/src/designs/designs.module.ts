@@ -3,9 +3,11 @@ import { CategoriesController, SubcategoriesController } from './categories.cont
 import { CategoriesService } from './categories.service';
 import { DesignsController } from './designs.controller';
 import { DesignsService } from './designs.service';
+import { ImageUploadController } from './image-upload.controller';
+import { ImageUploadService } from './image-upload.service';
 
 @Module({
-  controllers: [CategoriesController, SubcategoriesController, DesignsController],
-  providers: [CategoriesService, DesignsService],
+  controllers: [CategoriesController, SubcategoriesController, DesignsController, ImageUploadController],
+  providers: [CategoriesService, DesignsService, ImageUploadService],
 })
 export class DesignsModule {}

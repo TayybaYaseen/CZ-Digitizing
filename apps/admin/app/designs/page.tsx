@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
@@ -60,8 +60,14 @@ export default function DesignsAdminPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { isPublished: true } });
+  const previewImageUrl = watch('previewImageUrl');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<ApiError | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -87,6 +93,27 @@ export default function DesignsAdminPage() {
     load();
   }, [isReady, user, load, router]);
 
+  async function onImageSelected(fileList: FileList | null) {
+    const file = fileList?.item(0);
+    if (!file) return;
+    setImageUploadError(null);
+    setImageUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { url } = await apiFetch<{ url: string }>('/api/uploads/images', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+      });
+      setValue('previewImageUrl', url, { shouldValidate: true });
+    } catch (err) {
+      setImageUploadError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Image upload failed.', traceId: '' });
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   async function onSubmit(values: FormValues) {
     setApiError(null);
     setSuccessMessage(null);
@@ -105,6 +132,7 @@ export default function DesignsAdminPage() {
       });
       setSuccessMessage(`Design "${values.name}" created.`);
       reset({ name: '', previewImageUrl: '', categoryId: '', pricePkr: 0, sizeLabel: '', sizeWidthMm: 0, sizeHeightMm: 0, isPublished: true });
+      if (imageInputRef.current) imageInputRef.current.value = '';
       load();
     } catch (err) {
       if (err instanceof ApiClientError && err.error.code === 'VALIDATION_ERROR' && err.error.errors) {
@@ -197,8 +225,31 @@ export default function DesignsAdminPage() {
           <FormField label="Name" htmlFor="name" error={errors.name}>
             <input id="name" className={inputClass} {...register('name')} />
           </FormField>
-          <FormField label="Preview image URL" htmlFor="previewImageUrl" error={errors.previewImageUrl}>
-            <input id="previewImageUrl" className={inputClass} {...register('previewImageUrl')} />
+          <FormField label="Preview image" htmlFor="previewImageFile" error={errors.previewImageUrl}>
+            <div className="flex items-center gap-3">
+              {previewImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- admin preview thumb, arbitrary uploaded/pasted URL
+                <img src={previewImageUrl} alt="" className="h-14 w-14 flex-shrink-0 rounded-field border border-gray-200 object-cover" />
+              )}
+              <div className="flex-1 space-y-2">
+                <input
+                  ref={imageInputRef}
+                  id="previewImageFile"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  disabled={imageUploading}
+                  onChange={(e) => onImageSelected(e.target.files)}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-field file:border-0 file:bg-gold-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-navy-800"
+                />
+                {imageUploading && <p className="text-xs text-gray-400">Uploading…</p>}
+                {imageUploadError && <p className="text-xs text-status-redFg">{imageUploadError.message}</p>}
+                <input
+                  placeholder="…or paste an image URL"
+                  className={`${inputClass} text-xs`}
+                  {...register('previewImageUrl')}
+                />
+              </div>
+            </div>
           </FormField>
           <FormField label="Category" htmlFor="categoryId" error={errors.categoryId}>
             <select id="categoryId" className={inputClass} {...register('categoryId')}>

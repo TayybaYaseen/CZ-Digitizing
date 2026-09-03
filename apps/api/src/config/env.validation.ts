@@ -52,6 +52,11 @@ export const envSchema = z.object({
   // is configured yet (spec's own storage provider is Open, see plan). Defaults to a path under
   // the API package so a fresh clone works with zero extra setup in dev.
   STORAGE_PRIVATE_ROOT: z.string().default('./storage/private'),
+
+  // Public image uploads (design preview/gallery images) — separate root from the private
+  // embroidery-file storage above; these files are meant to be publicly viewable, served via
+  // main.ts's static mount at /uploads.
+  STORAGE_PUBLIC_ROOT: z.string().default('./storage/public'),
 });
 
 export type Env = z.infer<typeof envSchema>;

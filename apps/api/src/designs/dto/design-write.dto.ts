@@ -14,6 +14,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+// class-validator's default IsUrl() rejects "localhost" (no dot-TLD) — which is exactly what
+// ImageUploadService's dev-mode API_BASE_URL produces (http://localhost:4000/uploads/...). Every
+// design media URL field uses this relaxed option so a locally-uploaded image/video URL validates
+// the same way a real https://... URL does; this stays correct in production too (require_tld:
+// false is a superset, not a hole — it just stops requiring a TLD, it doesn't skip protocol/host
+// structure checks).
+const URL_OPTIONS = { require_tld: false };
+
 export class DesignSizeInputDto {
   @IsString()
   @MaxLength(50)
@@ -38,12 +46,12 @@ export class CreateDesignDto {
   @IsString()
   description?: string;
 
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   previewImageUrl!: string;
 
   @IsOptional()
   @IsArray()
-  @IsUrl({}, { each: true })
+  @IsUrl(URL_OPTIONS, { each: true })
   galleryImageUrls?: string[];
 
   @IsArray()
@@ -56,19 +64,19 @@ export class CreateDesignDto {
   subcategoryId?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   vectorImageUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   vectorVideoUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   embroideryImageUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   embroideryVideoUrl?: string;
 
   @IsOptional()
@@ -132,12 +140,12 @@ export class UpdateDesignDto {
   description?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   previewImageUrl?: string;
 
   @IsOptional()
   @IsArray()
-  @IsUrl({}, { each: true })
+  @IsUrl(URL_OPTIONS, { each: true })
   galleryImageUrls?: string[];
 
   @IsOptional()
@@ -151,19 +159,19 @@ export class UpdateDesignDto {
   subcategoryId?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   vectorImageUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   vectorVideoUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   embroideryImageUrl?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl(URL_OPTIONS)
   embroideryVideoUrl?: string;
 
   @IsOptional()
