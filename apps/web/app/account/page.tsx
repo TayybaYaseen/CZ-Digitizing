@@ -39,6 +39,11 @@ export default function AccountPage() {
 
       <ul className="divide-y divide-gray-200 rounded-md border border-gray-200">
         <li>
+          <Link href="/account/purchased-designs" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Purchased designs
+          </Link>
+        </li>
+        <li>
           <Link href="/account/notifications" className="block px-4 py-3 text-sm hover:bg-gray-50">
             Notifications
           </Link>
