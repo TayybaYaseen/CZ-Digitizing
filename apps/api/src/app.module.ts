@@ -19,6 +19,7 @@ import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DesignsModule } from './designs/designs.module';
+import { BundlesModule } from './bundles/bundles.module';
 import { FilesModule } from './files/files.module';
 import { RedisModule } from './redis/redis.module';
 import { SettingsModule } from './settings/settings.module';
@@ -39,6 +40,7 @@ import { SettingsModule } from './settings/settings.module';
     AdminModule,
     SettingsModule,
     DesignsModule,
+    BundlesModule,
     FilesModule,
   ],
   providers: [

@@ -6,16 +6,17 @@ import { useAuth } from '@/lib/auth-context';
 import { Logo } from './Logo';
 
 // Mirrors the NAV structure decoded from docs/CZ Digitizing Admin Panel.html's bundled
-// AdminShell (SidebarNav items, 3 sections). Dashboard/Designs/Settings/Accounts have real pages;
-// Orders/Customers/Payments/Quotes/Reports are still Blocked in docs/specs/SPEC_INDEX.md (their
-// owning aspects — A-013, A-019, A-005e — don't exist yet) and 404 until built, same posture as
-// apps/web's Header.tsx nav.
+// AdminShell (SidebarNav items, 3 sections). Dashboard/Designs/Bundles/Settings/Accounts have real
+// pages; Orders/Customers/Payments/Quotes/Reports are still Blocked in docs/specs/SPEC_INDEX.md
+// (their owning aspects — A-013, A-019, A-005e — don't exist yet) and 404 until built, same
+// posture as apps/web's Header.tsx nav.
 const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'Main' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/orders', label: 'Orders' }, // TODO(A-013)
   { href: '/customers', label: 'Customers' }, // TODO(A-019)
   { href: '/designs', label: 'Designs' },
+  { href: '/bundles', label: 'Bundles' },
   { section: 'Business' },
   { href: '/payments', label: 'Payments' }, // TODO(A-013)
   { href: '/quotes', label: 'Quotes' }, // TODO(A-016)

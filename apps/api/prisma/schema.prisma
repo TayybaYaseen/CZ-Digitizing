@@ -326,6 +326,7 @@ model DesignCategory {
 
   subcategories DesignSubcategory[]
   assignments   DesignCategoryAssignment[]
+  dynamicBundleRules DynamicBundleRule[]
 
   @@map("design_categories")
 }
@@ -398,6 +399,7 @@ model Design {
   categoryAssignments DesignCategoryAssignment[]
   favorites          Favorite[]
   files              DesignFile[]
+  bundleMemberships  BundleDesign[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -517,4 +519,65 @@ model CustomerAuthorizedFile {
   @@index([orderId], map: "idx_customer_authorized_files_order")
   @@index([customerId], map: "idx_customer_authorized_files_customer")
   @@map("customer_authorized_files")
+}
+
+// docs/specs/2026-08-28-06-design-bundles.md §4 (aspect A-008). Never hard-deleted — AC-5 requires
+// existing purchasers keep order history/file access after Admin unpublishes or deletes a bundle,
+// so deletedAt is a soft-delete flag rather than a row removal, same posture as Design.
+model DesignBundle {
+  id               BigInt   @id @default(autoincrement())
+  name             String
+  description      String?
+  previewImageUrl  String?  @map("preview_image_url")
+  pricePkr         Decimal  @map("price_pkr") @db.Decimal(10, 2)
+  salePricePkr     Decimal? @map("sale_price_pkr") @db.Decimal(10, 2)
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  designs BundleDesign[]
+
+  @@index([isPublished], map: "idx_design_bundles_published")
+  @@map("design_bundles")
+}
+
+// AC-1/AC-7 — bundle membership join table. priceOverridePkr (AC-7) lets Admin override a specific
+// design's contribution to the bundle total instead of using Design.pricePkr; null means "use the
+// design's own price". sortOrder controls display order on the bundle detail page.
+model BundleDesign {
+  id       BigInt       @id @default(autoincrement())
+  bundleId BigInt       @map("bundle_id")
+  bundle   DesignBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  designId BigInt       @map("design_id")
+  design   Design       @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  sortOrder        Int?     @map("sort_order")
+  priceOverridePkr Decimal? @map("price_override_pkr") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([bundleId, designId], map: "uq_bundle_designs_bundle_design")
+  @@index([designId], map: "idx_bundle_designs_design")
+  @@map("bundle_designs")
+}
+
+// AC-6 — "any N designs from Category X for Y PKR" dynamic bundle rules. Modeled and
+// admin-manageable now; automatic application at checkout is a cart feature (TODO(A-011) —
+// Shopping Cart & Checkout, still Blocked per SPEC_INDEX.md) and is not implemented here.
+model DynamicBundleRule {
+  id                  BigInt         @id @default(autoincrement())
+  name                String
+  categoryId          BigInt         @map("category_id")
+  category            DesignCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  requiredDesignCount Int            @map("required_design_count")
+  bundlePricePkr      Decimal        @map("bundle_price_pkr") @db.Decimal(10, 2)
+  isPublished         Boolean        @default(false) @map("is_published")
+  createdByAdminId    BigInt?        @map("created_by_admin_id")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  @@index([categoryId], map: "idx_dynamic_bundle_rules_category")
+  @@map("dynamic_bundle_rules")
 }
