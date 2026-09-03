@@ -31,8 +31,11 @@ export class PlatformSettingsService {
   }
 
   async getPublic(): Promise<PublicSettingsDto> {
-    const settings = await this.prisma.platformSettings.findUniqueOrThrow({ where: { id: SETTINGS_ID } });
-    return toPublicSettingsDto(settings);
+    const [settings, paymentMethods] = await Promise.all([
+      this.prisma.platformSettings.findUniqueOrThrow({ where: { id: SETTINGS_ID } }),
+      this.prisma.paymentMethodSetting.findMany(),
+    ]);
+    return toPublicSettingsDto(settings, paymentMethods);
   }
 
   async updateContact(dto: UpdateContactDto, admin: AccessTokenPayload): Promise<SettingsDto> {

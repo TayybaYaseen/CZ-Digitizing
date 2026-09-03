@@ -40,4 +40,9 @@ export type ApiErrorCode =
   | 'INSUFFICIENT_CREDITS'
   // Checkout's real pre-validation passes (item published, size selected) before failing at the
   // one step Orders & Payment Processing (A-013, still Blocked) owns — never a fabricated success.
-  | 'ORDERS_NOT_AVAILABLE';
+  | 'ORDERS_NOT_AVAILABLE'
+  // Orders & Payment Processing spec (docs/specs/2026-08-28-08-orders-payment-processing.md §3)
+  | 'INVALID_WEBHOOK_SIGNATURE'
+  | 'ORDER_ALREADY_CONFIRMED'
+  | 'RECEIPT_REQUIRED'
+  | 'INVALID_ORDER_TRANSITION';

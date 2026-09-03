@@ -75,10 +75,43 @@ describe('CustomerFilesService (AC-6, AC-11 — logic proven ahead of A-013 wiri
     expect(prisma._row.downloadCount).toBe(0);
   });
 
-  it('listAuthorizedFiles and requestDownload always reject with PAYMENT_NOT_CONFIRMED until Orders exists (TODO(A-013), never a silent bypass)', async () => {
-    const service = new CustomerFilesService({} as never, {} as never);
+  function createFakeOrderPrisma(order: { id: bigint; customerId: bigint; status: string; paymentStatus: string } | null, authorizedFiles: Record<string, unknown>[] = []) {
+    return {
+      order: { findFirst: jest.fn(async () => order) },
+      customerAuthorizedFile: {
+        findMany: jest.fn(async () => authorizedFiles),
+        findFirst: jest.fn(async ({ where }: { where: { id: bigint } }) => authorizedFiles.find((f) => f.id === where.id) ?? null),
+        findUniqueOrThrow: jest.fn(async () => authorizedFiles[0]),
+        update: jest.fn(async () => authorizedFiles[0]),
+      },
+    };
+  }
 
+  it('rejects with RESOURCE_NOT_FOUND when the order does not belong to this customer', async () => {
+    const prisma = createFakeOrderPrisma(null);
+    const service = new CustomerFilesService(prisma as never, {} as never);
+    await expect(service.listAuthorizedFiles('1', 1n)).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+  });
+
+  it('rejects with PAYMENT_NOT_CONFIRMED while the order is still payment_pending (AC-6)', async () => {
+    const prisma = createFakeOrderPrisma({ id: 1n, customerId: 1n, status: 'payment_pending', paymentStatus: 'pending' });
+    const service = new CustomerFilesService(prisma as never, {} as never);
     await expect(service.listAuthorizedFiles('1', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
     await expect(service.requestDownload('1', '1', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
+  });
+
+  it('rejects with PAYMENT_NOT_CONFIRMED once the order has been fully refunded, even if status is still processing (AC-11)', async () => {
+    const prisma = createFakeOrderPrisma({ id: 1n, customerId: 1n, status: 'processing', paymentStatus: 'refunded' });
+    const service = new CustomerFilesService(prisma as never, {} as never);
+    await expect(service.listAuthorizedFiles('1', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
+  });
+
+  it('allows listing files once the order is payment_confirmed or later (AC-1/AC-6)', async () => {
+    for (const status of ['payment_confirmed', 'processing', 'ready', 'completed']) {
+      const prisma = createFakeOrderPrisma({ id: 1n, customerId: 1n, status, paymentStatus: 'completed' }, [{ id: 5n, designFile: { designId: 9n, fileFormat: 'DST', fileSizeBytes: 100n } }]);
+      const service = new CustomerFilesService(prisma as never, {} as never);
+      const files = await service.listAuthorizedFiles('1', 1n);
+      expect(files).toHaveLength(1);
+    }
   });
 });

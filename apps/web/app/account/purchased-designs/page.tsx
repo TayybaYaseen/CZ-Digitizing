@@ -6,12 +6,12 @@ import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 // docs/specs/2026-08-28-05-private-file-management.md §5 — /account/purchased-designs (AC-8).
-// There is genuinely nothing to list yet: the backend (GET /api/orders/:id/files) is real but
-// gated behind an order id, and no order-listing endpoint exists because Orders (A-013) hasn't
-// shipped — still Blocked per docs/specs/SPEC_INDEX.md. Rather than call the download API with a
-// fabricated order id (which would just surface a confusing error), this page states the honest
-// current state and links back to the catalog. It becomes a real per-order file list the moment
-// A-013 ships a "my orders" endpoint to enumerate from.
+// GET /api/orders/:id/files (A-007) is real and gated on order status per A-013's AC-6, but it's
+// keyed by a single order id — there is no "all my authorized files across every order" endpoint,
+// only per-order listing. /account/orders (A-013) is the real entry point: each order there links
+// to /order-confirmation/:id, which itself links to this page's natural next step once files are
+// released. Kept here as a simple redirect-style pointer rather than re-implementing an
+// order-selector, since /account/orders already is that selector.
 export default function PurchasedDesignsPage() {
   const router = useRouter();
   const { user, isReady } = useAuth();
@@ -31,9 +31,9 @@ export default function PurchasedDesignsPage() {
       </div>
 
       <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
-        <p>Purchases aren&apos;t available yet — checkout hasn&apos;t launched.</p>
-        <Link href="/designs" className="mt-2 inline-block text-brand-navy underline">
-          Browse designs
+        <p>View your files from each order&apos;s confirmation page.</p>
+        <Link href="/account/orders" className="mt-2 inline-block text-brand-navy underline">
+          Go to Order History
         </Link>
       </div>
     </div>

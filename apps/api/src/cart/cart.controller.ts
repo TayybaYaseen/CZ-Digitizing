@@ -5,7 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../common/decorators/current-user.decorator';
 import type { RequestWithCartSession } from './cart-session.middleware';
 import { CartService, type CartActor } from './cart.service';
-import { AddCartItemDto, ApplyCreditsDto, UpdateCartItemDto } from './dto/cart-write.dto';
+import { AddCartItemDto, ApplyCreditsDto, CheckoutDto, UpdateCartItemDto } from './dto/cart-write.dto';
 
 type CartRequest = AuthenticatedRequest & RequestWithCartSession;
 
@@ -88,7 +88,7 @@ export class CartController {
   @Post('checkout')
   @Roles('customer')
   @HttpCode(201)
-  checkout(@Req() req: CartRequest) {
-    return this.service.checkout(this.actor(req));
+  checkout(@Body() dto: CheckoutDto, @Req() req: CartRequest) {
+    return this.service.checkout(req.user, dto.paymentMethod);
   }
 }

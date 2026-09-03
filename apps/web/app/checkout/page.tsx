@@ -9,21 +9,27 @@ import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
-const PAYMENT_METHODS: { value: 'paypal' | 'bank_transfer' | 'credit_card'; label: string }[] = [
+const PAYMENT_METHODS: { value: 'paypal' | 'stripe' | 'bank_transfer'; label: string }[] = [
   { value: 'paypal', label: 'PayPal' },
+  { value: 'stripe', label: 'Credit/Debit Card (Stripe)' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'credit_card', label: 'Credit Card' },
 ];
 
-// docs/specs/2026-08-28-07-shopping-cart-checkout.md AC-6 — order creation is Orders & Payment
-// Processing's (A-013) job, still Blocked per docs/specs/SPEC_INDEX.md. CartService.checkout()
-// runs its real pre-validation (every line published, every design line sized) before failing with
-// a documented ORDERS_NOT_AVAILABLE 501 — this page shows that honestly rather than pretending a
-// purchase went through.
+interface OrderDto {
+  id: string;
+  status: string;
+  paymentMethod: string;
+  bankTransferReference: string | null;
+}
+
+// docs/specs/2026-08-28-08-orders-payment-processing.md §3/§5 (aspect A-013) — checkout now
+// actually creates an order via POST /api/cart/checkout (CartService.checkout() ->
+// OrdersService.createFromCart()), instead of the ORDERS_NOT_AVAILABLE 501 stub this page used to
+// show. Loading state: submit button disabled + spinner while the order is created (spec §5).
 export default function CheckoutPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
-  const { cart } = useCart();
+  const { cart, refresh } = useCart();
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('paypal');
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -36,11 +42,17 @@ export default function CheckoutPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await apiFetch('/api/cart/checkout', {
+      const order = await apiFetch<OrderDto>('/api/cart/checkout', {
         method: 'POST',
         body: JSON.stringify({ paymentMethod }),
         headers: { Authorization: `Bearer ${accessToken}` },
       });
+      await refresh();
+      if (paymentMethod === 'bank_transfer') {
+        router.push(`/checkout/bank-transfer/${order.id}`);
+      } else {
+        router.push(`/order-confirmation/${order.id}`);
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Checkout failed.', traceId: '' });
     } finally {
@@ -91,20 +103,15 @@ export default function CheckoutPage() {
         ))}
       </div>
 
-      {error?.code === 'ORDERS_NOT_AVAILABLE' ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Checkout isn&apos;t available yet — Orders &amp; Payment Processing is still being built. Your cart is saved and nothing has been charged.
-        </div>
-      ) : (
-        <ErrorBanner error={error} />
-      )}
+      <ErrorBanner error={error} />
 
       <button
         onClick={onConfirm}
         disabled={submitting}
-        className="w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
       >
-        {submitting ? 'Confirming…' : 'Confirm'}
+        {submitting && <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-navy border-t-transparent" aria-hidden />}
+        {submitting ? 'Placing order…' : 'Confirm Order'}
       </button>
     </div>
   );

@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { BundlesModule } from '../bundles/bundles.module';
+import { OrdersModule } from '../orders/orders.module';
 import { CartCleanupService } from './cart-cleanup.service';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 
 @Module({
-  imports: [BundlesModule],
+  imports: [BundlesModule, OrdersModule],
   controllers: [CartController],
   providers: [CartService, CartCleanupService],
 })

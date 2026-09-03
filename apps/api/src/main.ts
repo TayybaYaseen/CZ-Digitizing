@@ -9,7 +9,12 @@ import { AppModule } from './app.module';
 import type { Env } from './config/env.validation';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true — Stripe webhook signature verification (stripe.webhooks.constructEvent, AC-10)
+  // needs the exact raw request bytes, not the JSON-parsed body Nest's default body parser
+  // produces. This option makes Nest's underlying body-parser middleware stash the raw Buffer on
+  // req.rawBody for every request while still JSON-parsing req.body as normal — cheaper than
+  // excluding the webhook route from global body parsing and re-parsing it by hand.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
   app.use(cookieParser());

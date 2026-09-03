@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { Cart, Prisma } from '../generated/prisma';
+import type { Cart, PaymentMethod, Prisma } from '../generated/prisma';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
+import type { OrderDto } from '../orders/dto/order.dto';
+import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AddCartItemDto } from './dto/cart-write.dto';
 import { toCartDto, toCartItemDto, type CartDto, type CartItemWithRelations, type CartWithItems } from './dto/cart.dto';
@@ -26,6 +28,7 @@ export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly bundles: BundlesService,
+    private readonly orders: OrdersService,
   ) {}
 
   // Only role=customer requests resolve to a customer-linked cart — admin/freelancer/moderator
@@ -194,11 +197,11 @@ export class CartService {
   }
 
   // AC-6 — real pre-checkout validation (every active line still published, every design line
-  // still has its size) runs before the one step this aspect can't complete: creating an actual
-  // Order. TODO(A-013): Orders & Payment Processing, still Blocked, owns order creation and
-  // cart-clear-on-success — this never fabricates a success.
-  async checkout(actor: CartActor): Promise<never> {
-    const cart = await this.loadCartWithItems((await this.resolveCart(actor)).id);
+  // still has its size) runs before handing off to OrdersService.createFromCart(), which snapshots
+  // the validated active lines into a real Order and clears them from the cart on success (spec
+  // 2026-08-28-08-orders-payment-processing.md, aspect A-013 — no longer a stub).
+  async checkout(actor: AccessTokenPayload, paymentMethod: PaymentMethod): Promise<OrderDto> {
+    const cart = await this.loadCartWithItems((await this.resolveCart({ customerId: BigInt(actor.sub), guestSessionId: '' })).id);
     const active = cart.items.filter((i) => i.status === 'active');
     if (active.length === 0) throw new ApiException('VALIDATION_ERROR', 400, 'Cart is empty');
 
@@ -208,7 +211,7 @@ export class CartService {
       if (item.designId && !item.sizeId) throw new ApiException('SIZE_REQUIRED', 422, `A size must be selected for "${item.design?.name}"`);
     }
 
-    throw new ApiException('ORDERS_NOT_AVAILABLE', 501, 'Checkout is not available yet — Orders & Payment Processing has not shipped');
+    return this.orders.createFromCart(actor, cart, paymentMethod);
   }
 
   private async findOwnItemOrThrow(actor: CartActor, itemId: string): Promise<CartItemWithRelations> {
