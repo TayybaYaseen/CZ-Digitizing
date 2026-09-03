@@ -167,7 +167,6 @@ function seedDesign(prisma: ReturnType<typeof createFakePrisma>, overrides: Part
     subcategory: null,
     categoryAssignments: [],
     ...overrides,
-    id,
   };
   prisma._designs.set(id.toString(), design);
   const sizeId = prisma._nextId();
@@ -186,7 +185,6 @@ function seedBundle(prisma: ReturnType<typeof createFakePrisma>, overrides: Part
     isPublished: true,
     deletedAt: null,
     ...overrides,
-    id,
   };
   prisma._bundles.set(id.toString(), bundle);
   return bundle;
