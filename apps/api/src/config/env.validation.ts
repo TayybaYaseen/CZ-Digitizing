@@ -46,6 +46,12 @@ export const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true'),
+
+  // Private file management (docs/specs/2026-08-28-05-private-file-management.md, aspect A-007).
+  // Local-disk storage root, kept outside any static-served directory — no cloud storage client
+  // is configured yet (spec's own storage provider is Open, see plan). Defaults to a path under
+  // the API package so a fresh clone works with zero extra setup in dev.
+  STORAGE_PRIVATE_ROOT: z.string().default('./storage/private'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -22,6 +22,8 @@ export type ApiErrorCode =
   | 'CONFLICT'
   | 'FILE_FORMAT_BLOCKED'
   | 'PAYMENT_NOT_CONFIRMED'
+  | 'FILE_TOO_LARGE'
+  | 'UNSUPPORTED_FILE_TYPE'
   | 'RATE_LIMITED'
   // Fallback for uncaught/unexpected errors — never a designed API behavior, but every envelope
   // needs a code (added 2026-08-31, apps/api/src/common/filters/all-exceptions.filter.ts)

@@ -23,6 +23,7 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },
   { href: '/settings/freelancer-accounts', label: 'Accounts' },
+  { href: '/settings/file-formats', label: 'File Formats' },
 ];
 
 export function Sidebar() {

@@ -12,6 +12,10 @@ build/
 # apps/api's "postinstall" script; never hand-edited, so not committed.
 apps/api/src/generated/
 
+# Local-disk private file storage (docs/specs/2026-08-28-05-private-file-management.md, A-007) —
+# uploaded embroidery source files, never committed to the repo.
+apps/api/storage/
+
 # Env files
 .env
 .env.*

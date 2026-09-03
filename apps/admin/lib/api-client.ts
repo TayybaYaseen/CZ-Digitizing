@@ -75,9 +75,12 @@ function isUnauthenticated(body: unknown): boolean {
 }
 
 // Only swaps the Authorization header if the caller set one in the first place — a call with no
-// bearer token (a public route) stays that way on retry too.
+// bearer token (a public route) stays that way on retry too. A FormData body (file uploads, A-007)
+// must NOT get an explicit Content-Type — the browser sets multipart/form-data with the correct
+// boundary itself; forcing application/json here would silently break every multipart upload.
 function buildHeaders(init: RequestInit | undefined, accessToken?: string): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init?.headers as Record<string, string> | undefined) };
+  const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
+  const headers: Record<string, string> = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(init?.headers as Record<string, string> | undefined) };
   if (accessToken && headers.Authorization) headers.Authorization = `Bearer ${accessToken}`;
   return headers;
 }

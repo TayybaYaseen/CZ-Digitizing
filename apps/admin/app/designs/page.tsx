@@ -175,7 +175,12 @@ export default function DesignsAdminPage() {
                   <td className="px-4 py-3">
                     <Badge tone={design.isPublished === false ? 'warning' : 'success'}>{design.isPublished === false ? 'Draft' : 'Published'}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right space-x-2">
+                    <Link href={`/designs/${design.id}/files`}>
+                      <Button variant="outlineNavy" size="sm">
+                        Files
+                      </Button>
+                    </Link>
                     <Button variant="outlineNavy" size="sm" onClick={() => onDelete(design.id)}>
                       Delete
                     </Button>

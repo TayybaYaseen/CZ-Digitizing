@@ -91,6 +91,7 @@ model User {
   notifications        Notification[]
   notificationPreferences NotificationPreference[]
   favorites            Favorite[]
+  authorizedFiles      CustomerAuthorizedFile[]
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -396,6 +397,7 @@ model Design {
   sizes              DesignSize[]
   categoryAssignments DesignCategoryAssignment[]
   favorites          Favorite[]
+  files              DesignFile[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -427,4 +429,92 @@ model Favorite {
 
   @@unique([customerId, designId], map: "uq_favorites_customer_design")
   @@map("favorites")
+}
+
+// docs/specs/2026-08-28-05-private-file-management.md §4 (aspect A-007). AC-13/AC-14 — Admin-
+// managed allowed-format registry so a new machine-format extension can be added without a code
+// deploy. `EMB` is seeded is_private=true/is_locked=true by the AddPrivateFileManagement migration.
+// The service layer refuses any write that would flip either flag on a locked row, backstopped by
+// the locked_format_stays_private CHECK constraint (migration 20260903040500) — same posture as
+// design_files' emb_never_public (AC-2), so a direct DB write bypassing the service is rejected too.
+model AllowedFileFormat {
+  id            BigInt   @id @default(autoincrement())
+  extension     String   @unique
+  displayName   String   @map("display_name")
+  isPrivate     Boolean  @default(false) @map("is_private")
+  isLocked      Boolean  @default(false) @map("is_locked")
+  isActive      Boolean  @default(true) @map("is_active")
+  maxFileSizeMb Int      @default(50) @map("max_file_size_mb")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("allowed_file_formats")
+}
+
+// AC-1/AC-2/AC-7/AC-12 — design_files per architecture §Database Schema, plus content_validated
+// (magic-byte check) and version history (versionNumber/supersededByFileId) from this spec's §4.
+// file_format is a validated String (checked against AllowedFileFormat.extension in the service
+// layer, AC-13) rather than the architecture DDL's fixed Postgres ENUM — spec §8 risk #4 notes
+// full DB-level open-endedness is a follow-up, not achieved here.
+model DesignFile {
+  id       BigInt @id @default(autoincrement())
+  designId BigInt @map("design_id")
+  design   Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  fileFormat String @map("file_format")
+  // Never exposed in any DTO — AC-4/AC-8's "real storage path is never present in the response".
+  storagePath      String  @map("storage_path")
+  fileSizeBytes    BigInt  @map("file_size_bytes")
+  uploadHash       String  @map("upload_hash") // AC-7 — dedup key (sha256 of file content)
+  isPrivate        Boolean @default(true) @map("is_private")
+  contentValidated Boolean @default(false) @map("content_validated")
+
+  // AC-12 — replacing a file creates a new row pointing supersededByFileId at the old one,
+  // instead of overwriting it, so Admin can view/restore a previous version.
+  versionNumber      Int         @default(1) @map("version_number")
+  supersededByFileId BigInt?     @unique @map("superseded_by_file_id")
+  supersededBy       DesignFile? @relation("FileVersionHistory", fields: [supersededByFileId], references: [id])
+  previousVersion     DesignFile? @relation("FileVersionHistory")
+
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  authorizedFiles CustomerAuthorizedFile[]
+
+  @@index([designId], map: "idx_design_files_design")
+  @@index([uploadHash], map: "idx_design_files_upload_hash")
+  @@map("design_files")
+  // emb_never_public CHECK constraint added via raw SQL in this model's migration — see
+  // AddPrivateFileManagement/migration.sql. Prisma's schema DSL has no @@check clause in this
+  // Prisma version (5.x), so the constraint is hand-appended to the generated migration, the same
+  // way every other DB-level invariant not expressible in the schema DSL is added in this repo.
+}
+
+// AC-4/5/6/8/9/11 — customer-authorized download records. orderId is a plain BigInt with NO FK
+// yet: `orders` (A-013 Orders & Payment Processing) doesn't exist, and per SPEC_INDEX.md, A-013
+// depends on THIS aspect, not the reverse — a real circularity in the spec's own data model
+// section. TODO(A-013): add `order Order @relation(...)` once that table exists. customerId is
+// included (with a real FK, since User exists today) so the authorization check has something
+// concrete to key on even before orderId is enforced at the DB level.
+model CustomerAuthorizedFile {
+  id BigInt @id @default(autoincrement())
+
+  orderId    BigInt @map("order_id") // TODO(A-013): no FK yet — orders table doesn't exist
+  customerId BigInt @map("customer_id")
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  designFileId BigInt     @map("design_file_id")
+  designFile   DesignFile @relation(fields: [designFileId], references: [id], onDelete: Cascade)
+
+  downloadCount      Int       @default(0) @map("download_count")
+  firstDownloadAt    DateTime? @map("first_download_at")
+  lastDownloadAt     DateTime? @map("last_download_at")
+  // AC-11 — Admin-set per-record download-attempt cap; null means no cap.
+  maxDownloadAttempts Int?     @map("max_download_attempts")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId], map: "idx_customer_authorized_files_order")
+  @@index([customerId], map: "idx_customer_authorized_files_customer")
+  @@map("customer_authorized_files")
 }
