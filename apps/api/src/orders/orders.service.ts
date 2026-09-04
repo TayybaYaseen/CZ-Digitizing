@@ -4,6 +4,7 @@ import { AuditLogService } from '../audit/audit-log.service';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
+import { CreditsService } from '../credits/credits.service';
 import type { Order, OrderPaymentStatus, OrderStatus, PaymentMethod, Prisma } from '../generated/prisma';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,6 +37,7 @@ export class OrdersService {
     private readonly paypal: PayPalService,
     private readonly stripe: StripeService,
     private readonly audit: AuditLogService,
+    private readonly credits: CreditsService,
   ) {}
 
   // AC-6/AC-7 (Cart spec) — called by CartService.checkout() only, once its own pre-validation
@@ -43,7 +45,7 @@ export class OrdersService {
   // OrderItem, clears those active lines (saved-for-later lines are left untouched), and returns
   // the created order. transactionType is always 'purchase' here — a renewal caller (A-015, not
   // built yet) would set 'renewal' itself once it exists.
-  async createFromCart(actor: AccessTokenPayload, cart: CartWithItems, paymentMethod: PaymentMethod): Promise<OrderDto> {
+  async createFromCart(actor: AccessTokenPayload, cart: CartWithItems, paymentMethod: PaymentMethod, creditsToApplyPkr = 0): Promise<OrderDto> {
     const active = cart.items.filter((i) => i.status === 'active');
 
     // Bundle lines need computeBundleTotal() (their price is the sum of member designs' possibly-
@@ -59,6 +61,10 @@ export class OrdersService {
     const grandTotalPkr = active.reduce((sum, item) => sum + unitPriceFor(item) * item.quantity, 0);
 
     const bankTransferReference = paymentMethod === 'bank_transfer' ? generateBankTransferReference() : null;
+    // AC-7 (subscriptions-credits spec) — credits reduce what's actually charged to the payment
+    // provider; totalPkr stays the real order total (same "never rewrite the historical amount"
+    // posture as OrderItem's unitPricePkr snapshot), creditsUsed records the offset separately.
+    const amountToChargePkr = Math.max(0, grandTotalPkr - creditsToApplyPkr);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
@@ -68,6 +74,7 @@ export class OrdersService {
           paymentStatus: 'pending',
           paymentMethod,
           totalPkr: grandTotalPkr,
+          creditsUsed: creditsToApplyPkr,
           bankTransferReference,
           items: {
             create: active.map((item) => ({
@@ -82,6 +89,8 @@ export class OrdersService {
         include: ORDER_INCLUDE,
       });
 
+      if (creditsToApplyPkr > 0) await this.credits.applyToOrder(tx, BigInt(actor.sub), created.id, creditsToApplyPkr);
+
       // AC-6 (Cart spec) — clear only the active lines just converted into the order; saved-for-
       // later lines survive checkout untouched.
       await tx.cartItem.deleteMany({ where: { cartId: cart.id, status: 'active' } });
@@ -89,11 +98,16 @@ export class OrdersService {
       return created;
     });
 
-    this.logger.log(`Order ${order.id} created for customer ${actor.sub} (${paymentMethod}, ${grandTotalPkr} PKR)`);
+    this.logger.log(`Order ${order.id} created for customer ${actor.sub} (${paymentMethod}, ${grandTotalPkr} PKR, ${creditsToApplyPkr} credits applied)`);
 
     let finalOrder: OrderWithRelations = order as OrderWithRelations;
-    if (paymentMethod === 'paypal') {
-      const created = await this.paypal.createOrder(grandTotalPkr, order.id.toString());
+    if (amountToChargePkr === 0) {
+      // Fully covered by credits — no provider charge needed; confirm immediately (same as a
+      // successful webhook, just with nothing to wait for).
+      await this.confirmAutomaticPayment(order.id, paymentMethod, {});
+      finalOrder = (await this.prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE })) as OrderWithRelations;
+    } else if (paymentMethod === 'paypal') {
+      const created = await this.paypal.createOrder(amountToChargePkr, order.id.toString());
       if (created) {
         finalOrder = (await this.prisma.order.update({
           where: { id: order.id },
@@ -102,7 +116,7 @@ export class OrdersService {
         })) as OrderWithRelations;
       }
     } else if (paymentMethod === 'stripe') {
-      const created = await this.stripe.createPaymentIntent(grandTotalPkr, order.id.toString());
+      const created = await this.stripe.createPaymentIntent(amountToChargePkr, order.id.toString());
       if (created) {
         finalOrder = (await this.prisma.order.update({
           where: { id: order.id },
@@ -299,7 +313,7 @@ export class OrdersService {
     if (amountPkr > Number(order.totalPkr)) throw new ApiException('VALIDATION_ERROR', 400, 'Refund amount exceeds order total');
     const isFullRefund = amountPkr >= Number(order.totalPkr);
 
-    this.reverseCreditsUsedOnOrder(order.id);
+    if (isFullRefund && Number(order.creditsUsed) > 0) await this.credits.reverseUsageOnOrder(order.id, Number(order.creditsUsed));
 
     await this.audit.record({
       adminUserId: BigInt(admin.sub),
@@ -329,16 +343,6 @@ export class OrdersService {
     });
 
     return toOrderDto(updated as OrderWithRelations);
-  }
-
-  // TODO(A-015): Subscriptions & Credits doesn't exist yet, so there is no credit ledger to
-  // reverse — mirrors CartService.applyCredits()'s stub exactly (a real, definitionally-0 check,
-  // never a silent no-op, so this becomes a real reversal the moment a Credit model exists).
-  private reverseCreditsUsedOnOrder(orderId: bigint): void {
-    const creditsUsedOnOrder = 0;
-    if (creditsUsedOnOrder > 0) {
-      throw new Error(`Unreachable until A-015: order ${orderId} has ${creditsUsedOnOrder} credits to reverse`);
-    }
   }
 
   private async findOrThrow(orderId: string): Promise<Order> {

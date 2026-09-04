@@ -45,4 +45,9 @@ export type ApiErrorCode =
   | 'INVALID_WEBHOOK_SIGNATURE'
   | 'ORDER_ALREADY_CONFIRMED'
   | 'RECEIPT_REQUIRED'
-  | 'INVALID_ORDER_TRANSITION';
+  | 'INVALID_ORDER_TRANSITION'
+  // Subscriptions & Credits spec (docs/specs/2026-08-28-09-subscriptions-credits.md §3)
+  | 'ALREADY_SUBSCRIBED'
+  | 'RENEWAL_PAYMENT_FAILED'
+  // Subscription logo/design-file download allowance (plan.logoLimit) exhausted for this cycle.
+  | 'SUBSCRIPTION_LOGO_LIMIT_REACHED';

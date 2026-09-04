@@ -3,6 +3,7 @@ import type { Cart, PaymentMethod, Prisma } from '../generated/prisma';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
+import { CreditsService } from '../credits/credits.service';
 import type { OrderDto } from '../orders/dto/order.dto';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,6 +30,7 @@ export class CartService {
     private readonly prisma: PrismaService,
     private readonly bundles: BundlesService,
     private readonly orders: OrdersService,
+    private readonly credits: CreditsService,
   ) {}
 
   // Only role=customer requests resolve to a customer-linked cart — admin/freelancer/moderator
@@ -186,21 +188,19 @@ export class CartService {
     return this.toDto(await this.loadCartWithItems(customerCart.id));
   }
 
-  // AC-4 — real validation; no Credit ledger exists yet (A-015 Subscriptions & Credits, still
-  // Blocked per docs/specs/SPEC_INDEX.md), so available balance is definitionally 0.
-  // TODO(A-015): replace the hardcoded 0 with a real balance lookup once a Credit model exists.
-  applyCredits(amountPkr: number): void {
-    const availableCreditsPkr = 0;
-    if (amountPkr > availableCreditsPkr) {
-      throw new ApiException('INSUFFICIENT_CREDITS', 422, `Only ${availableCreditsPkr} PKR in credits is available`);
-    }
+  // AC-4/AC-7 (subscriptions-credits spec) — real balance pre-check; the actual deduction happens
+  // inside OrdersService.createFromCart() at checkout (see this.checkout()'s creditsToApplyPkr
+  // param below), so this is a live "can I apply this much" validation the frontend can call as
+  // the customer types an amount, without it mutating anything itself.
+  async applyCredits(customerId: bigint, amountPkr: number): Promise<void> {
+    await this.credits.assertSufficientBalance(customerId, amountPkr);
   }
 
   // AC-6 — real pre-checkout validation (every active line still published, every design line
   // still has its size) runs before handing off to OrdersService.createFromCart(), which snapshots
   // the validated active lines into a real Order and clears them from the cart on success (spec
   // 2026-08-28-08-orders-payment-processing.md, aspect A-013 — no longer a stub).
-  async checkout(actor: AccessTokenPayload, paymentMethod: PaymentMethod): Promise<OrderDto> {
+  async checkout(actor: AccessTokenPayload, paymentMethod: PaymentMethod, creditsToApplyPkr = 0): Promise<OrderDto> {
     const cart = await this.loadCartWithItems((await this.resolveCart({ customerId: BigInt(actor.sub), guestSessionId: '' })).id);
     const active = cart.items.filter((i) => i.status === 'active');
     if (active.length === 0) throw new ApiException('VALIDATION_ERROR', 400, 'Cart is empty');
@@ -211,7 +211,9 @@ export class CartService {
       if (item.designId && !item.sizeId) throw new ApiException('SIZE_REQUIRED', 422, `A size must be selected for "${item.design?.name}"`);
     }
 
-    return this.orders.createFromCart(actor, cart, paymentMethod);
+    if (creditsToApplyPkr > 0) await this.credits.assertSufficientBalance(BigInt(actor.sub), creditsToApplyPkr);
+
+    return this.orders.createFromCart(actor, cart, paymentMethod, creditsToApplyPkr);
   }
 
   private async findOwnItemOrThrow(actor: CartActor, itemId: string): Promise<CartItemWithRelations> {

@@ -80,15 +80,15 @@ export class CartController {
   @Post('credits')
   @Roles('customer')
   @HttpCode(200)
-  applyCredits(@Body() dto: ApplyCreditsDto) {
-    this.service.applyCredits(dto.amountPkr);
-    return { creditsUsed: 0 };
+  async applyCredits(@Body() dto: ApplyCreditsDto, @Req() req: CartRequest) {
+    await this.service.applyCredits(BigInt(req.user!.sub), dto.amountPkr);
+    return { creditsUsed: dto.amountPkr };
   }
 
   @Post('checkout')
   @Roles('customer')
   @HttpCode(201)
   checkout(@Body() dto: CheckoutDto, @Req() req: CartRequest) {
-    return this.service.checkout(req.user, dto.paymentMethod);
+    return this.service.checkout(req.user, dto.paymentMethod, dto.creditsToApplyPkr);
   }
 }

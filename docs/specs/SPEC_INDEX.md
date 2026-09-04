@@ -79,6 +79,22 @@ Dependencies (`A-002, A-004`) are now both `Completed`, is mechanically `Not Sta
 `Blocked`, per `CLAUDE.md` §5; every aspect still listing A-012, A-014, A-011, A-007, or A-001 among
 its dependencies remains `Blocked` as before.
 
+As of the 2026-09-03 update: A-015 (Subscriptions & Credits) is `In Progress` — backend
+(`apps/api`) implementation of `docs/specs/2026-08-28-09-subscriptions-credits.md` (AC-1–AC-10) is
+complete and verified: 10 new unit tests (ledger arithmetic, renewal-date computation, idempotent
+monthly grant) and a 7-test integration suite against real Postgres
+(`test/integration/subscriptions-credits.spec.ts`), plus the two `TODO(A-015)` stubs in
+`CartService.applyCredits()`/`OrdersService.refund()` are now real. Frontend (`apps/web`/`apps/admin`)
+is built and typechecks cleanly (`/pricing`, `/account/subscription`, `/account/credits`, the
+checkout credit-apply control, `/admin/pricing`, `/admin/credits`) but has not yet been exercised
+against a running browser session, so this stays `In Progress` rather than `Completed` per
+`CLAUDE.md` §5's "existence is not completion" rule. Two spec-flagged Open risks were resolved with
+documented, concrete choices rather than left unimplemented: risk #1 (PayPal recurring billing) as
+a re-charge-via-fresh-one-time-capture-and-notify flow (no stored payment method exists in this
+payment layer), and risk #3 (dunning cadence) as 3 retry attempts over a 3-day grace period before
+lapsing (`SubscriptionsService.RENEWAL_MAX_RETRIES`/`RENEWAL_GRACE_PERIOD_DAYS`). A-015a/A-015b
+remain mechanically `Blocked` until A-015 itself reaches `Completed`.
+
 ---
 
 ## Aspect Registry
@@ -129,7 +145,7 @@ its dependencies remains `Blocked` as before.
 | A-013a | PayPal Integration | A-013 | A-013 | 8 | Blocked | 42 |
 | A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Blocked | 43 |
 | A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Blocked | 44 |
-| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | Not Started | 45 |
+| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
 | A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | Not Started | 46 |
 | A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
 | A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |

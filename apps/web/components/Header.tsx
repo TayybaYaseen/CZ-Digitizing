@@ -19,9 +19,9 @@ interface SearchSuggestions {
 const SEARCH_DEBOUNCE_MS = 250;
 
 // SRS §4 "Header & Global Navigation" main nav, in source order. Design Categories/All Designs
-// (A-006) and Design Bundles (A-008) now have real pages. Services (A-014) and Subscription
-// (A-015) still don't — those aspects are still Blocked per docs/specs/SPEC_INDEX.md — so that
-// link 404s until its aspect ships its own page.
+// (A-006) and Design Bundles (A-008) now have real pages. Services (A-014) still doesn't — that
+// aspect is still Blocked per docs/specs/SPEC_INDEX.md — so that link 404s until its aspect ships
+// its own page.
 const PRIMARY_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/services', label: 'Services' }, // TODO(A-014)
@@ -33,9 +33,10 @@ const PRIMARY_LINKS = [
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
 // page break, without specifying what "More" itself contains — read here as a secondary-items
 // dropdown holding those two, the natural place for "everything else" in an 8-item nav. Flagged
-// as an interpretation, not a fact stated in the source.
+// as an interpretation, not a fact stated in the source. "Subscription" now points at /pricing
+// (A-015, docs/specs/2026-08-28-09-subscriptions-credits.md §5) rather than the old TODO stub.
 const MORE_LINKS = [
-  { href: '/subscription', label: 'Subscription' }, // TODO(A-015)
+  { href: '/pricing', label: 'Subscription' },
   { href: '/account', label: 'My Account' },
 ];
 

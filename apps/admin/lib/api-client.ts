@@ -117,22 +117,36 @@ export class ApiClientError extends Error {
   }
 }
 
+// A 204 (or any response with no body — logout, this file's own DELETE routes, per
+// ResponseInterceptor's own doc comment: "204 routes like logout return undefined") has nothing
+// for res.json() to parse; calling it anyway throws "Unexpected end of JSON input" and turns a
+// successful delete into a thrown error at the call site, even though the request itself
+// succeeded. Every apiFetch caller across the app that awaits a DELETE (bundles, categories,
+// designs, freelancer accounts, notifications, and this file's own subscription-plan/credit-
+// package delete buttons) was silently subject to this — the request always reached the server
+// and always succeeded, but the client-side promise always rejected afterward.
+async function readJsonBody(res: Response): Promise<unknown> {
+  if (res.status === 204) return undefined;
+  const text = await res.text();
+  return text ? JSON.parse(text) : undefined;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithAuthRetry(path, init);
-  const body = await res.json();
+  const body = await readJsonBody(res);
 
   if (!res.ok) {
     throw new ApiClientError((body as { error: ApiError }).error);
   }
 
-  return (body as ApiResponse<T>).data;
+  return (body as ApiResponse<T> | undefined)?.data as T;
 }
 
 // Same as apiFetch, but returns the full envelope — needed by paginated list views that read
 // `meta.total` (apiFetch discards it, which is fine for every non-paginated caller).
 export async function apiFetchWithMeta<T>(path: string, init?: RequestInit): Promise<ApiResponse<T>> {
   const res = await fetchWithAuthRetry(path, init);
-  const body = await res.json();
+  const body = await readJsonBody(res);
 
   if (!res.ok) {
     throw new ApiClientError((body as { error: ApiError }).error);

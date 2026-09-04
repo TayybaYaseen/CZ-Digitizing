@@ -158,6 +158,20 @@ function fakeOrders() {
   };
 }
 
+// no Credit ledger balance seeded here — mirrors the credits module's own real
+// INSUFFICIENT_CREDITS behavior for a customer with a 0 balance.
+function fakeCredits() {
+  return {
+    assertSufficientBalance: jest.fn(async (_customerId: bigint, amountPkr: number) => {
+      if (amountPkr > 0) {
+        const err = new Error('Only 0 credits are available') as Error & { code: string };
+        err.code = 'INSUFFICIENT_CREDITS';
+        throw err;
+      }
+    }),
+  };
+}
+
 function fakeBundles(prismaFake: ReturnType<typeof createFakePrisma>) {
   return {
     computeBundleTotal: jest.fn(async (bundleId: string) => {
@@ -208,7 +222,7 @@ const GUEST = 'guest-session-1';
 describe('CartService (AC-1/2/3/4/5/6/8)', () => {
   it('adds a design with a size and computes subtotal/discount from the live sale price (AC-1/2/3)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma, { pricePkr: 1000, salePricePkr: 800 });
 
     const actor = service.actorFrom(undefined, GUEST);
@@ -225,7 +239,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('adding the same design+size twice increases quantity instead of creating a duplicate line', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma);
     const actor = service.actorFrom(undefined, GUEST);
 
@@ -239,7 +253,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('rejects adding a design without a size (SIZE_REQUIRED)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design } = seedDesign(prisma);
     const actor = service.actorFrom(undefined, GUEST);
 
@@ -248,7 +262,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('rejects adding an unpublished design (ITEM_NOT_PUBLISHED)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma, { isPublished: false });
     const actor = service.actorFrom(undefined, GUEST);
 
@@ -260,7 +274,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
   it('adds a bundle using BundlesService.computeBundleTotal() as the unit price (AC-1/AC-7 reuse)', async () => {
     const prisma = createFakePrisma();
     const bundlesFake = fakeBundles(prisma);
-    const service = new CartService(prisma as never, bundlesFake as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, bundlesFake as never, fakeOrders() as never, fakeCredits() as never);
     const bundle = seedBundle(prisma, { pricePkr: 1200, salePricePkr: 900 });
     const actor = service.actorFrom(undefined, GUEST);
 
@@ -273,7 +287,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('saved-for-later items are excluded from cart totals but still listed (AC-8)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma, { pricePkr: 500 });
     const actor = service.actorFrom(undefined, GUEST);
 
@@ -290,7 +304,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('merges a guest cart into a customer cart, summing quantities on a matching line (AC-5)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma);
     const guestActor = service.actorFrom(undefined, GUEST);
     const customerId = prisma._nextId();
@@ -307,7 +321,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('merges distinct guest-only lines into the customer cart untouched (AC-5)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design: guestDesign, sizeId: guestSizeId } = seedDesign(prisma, { name: 'Guest-only design' });
     const { design: customerDesign, sizeId: customerSizeId } = seedDesign(prisma, { name: 'Customer-only design' });
     const guestActor = service.actorFrom(undefined, GUEST);
@@ -322,17 +336,18 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
     expect(merged.items.map((i) => i.name).sort()).toEqual(['Customer-only design', 'Guest-only design']);
   });
 
-  it('applyCredits throws INSUFFICIENT_CREDITS for any positive amount (no Credit ledger yet, TODO(A-015))', () => {
+  it('applyCredits delegates to CreditsService.assertSufficientBalance (AC-4/AC-7, A-015)', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
-    expect(() => service.applyCredits(100)).toThrow(expect.objectContaining({ code: 'INSUFFICIENT_CREDITS' }));
-    expect(() => service.applyCredits(0)).not.toThrow();
+    const customerId = prisma._nextId();
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
+    await expect(service.applyCredits(customerId, 100)).rejects.toMatchObject({ code: 'INSUFFICIENT_CREDITS' });
+    await expect(service.applyCredits(customerId, 0)).resolves.toBeUndefined();
   });
 
   it('checkout validates every active line then hands off to OrdersService.createFromCart (AC-6, A-013)', async () => {
     const prisma = createFakePrisma();
     const orders = fakeOrders();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, orders as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, orders as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma);
     const customerId = prisma._nextId();
     const cartActor = service.actorFrom({ sub: customerId.toString(), role: 'customer' } as never, GUEST);
@@ -341,13 +356,13 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
     const tokenActor = { sub: customerId.toString(), role: 'customer' } as never;
     const order = await service.checkout(tokenActor, 'bank_transfer' as never);
 
-    expect(orders.createFromCart).toHaveBeenCalledWith(tokenActor, expect.anything(), 'bank_transfer');
+    expect(orders.createFromCart).toHaveBeenCalledWith(tokenActor, expect.anything(), 'bank_transfer', 0);
     expect(order).toMatchObject({ id: 'order-1', paymentMethod: 'bank_transfer' });
   });
 
   it('checkout rejects with ITEM_NOT_PUBLISHED if a cart line was unpublished after being added', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const { design, sizeId } = seedDesign(prisma);
     const customerId = prisma._nextId();
     const cartActor = service.actorFrom({ sub: customerId.toString(), role: 'customer' } as never, GUEST);
@@ -361,7 +376,7 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
   it('checkout rejects an empty cart', async () => {
     const prisma = createFakePrisma();
-    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never);
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never);
     const customerId = prisma._nextId();
     const tokenActor = { sub: customerId.toString(), role: 'customer' } as never;
     await expect(service.checkout(tokenActor, 'bank_transfer' as never)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });

@@ -20,6 +20,8 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'Business' },
   { href: '/payments', label: 'Payments' }, // TODO(A-013)
   { href: '/quotes', label: 'Quotes' }, // TODO(A-016)
+  { href: '/pricing', label: 'Subscription Plans' }, // A-015
+  { href: '/credits', label: 'Credit Packages' }, // A-015
   { section: 'System' },
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },

@@ -35,6 +35,9 @@ export interface OrderDto {
   localCurrencyCode: string | null;
   bankTransferReference: string | null;
   refundedAmountPkr: number | null;
+  // docs/specs/2026-08-28-09-subscriptions-credits.md AC-7 — the customer's own credit balance
+  // applied against this order's total at checkout; 0 when no credits were used.
+  creditsUsed: number;
   items: OrderItemDto[];
   receipts: PaymentReceiptDto[];
   createdAt: string;
@@ -96,6 +99,7 @@ export function toOrderDto(order: OrderWithRelations, currencyConversion?: { cur
     localCurrencyCode: currencyConversion?.currencyCode ?? null,
     bankTransferReference: order.bankTransferReference,
     refundedAmountPkr: order.refundedAmountPkr !== null ? Number(order.refundedAmountPkr) : null,
+    creditsUsed: Number(order.creditsUsed),
     items: order.items.map(toItemDto),
     receipts: order.receipts.map(toReceiptDto),
     createdAt: order.createdAt.toISOString(),
