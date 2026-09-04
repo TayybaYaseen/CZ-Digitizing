@@ -34,9 +34,46 @@ export default function CheckoutPage() {
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // docs/specs/2026-08-28-09-subscriptions-credits.md AC-7 — apply the customer's own credit
+  // balance against this order. creditsInput is the raw field value (validated live against
+  // POST /api/cart/credits as the customer types); creditsToApplyPkr is what's actually sent on
+  // checkout below. Kept as two pieces of state so a mid-typing invalid value never gets submitted.
+  const [creditsInput, setCreditsInput] = useState('');
+  const [creditsToApplyPkr, setCreditsToApplyPkr] = useState(0);
+  const [creditsError, setCreditsError] = useState<ApiError | null>(null);
+  const [checkingCredits, setCheckingCredits] = useState(false);
+
   useEffect(() => {
     if (isReady && !user) router.replace('/login');
   }, [isReady, user, router]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const amount = Number(creditsInput);
+    if (!creditsInput.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setCreditsToApplyPkr(0);
+      setCreditsError(null);
+      return;
+    }
+    setCheckingCredits(true);
+    const timer = setTimeout(() => {
+      apiFetch<{ creditsUsed: number }>('/api/cart/credits', {
+        method: 'POST',
+        body: JSON.stringify({ amountPkr: amount }),
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then((res) => {
+          setCreditsToApplyPkr(res.creditsUsed);
+          setCreditsError(null);
+        })
+        .catch((err) => {
+          setCreditsToApplyPkr(0);
+          setCreditsError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not validate credits.', traceId: '' });
+        })
+        .finally(() => setCheckingCredits(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [creditsInput, accessToken]);
 
   async function onConfirm() {
     setError(null);
@@ -44,7 +81,7 @@ export default function CheckoutPage() {
     try {
       const order = await apiFetch<OrderDto>('/api/cart/checkout', {
         method: 'POST',
-        body: JSON.stringify({ paymentMethod }),
+        body: JSON.stringify({ paymentMethod, creditsToApplyPkr }),
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       await refresh();
@@ -101,6 +138,26 @@ export default function CheckoutPage() {
             {method.label}
           </label>
         ))}
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-brand-navy">Apply Credits</h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            value={creditsInput}
+            onChange={(e) => setCreditsInput(e.target.value)}
+            placeholder="0"
+            className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <span className="text-sm text-gray-500">PKR of your credit balance</span>
+          {checkingCredits && <span className="text-xs text-gray-400">Checking…</span>}
+        </div>
+        {creditsToApplyPkr > 0 && !creditsError && (
+          <p className="text-sm text-emerald-700">Rs {creditsToApplyPkr} in credits will be applied to this order.</p>
+        )}
+        <ErrorBanner error={creditsError} />
       </div>
 
       <ErrorBanner error={error} />

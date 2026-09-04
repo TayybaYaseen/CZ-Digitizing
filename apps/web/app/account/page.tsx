@@ -49,6 +49,16 @@ export default function AccountPage() {
           </Link>
         </li>
         <li>
+          <Link href="/account/subscription" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Subscription
+          </Link>
+        </li>
+        <li>
+          <Link href="/account/credits" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Credits
+          </Link>
+        </li>
+        <li>
           <Link href="/account/notifications" className="block px-4 py-3 text-sm hover:bg-gray-50">
             Notifications
           </Link>

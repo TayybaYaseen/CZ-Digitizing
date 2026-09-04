@@ -13,6 +13,7 @@ export type NotificationType =
   | 'file_format_available'
   | 'subscription_renewal'
   | 'subscription_renewal_failed'
+  | 'subscription_logo_limit_low'
   | 'credit_purchase'
   | 'new_registration'
   | 'new_device_login'

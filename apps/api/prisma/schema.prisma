@@ -83,19 +83,23 @@ model User {
   // (AC-10) delivery have nothing to send to without it. Nullable: most users won't set one, and
   // those channels simply have nothing to dispatch to until they do (same "not configured" path
   // as an unset Twilio credential).
-  phone String? @map("phone")
+  phone                 String?   @map("phone")
 
-  sessions             Session[]
-  adminPermissions     AdminPermission[]
-  auditLogs            AuditLog[]
-  notifications        Notification[]
+  sessions                Session[]
+  adminPermissions        AdminPermission[]
+  auditLogs               AuditLog[]
+  notifications           Notification[]
   notificationPreferences NotificationPreference[]
-  favorites            Favorite[]
-  authorizedFiles      CustomerAuthorizedFile[]
-  cart                 Cart?
+  favorites               Favorite[]
+  authorizedFiles         CustomerAuthorizedFile[]
+  cart                    Cart?
   // AC-7 — every past/future order accumulates against this one persistent identity.
-  orders               Order[]
-  reviewedReceipts     PaymentReceipt[] @relation("ReceiptReviewedByAdmin")
+  orders                  Order[]
+  reviewedReceipts        PaymentReceipt[]         @relation("ReceiptReviewedByAdmin")
+  subscription            CustomerSubscription?
+  credits                 CustomerCredits?
+  creditTransactions      CreditTransaction[]      @relation("CreditTransactionOwner")
+  sentGifts               CreditTransaction[]      @relation("CreditTransactionGiftCounterparty")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -114,7 +118,7 @@ model Session {
   ipAddress  String? @map("ip_address")
   userAgent  String? @map("user_agent")
 
-  isVerified Boolean @default(false) @map("is_verified")
+  isVerified            Boolean   @default(false) @map("is_verified")
   // Hash of the 4-digit code (never the plaintext), shared by new-device verification (AC-3/AC-4)
   // and reused per-purpose for forgot-password (AC-6) via VerificationCodeService.
   verificationCodeHash  String?   @map("verification_code_hash")
@@ -147,16 +151,16 @@ model AdminPermission {
 }
 
 model AuditLog {
-  id           BigInt  @id @default(autoincrement())
-  adminUserId  BigInt? @map("admin_user_id")
-  adminUser    User?   @relation(fields: [adminUserId], references: [id])
+  id          BigInt  @id @default(autoincrement())
+  adminUserId BigInt? @map("admin_user_id")
+  adminUser   User?   @relation(fields: [adminUserId], references: [id])
 
-  actionType   String  @map("action_type")
-  resourceType String  @map("resource_type")
-  resourceId   String? @map("resource_id")
+  actionType   String   @map("action_type")
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
   changes      Json?
-  ipAddress    String? @map("ip_address")
-  userAgent    String? @map("user_agent")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([adminUserId], map: "idx_audit_logs_admin_user_id")
@@ -263,7 +267,8 @@ model PaymentMethodSetting {
 // payment_received, files_ready, receipt_uploaded, order_status_change), smart-get-a-quote
 // (quote_submitted, quote_response), custom-design-requests (custom_request_status_update),
 // taebo-chatbot (taebo_waiting, taebo_answered), subscriptions-credits (subscription_renewal,
-// subscription_renewal_failed, credit_purchase), auth registration (new_registration), platform
+// subscription_renewal_failed, subscription_logo_limit_low, credit_purchase), auth registration
+// (new_registration), platform
 // (contact_message, admin_alert, system_alert, file_format_available).
 enum NotificationType {
   order_confirmed
@@ -275,6 +280,7 @@ enum NotificationType {
   file_format_available
   subscription_renewal
   subscription_renewal_failed
+  subscription_logo_limit_low
   credit_purchase
   new_registration
   new_device_login
@@ -303,21 +309,21 @@ enum NotificationDeliveryStatus {
 }
 
 model Notification {
-  id                BigInt            @id @default(autoincrement())
-  recipientUserId   BigInt            @map("recipient_user_id")
-  recipient         User              @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  id              BigInt @id @default(autoincrement())
+  recipientUserId BigInt @map("recipient_user_id")
+  recipient       User   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
 
-  notificationType  NotificationType  @map("notification_type")
-  title             String
-  message           String?
+  notificationType NotificationType @map("notification_type")
+  title            String
+  message          String?
 
   // relatedQuoteId/relatedCustomRequestId stay plain BigInt, no @relation — Quote/CustomRequest
   // models don't exist yet (A-016/A-017 still Blocked per docs/specs/SPEC_INDEX.md). Those aspects
   // wire the real @relation + FK constraint in their own migration once their table exists.
   // relatedOrderId now has a real FK: wired by A-013 (Orders & Payment Processing) once Order
   // exists, per this field's own former TODO(A-013) comment.
-  relatedOrderId         BigInt?  @map("related_order_id")
-  order                  Order?   @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+  relatedOrderId         BigInt? @map("related_order_id")
+  order                  Order?  @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
   relatedQuoteId         BigInt? @map("related_quote_id")
   relatedCustomRequestId BigInt? @map("related_custom_request_id")
 
@@ -344,9 +350,9 @@ model Notification {
 // docs/specs/2026-08-28-02-notifications-system.md §4 — supports AC-5's retry/backoff and
 // debugging delivery failures.
 model NotificationDeliveryLog {
-  id                BigInt                     @id @default(autoincrement())
-  notificationId    BigInt                     @map("notification_id")
-  notification      Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  id             BigInt       @id @default(autoincrement())
+  notificationId BigInt       @map("notification_id")
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   channel           NotificationChannel
   status            NotificationDeliveryStatus @default(queued)
@@ -361,9 +367,9 @@ model NotificationDeliveryLog {
 // routing table (NotificationService.DEFAULT_CHANNELS). Absence of a row = default-enabled;
 // a row only exists to record an explicit opt-out or a re-opt-in after one.
 model NotificationPreference {
-  id               BigInt              @id @default(autoincrement())
-  userId           BigInt              @map("user_id")
-  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     BigInt @id @default(autoincrement())
+  userId BigInt @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   notificationType NotificationType    @map("notification_type")
   channel          NotificationChannel
@@ -386,23 +392,23 @@ model DesignCategory {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  subcategories DesignSubcategory[]
-  assignments   DesignCategoryAssignment[]
+  subcategories      DesignSubcategory[]
+  assignments        DesignCategoryAssignment[]
   dynamicBundleRules DynamicBundleRule[]
 
   @@map("design_categories")
 }
 
 model DesignSubcategory {
-  id               BigInt   @id @default(autoincrement())
+  id               BigInt         @id @default(autoincrement())
   name             String
-  slug             String   @unique
-  parentCategoryId BigInt   @map("parent_category_id")
+  slug             String         @unique
+  parentCategoryId BigInt         @map("parent_category_id")
   parentCategory   DesignCategory @relation(fields: [parentCategoryId], references: [id], onDelete: Cascade)
-  sortOrder        Int      @default(0) @map("sort_order")
-  isPublished      Boolean  @default(false) @map("is_published")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  sortOrder        Int            @default(0) @map("sort_order")
+  isPublished      Boolean        @default(false) @map("is_published")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
   designs Design[]
 
@@ -414,9 +420,9 @@ model DesignSubcategory {
 // architecture DDL's single `designs.category_id` FK). Subcategory stays a single optional FK
 // (architecture DDL, spec §8 risk #2) — only category membership is many-to-many.
 model DesignCategoryAssignment {
-  designId   BigInt @map("design_id")
-  design     Design @relation(fields: [designId], references: [id], onDelete: Cascade)
-  categoryId BigInt @map("category_id")
+  designId   BigInt         @map("design_id")
+  design     Design         @relation(fields: [designId], references: [id], onDelete: Cascade)
+  categoryId BigInt         @map("category_id")
   category   DesignCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([designId, categoryId])
@@ -435,11 +441,11 @@ model Design {
 
   // AC-5 — dual-media (Vector vs. Embroidery) auto-swap. All nullable: a design may have only
   // one media type uploaded, in which case autoSwapEnabled has nothing to swap between.
-  vectorImageUrl     String?  @map("vector_image_url")
-  vectorVideoUrl     String?  @map("vector_video_url")
-  embroideryImageUrl String?  @map("embroidery_image_url")
-  embroideryVideoUrl String?  @map("embroidery_video_url")
-  autoSwapEnabled    Boolean  @default(false) @map("auto_swap_enabled")
+  vectorImageUrl     String? @map("vector_image_url")
+  vectorVideoUrl     String? @map("vector_video_url")
+  embroideryImageUrl String? @map("embroidery_image_url")
+  embroideryVideoUrl String? @map("embroidery_video_url")
+  autoSwapEnabled    Boolean @default(false) @map("auto_swap_enabled")
 
   tags String[] @default([])
 
@@ -448,8 +454,8 @@ model Design {
   discountBadge String?  @map("discount_badge")
 
   stitchCount        Int? @map("stitch_count")
-  threadColorCount    Int? @map("thread_color_count")
-  threadColorChanges  Int? @map("thread_color_changes")
+  threadColorCount   Int? @map("thread_color_count")
+  threadColorChanges Int? @map("thread_color_changes")
 
   isPublished      Boolean   @default(false) @map("is_published")
   createdByAdminId BigInt?   @map("created_by_admin_id")
@@ -457,13 +463,13 @@ model Design {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  sizes              DesignSize[]
+  sizes               DesignSize[]
   categoryAssignments DesignCategoryAssignment[]
-  favorites          Favorite[]
-  files              DesignFile[]
-  bundleMemberships  BundleDesign[]
-  cartItems          CartItem[]
-  orderItems         OrderItem[]
+  favorites           Favorite[]
+  files               DesignFile[]
+  bundleMemberships   BundleDesign[]
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -480,7 +486,7 @@ model DesignSize {
   sizeOrder    Int      @default(0) @map("size_order")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  cartItems CartItem[]
+  cartItems  CartItem[]
   orderItems OrderItem[]
 
   @@index([designId], map: "idx_design_sizes_design")
@@ -530,7 +536,7 @@ model DesignFile {
   designId BigInt @map("design_id")
   design   Design @relation(fields: [designId], references: [id], onDelete: Cascade)
 
-  fileFormat String @map("file_format")
+  fileFormat       String  @map("file_format")
   // Never exposed in any DTO — AC-4/AC-8's "real storage path is never present in the response".
   storagePath      String  @map("storage_path")
   fileSizeBytes    BigInt  @map("file_size_bytes")
@@ -543,20 +549,20 @@ model DesignFile {
   versionNumber      Int         @default(1) @map("version_number")
   supersededByFileId BigInt?     @unique @map("superseded_by_file_id")
   supersededBy       DesignFile? @relation("FileVersionHistory", fields: [supersededByFileId], references: [id])
-  previousVersion     DesignFile? @relation("FileVersionHistory")
+  previousVersion    DesignFile? @relation("FileVersionHistory")
 
   createdByAdminId BigInt?  @map("created_by_admin_id")
   createdAt        DateTime @default(now()) @map("created_at")
 
   authorizedFiles CustomerAuthorizedFile[]
-
-  @@index([designId], map: "idx_design_files_design")
-  @@index([uploadHash], map: "idx_design_files_upload_hash")
-  @@map("design_files")
   // emb_never_public CHECK constraint added via raw SQL in this model's migration — see
   // AddPrivateFileManagement/migration.sql. Prisma's schema DSL has no @@check clause in this
   // Prisma version (5.x), so the constraint is hand-appended to the generated migration, the same
   // way every other DB-level invariant not expressible in the schema DSL is added in this repo.
+
+  @@index([designId], map: "idx_design_files_design")
+  @@index([uploadHash], map: "idx_design_files_upload_hash")
+  @@map("design_files")
 }
 
 // AC-4/5/6/8/9/11 — customer-authorized download records. orderId now carries a real FK
@@ -574,11 +580,11 @@ model CustomerAuthorizedFile {
   designFileId BigInt     @map("design_file_id")
   designFile   DesignFile @relation(fields: [designFileId], references: [id], onDelete: Cascade)
 
-  downloadCount      Int       @default(0) @map("download_count")
-  firstDownloadAt    DateTime? @map("first_download_at")
-  lastDownloadAt     DateTime? @map("last_download_at")
+  downloadCount       Int       @default(0) @map("download_count")
+  firstDownloadAt     DateTime? @map("first_download_at")
+  lastDownloadAt      DateTime? @map("last_download_at")
   // AC-11 — Admin-set per-record download-attempt cap; null means no cap.
-  maxDownloadAttempts Int?     @map("max_download_attempts")
+  maxDownloadAttempts Int?      @map("max_download_attempts")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -591,20 +597,20 @@ model CustomerAuthorizedFile {
 // existing purchasers keep order history/file access after Admin unpublishes or deletes a bundle,
 // so deletedAt is a soft-delete flag rather than a row removal, same posture as Design.
 model DesignBundle {
-  id               BigInt   @id @default(autoincrement())
+  id               BigInt    @id @default(autoincrement())
   name             String
   description      String?
-  previewImageUrl  String?  @map("preview_image_url")
-  pricePkr         Decimal  @map("price_pkr") @db.Decimal(10, 2)
-  salePricePkr     Decimal? @map("sale_price_pkr") @db.Decimal(10, 2)
-  isPublished      Boolean  @default(false) @map("is_published")
-  createdByAdminId BigInt?  @map("created_by_admin_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  previewImageUrl  String?   @map("preview_image_url")
+  pricePkr         Decimal   @map("price_pkr") @db.Decimal(10, 2)
+  salePricePkr     Decimal?  @map("sale_price_pkr") @db.Decimal(10, 2)
+  isPublished      Boolean   @default(false) @map("is_published")
+  createdByAdminId BigInt?   @map("created_by_admin_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  designs   BundleDesign[]
-  cartItems CartItem[]
+  designs    BundleDesign[]
+  cartItems  CartItem[]
   orderItems OrderItem[]
 
   @@index([isPublished], map: "idx_design_bundles_published")
@@ -686,12 +692,12 @@ model CartItem {
   cartId BigInt @map("cart_id")
   cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
-  designId BigInt? @map("design_id")
-  design   Design? @relation(fields: [designId], references: [id], onDelete: Cascade)
-  bundleId BigInt? @map("bundle_id")
+  designId BigInt?       @map("design_id")
+  design   Design?       @relation(fields: [designId], references: [id], onDelete: Cascade)
+  bundleId BigInt?       @map("bundle_id")
   bundle   DesignBundle? @relation(fields: [bundleId], references: [id], onDelete: Cascade)
-  sizeId   BigInt? @map("size_id")
-  size     DesignSize? @relation(fields: [sizeId], references: [id], onDelete: SetNull)
+  sizeId   BigInt?       @map("size_id")
+  size     DesignSize?   @relation(fields: [sizeId], references: [id], onDelete: SetNull)
 
   quantity      Int            @default(1)
   status        CartItemStatus @default(active)
@@ -741,13 +747,22 @@ model Order {
   // 'refunded', a partial refund sets a lesser amount and paymentStatus to 'partially_refunded'.
   refundedAmountPkr Decimal? @map("refunded_amount_pkr") @db.Decimal(10, 2)
 
+  // docs/specs/2026-08-28-09-subscriptions-credits.md AC-7 — the amount of the customer's own
+  // credit balance applied against this order's total at checkout. Null/0 for an order that used
+  // no credits. Deliberately its own column rather than derived from CreditTransaction at read
+  // time — mirrors totalPkr's own "snapshot, never re-derived" posture (OrderItem's doc comment
+  // above), and OrdersService.refund()'s reverseCreditsUsedOnOrder() needs a stable amount to
+  // reverse regardless of what the ledger looks like later.
+  creditsUsed Decimal @default(0) @map("credits_used") @db.Decimal(10, 2)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  items            OrderItem[]
-  receipts         PaymentReceipt[]
-  authorizedFiles  CustomerAuthorizedFile[]
-  notifications    Notification[]
+  items              OrderItem[]
+  receipts           PaymentReceipt[]
+  authorizedFiles    CustomerAuthorizedFile[]
+  notifications      Notification[]
+  creditTransactions CreditTransaction[]
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -762,21 +777,21 @@ model OrderItem {
   orderId BigInt @map("order_id")
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  designId BigInt? @map("design_id")
-  design   Design? @relation(fields: [designId], references: [id], onDelete: Restrict)
-  bundleId BigInt? @map("bundle_id")
+  designId BigInt?       @map("design_id")
+  design   Design?       @relation(fields: [designId], references: [id], onDelete: Restrict)
+  bundleId BigInt?       @map("bundle_id")
   bundle   DesignBundle? @relation(fields: [bundleId], references: [id], onDelete: Restrict)
-  sizeId   BigInt? @map("size_id")
-  size     DesignSize? @relation(fields: [sizeId], references: [id], onDelete: SetNull)
+  sizeId   BigInt?       @map("size_id")
+  size     DesignSize?   @relation(fields: [sizeId], references: [id], onDelete: SetNull)
 
-  quantity      Int     @default(1)
-  unitPricePkr  Decimal @map("unit_price_pkr") @db.Decimal(10, 2)
-
-  @@index([orderId], map: "idx_order_items_order")
-  @@map("order_items")
+  quantity     Int     @default(1)
+  unitPricePkr Decimal @map("unit_price_pkr") @db.Decimal(10, 2)
   // CHECK: an order_item is a design line or a bundle line, never both/neither — same posture as
   // cart_items' cart_item_exactly_one_of_design_or_bundle. Hand-appended to this model's migration
   // (Prisma 5.x schema DSL has no @@check clause).
+
+  @@index([orderId], map: "idx_order_items_order")
+  @@map("order_items")
 }
 
 // AC-3/AC-4/AC-5 — bank-transfer receipt upload + Admin review. fileUrl is a StorageService
@@ -787,14 +802,14 @@ model PaymentReceipt {
   orderId BigInt @map("order_id")
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  fileUrl  String @map("file_url")
+  fileUrl    String   @map("file_url")
   uploadedAt DateTime @default(now()) @map("uploaded_at")
 
-  reviewStatus       ReceiptReviewStatus @default(pending) @map("review_status")
-  reviewedByAdminId  BigInt?             @map("reviewed_by_admin_id")
-  reviewedByAdmin    User?               @relation("ReceiptReviewedByAdmin", fields: [reviewedByAdminId], references: [id])
-  reviewedAt         DateTime?           @map("reviewed_at")
-  rejectionReason    String?             @map("rejection_reason")
+  reviewStatus      ReceiptReviewStatus @default(pending) @map("review_status")
+  reviewedByAdminId BigInt?             @map("reviewed_by_admin_id")
+  reviewedByAdmin   User?               @relation("ReceiptReviewedByAdmin", fields: [reviewedByAdminId], references: [id])
+  reviewedAt        DateTime?           @map("reviewed_at")
+  rejectionReason   String?             @map("rejection_reason")
 
   @@index([orderId], map: "idx_payment_receipts_order")
   @@map("payment_receipts")
@@ -810,4 +825,199 @@ model ExchangeRate {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("exchange_rates")
+}
+
+// docs/specs/2026-08-28-09-subscriptions-credits.md §4 (aspect A-015).
+
+enum BillingPeriod {
+  monthly
+  yearly
+}
+
+// AC-1 — Admin-authored plan; published plans surface on /pricing under the Subscription toggle.
+// perks stored as a String[] (Postgres native array via Prisma) rather than a separate table —
+// same posture as DesignBundle's flat scalar fields, no relational structure needed for a plain
+// bullet list Admin edits as a whole.
+model SubscriptionPlan {
+  id             BigInt        @id @default(autoincrement())
+  name           String
+  billingPeriod  BillingPeriod @map("billing_period")
+  pricePkr       Decimal       @map("price_pkr") @db.Decimal(10, 2)
+  monthlyCredits Int           @map("monthly_credits")
+  // Admin-set monthly logo/design-file download allowance granted by this plan, separate from and
+  // in addition to monthlyCredits — null means unlimited (no cap enforced). Consumed via
+  // SubscriptionsService.consumeLogoDownload(), reset to 0 alongside the credit grant on every
+  // subscribe/renewal (same cycle boundary as monthlyCredits).
+  logoLimit      Int?          @map("logo_limit")
+  perks          String[]
+  isBestValue    Boolean       @default(false) @map("is_best_value")
+  isPublished    Boolean       @default(false) @map("is_published")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  subscriptions CustomerSubscription[]
+
+  @@index([isPublished], map: "idx_subscription_plans_published")
+  @@map("subscription_plans")
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+  lapsed
+}
+
+// AC-2/AC-3/AC-4/AC-9 — one active-or-historical subscription row per customer. A customer may
+// only ever have one row at a time (unique customerId) — resubscribing after cancellation/lapse
+// updates this same row rather than creating a second one, so "ALREADY_SUBSCRIBED" (spec §3) is a
+// simple existence-plus-status check.
+model CustomerSubscription {
+  id         BigInt @id @default(autoincrement())
+  customerId BigInt @unique @map("customer_id")
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  planId BigInt           @map("plan_id")
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  status              SubscriptionStatus @default(active) @map("subscription_status")
+  autoRenew           Boolean            @default(true) @map("auto_renew")
+  startDate           DateTime           @map("start_date")
+  // AC-3 — advances on every successful renewal charge; AC-4 — cancellation leaves this untouched
+  // so paid-for access (endDate below) still runs out naturally.
+  renewalDate         DateTime           @map("renewal_date")
+  // AC-4 — set only on cancellation, to the already-paid renewalDate at the moment of cancelling;
+  // null while active/auto-renewing (access simply keeps rolling forward via renewalDate instead).
+  endDate             DateTime?          @map("end_date")
+  failedRenewalCount  Int                @default(0) @map("failed_renewal_count")
+  lastRenewalFailedAt DateTime?          @map("last_renewal_failed_at")
+
+  // Logo/design-file downloads consumed against the plan's logoLimit this cycle. Reset to 0 (and
+  // logoLimitWarnedAt to null) every time the monthly credit grant runs (subscribe/renewal) —
+  // SubscriptionsService.grantMonthlyCredits() resets both in the same transaction.
+  logosUsed         Int       @default(0) @map("logos_used")
+  // Set the first time remaining-logos drops to <= LOW_LOGO_LIMIT_THRESHOLD within a cycle, so the
+  // low-balance notification fires once per cycle rather than on every subsequent download.
+  logoLimitWarnedAt DateTime? @map("logo_limit_warned_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  creditGrants SubscriptionCreditGrant[]
+
+  @@index([status, renewalDate], map: "idx_customer_subscriptions_renewal")
+  @@map("customer_subscriptions")
+}
+
+// spec §4 "proposed" table — links each monthly grant to its ledger entry so the renewal cron
+// (AC-3) and the lapse check (AC-8) can tell "have we already granted this cycle's credits"
+// without re-deriving it from CreditTransaction's free-text note field.
+model SubscriptionCreditGrant {
+  id                     BigInt               @id @default(autoincrement())
+  customerSubscriptionId BigInt               @map("customer_subscription_id")
+  subscription           CustomerSubscription @relation(fields: [customerSubscriptionId], references: [id], onDelete: Cascade)
+  grantedAt              DateTime             @default(now()) @map("granted_at")
+  creditTransactionId    BigInt               @unique @map("credit_transaction_id")
+  creditTransaction      CreditTransaction    @relation(fields: [creditTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([customerSubscriptionId], map: "idx_subscription_credit_grants_subscription")
+  @@map("subscription_credit_grants")
+}
+
+// AC-5 — Admin-authored credit pack (e.g. "25 credits + 5 bonus"); published packs surface on
+// /pricing under the Buy Credits toggle.
+model CreditPackage {
+  id           BigInt   @id @default(autoincrement())
+  name         String
+  credits      Int
+  bonusCredits Int      @default(0) @map("bonus_credits")
+  pricePkr     Decimal  @map("price_pkr") @db.Decimal(10, 2)
+  isPublished  Boolean  @default(false) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublished], map: "idx_credit_packages_published")
+  @@map("credit_packages")
+}
+
+// AC-6/AC-7/AC-8/AC-10 — cached, derived balance (one row per customer). Always recomputed from
+// CreditTransaction inside the same transaction that inserts a ledger row — never hand-edited
+// independently of the ledger, so it can never drift from the append-only source of truth it
+// mirrors. availableCredits must never go negative (spec §9 observability note) — enforced in
+// CreditsService, not at the DB layer, since a CHECK constraint can't see the ledger.
+model CustomerCredits {
+  customerId       BigInt   @id @map("customer_id")
+  customer         User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  totalCredits     Int      @default(0) @map("total_credits")
+  availableCredits Int      @default(0) @map("available_credits")
+  usedCredits      Int      @default(0) @map("used_credits")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("customer_credits")
+}
+
+enum CreditTransactionType {
+  purchase
+  usage
+  refund
+  adjustment
+  grant
+}
+
+// AC-6/AC-7/AC-9/AC-10 — append-only ledger, never updated or deleted once written (spec §9
+// rollout note: "credit ledger entries must never be deleted"). amount is signed: positive for
+// purchase/refund/grant/gift-received, negative for usage/gift-sent, so a customer's balance is
+// always re-derivable as sum(amount) even though CustomerCredits caches it for fast reads.
+model CreditTransaction {
+  id         BigInt                @id @default(autoincrement())
+  customerId BigInt                @map("customer_id")
+  customer   User                  @relation("CreditTransactionOwner", fields: [customerId], references: [id], onDelete: Cascade)
+  type       CreditTransactionType
+  amount     Int
+
+  // AC-7 — usage-type rows reference the order the credits were applied to.
+  relatedOrderId BigInt? @map("related_order_id")
+  relatedOrder   Order?  @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+
+  // AC-10 — a gift's two adjustment rows (sender debit + recipient credit) reference each other's
+  // owner via this counterparty pointer so either side of the gift can be traced from one row.
+  giftCounterpartyId BigInt? @map("gift_counterparty_id")
+  giftCounterparty   User?   @relation("CreditTransactionGiftCounterparty", fields: [giftCounterpartyId], references: [id], onDelete: SetNull)
+
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  subscriptionGrant SubscriptionCreditGrant?
+
+  @@index([customerId, createdAt], map: "idx_credit_transactions_customer")
+  @@index([relatedOrderId], map: "idx_credit_transactions_order")
+  @@map("credit_transactions")
+}
+
+// Internal payment-tracking only — never the acceptance-criteria-visible row itself. AC-2 says the
+// customer_subscriptions row is created only once the first payment succeeds (unlike Order, which
+// is created eagerly in payment_pending status); this table is what lets the PayPal/Stripe webhook
+// handler, once it fires, recover which (customer, plan) pair a given paypalOrderId/
+// stripePaymentIntentId was for, without the CustomerSubscription row needing to exist first.
+// Deleted once processed (success or failure) — never accumulates.
+model PendingSubscriptionPayment {
+  id                    BigInt   @id @default(autoincrement())
+  customerId            BigInt   @map("customer_id")
+  planId                BigInt   @map("plan_id")
+  paypalOrderId         String?  @unique @map("paypal_order_id")
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("pending_subscription_payments")
+}
+
+// Same role as PendingSubscriptionPayment, for AC-6's credit-package purchase.
+model PendingCreditPurchase {
+  id                    BigInt   @id @default(autoincrement())
+  customerId            BigInt   @map("customer_id")
+  packageId             BigInt   @map("package_id")
+  paypalOrderId         String?  @unique @map("paypal_order_id")
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("pending_credit_purchases")
 }

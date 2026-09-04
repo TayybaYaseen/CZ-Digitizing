@@ -117,22 +117,32 @@ export class ApiClientError extends Error {
   }
 }
 
+// A 204 (or any response with no body — logout, DELETE routes like cart item removal, per
+// ResponseInterceptor's own doc comment: "204 routes like logout return undefined") has nothing
+// for res.json() to parse; calling it anyway throws "Unexpected end of JSON input" and turns a
+// successful request into a thrown error at the call site even though it actually succeeded.
+async function readJsonBody(res: Response): Promise<unknown> {
+  if (res.status === 204) return undefined;
+  const text = await res.text();
+  return text ? JSON.parse(text) : undefined;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithAuthRetry(path, init);
-  const body = await res.json();
+  const body = await readJsonBody(res);
 
   if (!res.ok) {
     throw new ApiClientError((body as { error: ApiError }).error);
   }
 
-  return (body as ApiResponse<T>).data;
+  return (body as ApiResponse<T> | undefined)?.data as T;
 }
 
 // Same as apiFetch, but returns the full envelope — needed by paginated list views that read
 // `meta.total` (apiFetch discards it, which is fine for every non-paginated caller).
 export async function apiFetchWithMeta<T>(path: string, init?: RequestInit): Promise<ApiResponse<T>> {
   const res = await fetchWithAuthRetry(path, init);
-  const body = await res.json();
+  const body = await readJsonBody(res);
 
   if (!res.ok) {
     throw new ApiClientError((body as { error: ApiError }).error);

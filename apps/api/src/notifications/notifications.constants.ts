@@ -25,6 +25,7 @@ export const DEFAULT_CHANNELS: Record<NotificationType, NotificationChannel[]> =
   file_format_available: ['email', 'whatsapp', 'in_app', 'push'],
   subscription_renewal: ['email', 'in_app', 'push'],
   subscription_renewal_failed: ['email', 'in_app', 'push'],
+  subscription_logo_limit_low: ['email', 'in_app', 'push'],
   credit_purchase: ['email', 'in_app', 'push'],
   new_device_login: ['email', 'in_app', 'push'],
   taebo_answered: ['email', 'in_app', 'push'],
