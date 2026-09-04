@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { TestimonialDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
-import { TestimonialCard } from '@/app/testimonials/page';
+import { TestimonialCard } from '@/components/TestimonialCard';
 
 // docs/specs/2026-08-28-10-content-knowledge-base.md AC-4 — Home page, max 6, with View More.
 // Zero testimonials hides the section entirely (spec §5 empty state), no placeholder.
