@@ -29,7 +29,7 @@ function createFakeAudit() {
 describe('DesignsService.favorite/unfavorite (AC-8)', () => {
   it('favoriting an already-favorited design is a no-op, not a duplicate row or error', async () => {
     const prisma = createFakePrisma();
-    const service = new DesignsService(prisma as never, createFakeAudit() as never);
+    const service = new DesignsService(prisma as never, createFakeAudit() as never, {} as never);
 
     await service.favorite('1', 42n);
     await service.favorite('1', 42n);
@@ -39,14 +39,14 @@ describe('DesignsService.favorite/unfavorite (AC-8)', () => {
 
   it('unfavoriting a design that was never favorited succeeds without error', async () => {
     const prisma = createFakePrisma();
-    const service = new DesignsService(prisma as never, createFakeAudit() as never);
+    const service = new DesignsService(prisma as never, createFakeAudit() as never, {} as never);
 
     await expect(service.unfavorite('1', 42n)).resolves.toBeUndefined();
   });
 
   it('unfavorite removes only the calling customer favorite, leaving others intact', async () => {
     const prisma = createFakePrisma();
-    const service = new DesignsService(prisma as never, createFakeAudit() as never);
+    const service = new DesignsService(prisma as never, createFakeAudit() as never, {} as never);
 
     await service.favorite('1', 42n);
     await service.favorite('1', 99n);

@@ -28,6 +28,12 @@ import { OrdersModule } from './orders/orders.module';
 import { RedisModule } from './redis/redis.module';
 import { SettingsModule } from './settings/settings.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { FaqModule } from './faq/faq.module';
+import { TipsModule } from './tips/tips.module';
+import { TestimonialsModule } from './testimonials/testimonials.module';
+import { BlogModule } from './blog/blog.module';
+import { AboutModule } from './about/about.module';
+import { PortfolioModule } from './portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -56,6 +62,15 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     OrdersModule,
     CartModule,
     FilesModule,
+    // Content & Knowledge Base (A-012, sub-aspects A-012a-f). FaqModule/BlogModule export their
+    // service so other modules (Taebo A-020 on FaqService; header search on BlogService) can
+    // consume them directly, the same "exported for cross-module use" shape as OrdersModule.
+    FaqModule,
+    TipsModule,
+    TestimonialsModule,
+    BlogModule,
+    AboutModule,
+    PortfolioModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

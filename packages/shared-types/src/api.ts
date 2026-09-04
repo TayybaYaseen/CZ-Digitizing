@@ -50,4 +50,7 @@ export type ApiErrorCode =
   | 'ALREADY_SUBSCRIBED'
   | 'RENEWAL_PAYMENT_FAILED'
   // Subscription logo/design-file download allowance (plan.logoLimit) exhausted for this cycle.
-  | 'SUBSCRIPTION_LOGO_LIMIT_REACHED';
+  | 'SUBSCRIPTION_LOGO_LIMIT_REACHED'
+  // Content & Knowledge Base spec (docs/specs/2026-08-28-10-content-knowledge-base.md §3)
+  | 'SLUG_ALREADY_EXISTS'
+  | 'ORDER_NOT_ELIGIBLE_FOR_REVIEW';

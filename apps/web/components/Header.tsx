@@ -35,7 +35,15 @@ const PRIMARY_LINKS = [
 // dropdown holding those two, the natural place for "everything else" in an 8-item nav. Flagged
 // as an interpretation, not a fact stated in the source. "Subscription" now points at /pricing
 // (A-015, docs/specs/2026-08-28-09-subscriptions-credits.md §5) rather than the old TODO stub.
+// SRS §16's own More Menu list (FAQ/Tips/Testimonials/Blog/About Us/Portfolio) is folded in here
+// too — those pages are all real now (A-012, docs/specs/2026-08-28-10-content-knowledge-base.md).
 const MORE_LINKS = [
+  { href: '/faq', label: 'FAQ' },
+  { href: '/tips', label: 'Tips for Embroiderers' },
+  { href: '/testimonials', label: 'Testimonials' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/about', label: 'About Us' },
+  { href: '/portfolio', label: 'Portfolio' },
   { href: '/pricing', label: 'Subscription' },
   { href: '/account', label: 'My Account' },
 ];

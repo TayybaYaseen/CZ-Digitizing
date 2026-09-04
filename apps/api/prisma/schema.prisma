@@ -44,8 +44,10 @@ enum AdminModule {
   quotes
   custom_requests
   faqs
+  tips
   testimonials
   blog
+  about
   portfolio
   subscriptions
   credits
@@ -100,6 +102,7 @@ model User {
   credits                 CustomerCredits?
   creditTransactions      CreditTransaction[]      @relation("CreditTransactionOwner")
   sentGifts               CreditTransaction[]      @relation("CreditTransactionGiftCounterparty")
+  submittedTestimonials   Testimonial[]            @relation("TestimonialSubmittedBy")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -763,6 +766,7 @@ model Order {
   authorizedFiles    CustomerAuthorizedFile[]
   notifications      Notification[]
   creditTransactions CreditTransaction[]
+  testimonials       Testimonial[]
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -1020,4 +1024,165 @@ model PendingCreditPurchase {
   createdAt             DateTime @default(now()) @map("created_at")
 
   @@map("pending_credit_purchases")
+}
+
+// Schema for docs/specs/2026-08-28-10-content-knowledge-base.md (aspect A-012, sub-aspects
+// A-012a-f). A-021 (Internationalization) is still Not Started per SPEC_INDEX.md, so
+// `languageCode` here is a plain stored column (default "en") with no real locale-resolution
+// logic behind it yet — that mechanism is A-021's own job later.
+
+// AC-1/AC-2/AC-8 — a complete website-wide knowledge base entry. `taeboVisible` gates whether
+// Taebo (separate spec, still Blocked on this aspect) may surface this entry; helpfulness is kept
+// as plain atomic counters (not a per-vote table) since AC-8 only requires an aggregated signal,
+// not per-user vote idempotency.
+model Faq {
+  id               BigInt   @id @default(autoincrement())
+  question         String
+  answer           String
+  topic            String
+  relatedPage      String?  @map("related_page")
+  relatedService   String?  @map("related_service")
+  relatedCategory  String?  @map("related_category")
+  languageCode     String   @default("en") @map("language_code")
+  priority         Int      @default(0)
+  taeboVisible     Boolean  @default(false) @map("taebo_visible")
+  isPublished      Boolean  @default(false) @map("is_published")
+  helpfulYesCount  Int      @default(0) @map("helpful_yes_count")
+  helpfulNoCount   Int      @default(0) @map("helpful_no_count")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tipLinks TipFaqLink[]
+
+  @@index([topic], map: "idx_faqs_topic")
+  @@index([languageCode], map: "idx_faqs_language")
+  @@index([taeboVisible], map: "idx_faqs_taebo_visible")
+  @@map("faqs")
+}
+
+// AC-3 — embroidery-education articles, linkable to relevant FAQ entries via TipFaqLink.
+model EmbroidererTip {
+  id               BigInt   @id @default(autoincrement())
+  title            String
+  content          String
+  category         String
+  languageCode     String   @default("en") @map("language_code")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  faqLinks TipFaqLink[]
+
+  @@index([category], map: "idx_tips_category")
+  @@index([languageCode], map: "idx_tips_language")
+  @@map("embroiderer_tips")
+}
+
+// SRS Addendum §8 — "Tips can be ... linked to FAQ". Not modeled in the architecture DDL.
+model TipFaqLink {
+  tipId BigInt         @map("tip_id")
+  tip   EmbroidererTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  faqId BigInt         @map("faq_id")
+  faq   Faq            @relation(fields: [faqId], references: [id], onDelete: Cascade)
+
+  @@id([tipId, faqId])
+  @@map("tip_faq_links")
+}
+
+// AC-4/AC-5/AC-7 — the one entity in the system where the data is intentionally public-facing
+// customer PII (name/country/photo/feedback); Admin consent/removal is a process control (spec
+// §4 Retention and privacy), not a system one. `source`/`moderationStatus` distinguish
+// Admin-curated testimonials (always source=admin_curated, moderationStatus=approved on create)
+// from customer-submitted reviews (AC-7: source=customer_submitted, moderationStatus=pending,
+// isPublished=false until Admin approves) — orderId is required for the latter so a submission is
+// always tied to a real completed purchase, never free-form.
+model Testimonial {
+  id               BigInt                @id @default(autoincrement())
+  customerName     String                @map("customer_name")
+  country          String
+  business         String?
+  photoUrl         String?               @map("photo_url")
+  rating           Int
+  feedback         String
+  serviceUsed      String                @map("service_used")
+  isPublished      Boolean               @default(false) @map("is_published")
+  source           TestimonialSource     @default(admin_curated)
+  moderationStatus TestimonialModeration @default(approved) @map("moderation_status")
+  customerId       BigInt?               @map("customer_id")
+  customer         User?                 @relation("TestimonialSubmittedBy", fields: [customerId], references: [id], onDelete: SetNull)
+  orderId          BigInt?               @map("order_id")
+  order            Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdByAdminId BigInt?               @map("created_by_admin_id")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  @@index([isPublished, moderationStatus], map: "idx_testimonials_visibility")
+  @@index([customerId], map: "idx_testimonials_customer")
+  @@map("testimonials")
+}
+
+enum TestimonialSource {
+  admin_curated
+  customer_submitted
+}
+
+enum TestimonialModeration {
+  approved
+  pending
+  rejected
+}
+
+// AC-9/AC-10/AC-15/AC-16 — hard delete (no deletedAt) per spec §4/AC-16: this architecture has no
+// soft-delete precedent for this content type, so none is invented.
+model BlogPost {
+  id               BigInt    @id @default(autoincrement())
+  title            String
+  slug             String    @unique
+  coverImageUrl    String?   @map("cover_image_url")
+  body             String
+  category         String
+  languageCode     String    @default("en") @map("language_code")
+  isPublished      Boolean   @default(false) @map("is_published")
+  publishedAt      DateTime? @map("published_at")
+  createdByAdminId BigInt?   @map("created_by_admin_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([isPublished, languageCode], map: "idx_blog_posts_visibility")
+  @@index([category], map: "idx_blog_posts_category")
+  @@map("blog_posts")
+}
+
+// AC-11 — single always-live static page per language, deliberately no isPublished (spec §4).
+// Seeded with one placeholder "en" row by this model's migration so the public page never renders
+// empty before Admin fills it in.
+model AboutContent {
+  languageCode     String   @id @map("language_code")
+  heading          String
+  body             String
+  imageUrls        Json     @default("[]") @map("image_urls")
+  updatedByAdminId BigInt?  @map("updated_by_admin_id")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("about_content")
+}
+
+// AC-12/AC-13/AC-17 — visual-first content, deliberately no languageCode (same treatment as
+// Testimonial, spec §4): title/description render exactly as Admin entered them in every language.
+model PortfolioItem {
+  id               BigInt   @id @default(autoincrement())
+  title            String
+  description      String?
+  mediaUrls        Json     @default("[]") @map("media_urls")
+  category         String?
+  sortOrder        Int      @default(0) @map("sort_order")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublished, sortOrder], map: "idx_portfolio_items_visibility")
+  @@map("portfolio_items")
 }
