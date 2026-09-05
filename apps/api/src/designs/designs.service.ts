@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import type { BlogPostSummaryDto } from '@czd/shared-types';
 import type { Prisma } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import type { AccessTokenPayload } from '../auth/token.types';
+import { BlogService } from '../blog/blog.service';
 import { ApiException } from '../common/exceptions/api-exception';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DesignQueryDto } from './dto/design-query.dto';
@@ -25,6 +27,7 @@ export class DesignsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly blog: BlogService,
   ) {}
 
   // AC-7 — faceted filters + pagination (limit enforced in DesignQueryDto, max 50).
@@ -90,17 +93,18 @@ export class DesignsService {
   }
 
   // AC-6 — live suggestions across design name/tags plus category/subcategory name matches, for
-  // the header's debounced dropdown. Services/Blog/FAQ inclusion is a documented follow-up
-  // (TODO(A-014, A-012d)) — those aspects are still Blocked, so this merge point only covers what
-  // is actually indexable today. AC-10's Elasticsearch swap keeps this same return shape.
+  // the header's debounced dropdown. AC-14 (Content & Knowledge Base spec) folds in matching
+  // published Blog post titles/content — Services/FAQ inclusion remains a follow-up (TODO(A-014))
+  // since that aspect is still Blocked. AC-10's Elasticsearch swap keeps this same return shape.
   async searchSuggestions(q: string): Promise<{
     designs: DesignSummaryDto[];
     categories: { id: string; name: string; slug: string }[];
     subcategories: { id: string; name: string; slug: string }[];
+    blogPosts: BlogPostSummaryDto[];
   }> {
-    if (!q.trim()) return { designs: [], categories: [], subcategories: [] };
+    if (!q.trim()) return { designs: [], categories: [], subcategories: [], blogPosts: [] };
 
-    const [designs, categories, subcategories] = await Promise.all([
+    const [designs, categories, subcategories, blogPosts] = await Promise.all([
       this.search(q),
       this.prisma.designCategory.findMany({
         where: { isPublished: true, name: { contains: q, mode: 'insensitive' } },
@@ -110,12 +114,14 @@ export class DesignsService {
         where: { isPublished: true, name: { contains: q, mode: 'insensitive' } },
         take: 5,
       }),
+      this.blog.search(q),
     ]);
 
     return {
       designs,
       categories: categories.map((c) => ({ id: c.id.toString(), name: c.name, slug: c.slug })),
       subcategories: subcategories.map((s) => ({ id: s.id.toString(), name: s.name, slug: s.slug })),
+      blogPosts,
     };
   }
 

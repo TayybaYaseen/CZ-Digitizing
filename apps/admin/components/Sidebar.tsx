@@ -22,6 +22,13 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/quotes', label: 'Quotes' }, // TODO(A-016)
   { href: '/pricing', label: 'Subscription Plans' }, // A-015
   { href: '/credits', label: 'Credit Packages' }, // A-015
+  { section: 'Content' }, // A-012 (docs/specs/2026-08-28-10-content-knowledge-base.md)
+  { href: '/faq', label: 'FAQ' },
+  { href: '/tips', label: 'Tips' },
+  { href: '/testimonials', label: 'Testimonials' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/about', label: 'About Us' },
+  { href: '/portfolio', label: 'Portfolio' },
   { section: 'System' },
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },

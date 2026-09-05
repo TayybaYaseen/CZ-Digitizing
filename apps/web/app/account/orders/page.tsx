@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
-import { ApiClientError, apiFetchWithMeta } from '@/lib/api-client';
+import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
@@ -71,11 +71,79 @@ export default function OrderHistoryPage() {
                 <Link href={`/order-confirmation/${order.id}`} className="text-brand-navy underline">
                   {order.status}
                 </Link>
+                {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
               </div>
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// AC-7 — customer submits a review tied to this completed order; stored pending Admin moderation.
+function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [feedback, setFeedback] = useState('');
+  const [serviceUsed, setServiceUsed] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (submitted) return <p className="mt-1 text-xs text-emerald-600">Review submitted</p>;
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-1 block text-xs text-brand-navy underline">
+        Leave a review
+      </button>
+    );
+  }
+
+  async function submit() {
+    if (!accessToken || !feedback.trim() || !serviceUsed.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch('/api/testimonials/submit', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ orderId, rating, feedback, serviceUsed }),
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not submit review.', traceId: '' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-left">
+      <ErrorBanner error={error} />
+      <select value={rating} onChange={(e) => setRating(Number(e.target.value))} className="w-full rounded border border-gray-300 px-2 py-1 text-xs">
+        {[5, 4, 3, 2, 1].map((r) => (
+          <option key={r} value={r}>
+            {'★'.repeat(r)} ({r})
+          </option>
+        ))}
+      </select>
+      <input
+        value={serviceUsed}
+        onChange={(e) => setServiceUsed(e.target.value)}
+        placeholder="Service used"
+        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+      />
+      <textarea
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder="Your feedback"
+        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        rows={3}
+      />
+      <button disabled={busy} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
+        Submit
+      </button>
     </div>
   );
 }

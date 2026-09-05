@@ -1,5 +1,6 @@
 import { checkHealth } from '@/lib/api-client';
 import { HomeGreeting } from '@/components/HomeGreeting';
+import { HomeTestimonials } from '@/components/HomeTestimonials';
 
 export default async function HomePage() {
   const health = await checkHealth().catch(() => null);
@@ -16,6 +17,7 @@ export default async function HomePage() {
           <span className="text-red-600">unreachable — is apps/api running?</span>
         )}
       </p>
+      <HomeTestimonials />
     </div>
   );
 }
