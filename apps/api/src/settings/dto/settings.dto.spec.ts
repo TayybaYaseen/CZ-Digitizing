@@ -35,9 +35,11 @@ describe('settings.dto (AC-3, AC-4)', () => {
     expect(dto.yearsOfExperience).toBe(10);
   });
 
-  it('the public DTO never includes contactEmail or paymentMethods', () => {
+  // docs/specs/2026-09-01-20-landing-page-experience.md / A-009 (Footer) — SRS §15/§18 name the
+  // business contact email as public-facing, unlike paymentMethods (genuinely admin-only).
+  it('the public DTO includes contactEmail but never the full paymentMethods list', () => {
     const dto = toPublicSettingsDto(makeSettings());
-    expect(dto).not.toHaveProperty('contactEmail');
+    expect(dto.contactEmail).toBe('czdigitizing@gmail.com');
     expect(dto).not.toHaveProperty('paymentMethods');
   });
 });

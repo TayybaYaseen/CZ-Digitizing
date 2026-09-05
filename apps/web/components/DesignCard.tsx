@@ -95,8 +95,12 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
 
   const hasDualMedia = !!(design.vectorImageUrl || design.vectorVideoUrl) && !!(design.embroideryImageUrl || design.embroideryVideoUrl);
 
+  // Landing Page Experience spec AC-10 — auto-swap is a non-essential motion effect; respect
+  // prefers-reduced-motion the same way the header-media carousel does (spec 13 AC-11's own
+  // pause-on-interaction posture, but here disabled outright rather than merely pausable).
   useEffect(() => {
     if (!design.autoSwapEnabled || !hasDualMedia || userSelectedMedia) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const interval = setInterval(() => setShowingEmbroidery((v) => !v), AUTO_SWAP_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [design.autoSwapEnabled, hasDualMedia, userSelectedMedia]);
@@ -165,7 +169,14 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
       className="group relative h-72 w-full cursor-pointer [perspective:1000px]"
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onFlip()}
+      onKeyDown={(e) => {
+        // AC-10 — every mouse/hover interaction must also be keyboard-reachable; Space is the
+        // conventional activation key for a role="button" element alongside Enter.
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onFlip();
+        }
+      }}
     >
       <div
         className="relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d]"

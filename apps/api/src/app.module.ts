@@ -34,6 +34,7 @@ import { TestimonialsModule } from './testimonials/testimonials.module';
 import { BlogModule } from './blog/blog.module';
 import { AboutModule } from './about/about.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { HomeCmsModule } from './home-cms/home-cms.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     BlogModule,
     AboutModule,
     PortfolioModule,
+    HomeCmsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

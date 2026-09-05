@@ -53,6 +53,9 @@ enum AdminModule {
   credits
   notifications
   settings
+  home_sections
+  advertisements
+  header_media
 }
 
 enum AdminAccessLevel {
@@ -398,6 +401,7 @@ model DesignCategory {
   subcategories      DesignSubcategory[]
   assignments        DesignCategoryAssignment[]
   dynamicBundleRules DynamicBundleRule[]
+  advertisements     Advertisement[]
 
   @@map("design_categories")
 }
@@ -466,13 +470,15 @@ model Design {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  sizes               DesignSize[]
-  categoryAssignments DesignCategoryAssignment[]
-  favorites           Favorite[]
-  files               DesignFile[]
-  bundleMemberships   BundleDesign[]
-  cartItems           CartItem[]
-  orderItems          OrderItem[]
+  sizes                DesignSize[]
+  categoryAssignments  DesignCategoryAssignment[]
+  favorites            Favorite[]
+  files                DesignFile[]
+  bundleMemberships    BundleDesign[]
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+  homeSectionEntries   HomeSectionDesign[]
+  advertisementTargets AdvertisementTargetDesign[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -1185,4 +1191,107 @@ model PortfolioItem {
 
   @@index([isPublished, sortOrder], map: "idx_portfolio_items_visibility")
   @@map("portfolio_items")
+}
+
+// Schema for docs/specs/2026-08-28-13-home-promotions-cms.md (aspect A-018, sub-aspects
+// A-018a/b/c). None of these five entities existed anywhere in the architecture DDL despite being
+// named, detailed Admin modules in the SRS (§19, §21, §22) — this is the spec's own §8 risk #1.
+
+// AC-1/AC-2/AC-7 — Admin-curated design showcase sections. Capping at 6 visible cards + "View
+// More" (spec §2 AC-1, shared rule with the Catalog spec) is left to the frontend, not stored here
+// — Admin may curate more than 6 designs into one section.
+model HomeSection {
+  id               BigInt   @id @default(autoincrement())
+  heading          String
+  description      String?
+  sortOrder        Int      @default(0) @map("sort_order")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  designs HomeSectionDesign[]
+
+  @@index([isPublished, sortOrder], map: "idx_home_sections_visibility")
+  @@map("home_sections")
+}
+
+model HomeSectionDesign {
+  id            BigInt      @id @default(autoincrement())
+  homeSectionId BigInt      @map("home_section_id")
+  homeSection   HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
+  designId      BigInt      @map("design_id")
+  design        Design      @relation(fields: [designId], references: [id], onDelete: Cascade)
+  sortOrder     Int         @default(0) @map("sort_order")
+
+  @@unique([homeSectionId, designId], map: "uq_home_section_designs_section_design")
+  @@index([homeSectionId], map: "idx_home_section_designs_section")
+  @@map("home_section_designs")
+}
+
+// AC-3/AC-4/AC-5 — "no active ad = no public ad section" is enforced in AdvertisementsService,
+// not by this model. SRS: "category OR specific designs" (spec §8 risk #2) — targetCategoryId set
+// XOR AdvertisementTargetDesign rows present, application-layer enforced, not a DB constraint
+// (Prisma 5.x schema DSL has no cross-field @@check).
+model Advertisement {
+  id               BigInt          @id @default(autoincrement())
+  heading          String
+  subheading       String?
+  offerText        String?         @map("offer_text")
+  bannerImageUrl   String?         @map("banner_image_url")
+  bannerVideoUrl   String?         @map("banner_video_url")
+  ctaText          String?         @map("cta_text")
+  ctaLink          String?         @map("cta_link")
+  startDate        DateTime        @map("start_date")
+  endDate          DateTime        @map("end_date")
+  isActive         Boolean         @default(false) @map("is_active")
+  targetCategoryId BigInt?         @map("target_category_id")
+  targetCategory   DesignCategory? @relation(fields: [targetCategoryId], references: [id], onDelete: SetNull)
+  createdByAdminId BigInt?         @map("created_by_admin_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  targetDesigns AdvertisementTargetDesign[]
+
+  @@index([isActive, startDate, endDate], map: "idx_advertisements_active_window")
+  @@map("advertisements")
+}
+
+model AdvertisementTargetDesign {
+  advertisementId BigInt        @map("advertisement_id")
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  designId        BigInt        @map("design_id")
+  design          Design        @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@id([advertisementId, designId])
+  @@map("advertisement_target_designs")
+}
+
+// AC-6/AC-10/AC-11 — header/home banner (image, video, or both). visibleDesktop/visibleMobileWeb/
+// visibleMobileApp close AC-10's per-platform gap (mobile app itself is A-023, still Blocked, but
+// the column is stored now so that aspect has nothing to migrate later); autoSlideDurationSeconds
+// closes AC-11 (configurable carousel timing, same pause-on-interaction posture as the Catalog
+// spec's AC-5 design-card auto-swap).
+model HeaderMedia {
+  id                       BigInt    @id @default(autoincrement())
+  imageUrl                 String?   @map("image_url")
+  videoUrl                 String?   @map("video_url")
+  heading                  String?
+  subheading               String?
+  ctaLink                  String?   @map("cta_link")
+  startDate                DateTime? @map("start_date")
+  endDate                  DateTime? @map("end_date")
+  priority                 Int       @default(0)
+  isActive                 Boolean   @default(false) @map("is_active")
+  isCarouselItem           Boolean   @default(true) @map("is_carousel_item")
+  visibleDesktop           Boolean   @default(true) @map("visible_desktop")
+  visibleMobileWeb         Boolean   @default(true) @map("visible_mobile_web")
+  visibleMobileApp         Boolean   @default(true) @map("visible_mobile_app")
+  autoSlideDurationSeconds Int       @default(5) @map("auto_slide_duration_seconds")
+  createdByAdminId         BigInt?   @map("created_by_admin_id")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive, priority], map: "idx_header_media_active_priority")
+  @@map("header_media")
 }

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Role } from '@czd/shared-types';
+import { apiFetch } from './api-client';
 
 // Mirrors apps/api/src/auth/dto/user-profile.dto.ts's UserProfileDto — the shape returned by
 // register/login/verify-session. Not imported directly since apps/api isn't a workspace dependency
@@ -59,9 +60,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore from localStorage after mount only — avoids a server/client render mismatch
   // (the server has no localStorage, so the first client render must match it: signed out).
   useEffect(() => {
-    setState(readStoredAuth());
+    const stored = readStoredAuth();
+    setState(stored);
     setIsReady(true);
+    if (stored.accessToken) void verifySession(stored.accessToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Landing Page Experience spec AC-2/AC-3 — confirms a restored session is still actually valid
+  // (not merely present in localStorage) on every load. apiFetch's own fetchWithAuthRetry already
+  // implements AC-3's "expired access token but valid refresh token -> one silent refresh" flow;
+  // this only needs to sync the result back into React state and localStorage. If both
+  // verify-session AND the automatic refresh retry fail, the session really is gone (revoked
+  // session, expired refresh token) — fall back to signed-out, never a broken/stale signed-in nav.
+  async function verifySession(accessToken: string) {
+    try {
+      const profile = await apiFetch<AuthUser>('/api/auth/verify-session', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const latest = readStoredAuth(); // fetchWithAuthRetry may have silently written a refreshed access token
+      const next: AuthState = { user: profile, accessToken: latest.accessToken ?? accessToken, refreshToken: latest.refreshToken };
+      setState(next);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      setState(EMPTY_STATE);
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  }
 
   function login(tokens: AuthTokens) {
     const next: AuthState = { user: tokens.user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };

@@ -4,6 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { CartProvider } from '@/lib/cart-context';
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 
 // docs/specs/2026-09-02-01-brand-visual-identity.md AC-4 — one consistent font family loaded via
 // next/font (self-hosted, no runtime <link>/layout-shift), not the default system-font stack.
@@ -22,9 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CartProvider>
             <Header />
             <main className="p-6">{children}</main>
-            <footer className="border-t border-gray-200 px-6 py-4 text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} CZ Digitizing
-            </footer>
+            <Footer />
           </CartProvider>
         </AuthProvider>
       </body>

@@ -22,6 +22,10 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/quotes', label: 'Quotes' }, // TODO(A-016)
   { href: '/pricing', label: 'Subscription Plans' }, // A-015
   { href: '/credits', label: 'Credit Packages' }, // A-015
+  { section: 'Home' }, // A-018 (docs/specs/2026-08-28-13-home-promotions-cms.md)
+  { href: '/home/sections', label: 'Home Sections' },
+  { href: '/home/advertisements', label: 'Advertisements' },
+  { href: '/home/header-media', label: 'Header Media' },
   { section: 'Content' }, // A-012 (docs/specs/2026-08-28-10-content-knowledge-base.md)
   { href: '/faq', label: 'FAQ' },
   { href: '/tips', label: 'Tips' },
