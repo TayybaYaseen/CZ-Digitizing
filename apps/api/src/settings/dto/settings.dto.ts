@@ -39,6 +39,10 @@ export function toSettingsDto(settings: PlatformSettings, paymentMethods: Paymen
 
 export interface PublicSettingsDto {
   whatsappNumber: string | null;
+  // SRS §15/§18 — the business contact email is explicitly named as public-facing (Contact page,
+  // footer), unlike bank/payment secrets — this is the one deliberate exception to "no contactEmail
+  // here" below.
+  contactEmail: string | null;
   social: SettingsDto['social'];
   domain: string | null;
   yearsOfExperience: number;
@@ -51,13 +55,14 @@ export interface PublicSettingsDto {
 }
 
 // AC-1/AC-3/AC-4 — the non-sensitive subset every public page (footer, Contact, WhatsApp
-// click-to-chat) reads. No contactEmail/full paymentMethods list here — those aren't "public"
-// values; bankTransferConfig is the one deliberate, narrow exception (see its own comment above).
+// click-to-chat) reads. contactEmail is public by design (SRS §15/§18); full paymentMethods list
+// is not — bankTransferConfig is the one deliberate, narrow exception (see its own comment above).
 export function toPublicSettingsDto(settings: PlatformSettings, paymentMethods: PaymentMethodSetting[] = []): PublicSettingsDto {
   const dto = toSettingsDto(settings, paymentMethods);
   const bankTransfer = paymentMethods.find((m) => m.method === 'bank_transfer');
   return {
     whatsappNumber: dto.whatsappNumber,
+    contactEmail: dto.contactEmail,
     social: dto.social,
     domain: dto.domain,
     yearsOfExperience: new Date().getFullYear() - settings.experienceStartYear,

@@ -53,4 +53,6 @@ export type ApiErrorCode =
   | 'SUBSCRIPTION_LOGO_LIMIT_REACHED'
   // Content & Knowledge Base spec (docs/specs/2026-08-28-10-content-knowledge-base.md §3)
   | 'SLUG_ALREADY_EXISTS'
-  | 'ORDER_NOT_ELIGIBLE_FOR_REVIEW';
+  | 'ORDER_NOT_ELIGIBLE_FOR_REVIEW'
+  // Home Promotions CMS spec (docs/specs/2026-08-28-13-home-promotions-cms.md §3, §8 risk #2)
+  | 'ADVERTISEMENT_TARGET_CONFLICT';

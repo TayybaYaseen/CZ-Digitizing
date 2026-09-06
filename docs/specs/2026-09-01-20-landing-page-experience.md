@@ -1,7 +1,7 @@
 # Spec: Landing Page Experience (Home)
 
 **File:** `docs/specs/2026-09-01-20-landing-page-experience.md`
-**Status:** Draft — planning document only; see §0 for why this is not `Approved`
+**Status:** Approved — implemented 2026-09-05; see §0 for history
 **Author:** CZ Digitizing Team
 **Reviewer:** Muhammad Suleman Yaseen (Primary Admin, czdigitizing@gmail.com) — pending
 **Related:** [Master platform spec](2026-08-28-cz-digitizing-platform.md),
@@ -13,15 +13,22 @@ SRS §5 (Home Page), SRS §2 (Brand & Visual System), architecture §Notificatio
 
 ---
 
-## 0. Status note — this document describes Blocked work
+## 0. Status note — history
 
 This spec composes several aspects from `docs/specs/SPEC_INDEX.md` — **A-003** (Header & Global
 Navigation), **A-018**/**A-018a**/**A-018b**/**A-018c** (Home Sections, Ads, Header Media), **A-009**
-(Footer), and **A-012c** (Testimonials) — into one customer-facing screen. Every one of those
-aspects is currently `Blocked`, ultimately on **A-001 (Brand & Visual Identity System)**, which is
-`Not Started`. Per `docs/CLAUDE.md` §3/§6, that means none of this may be implemented yet, and this
-document does not change any aspect's Status in `SPEC_INDEX.md` — it exists as an approved-in-advance
-planning artifact only, per the explicit choice to write it now while marking it `Blocked`.
+(Footer), and **A-012c** (Testimonials) — into one customer-facing screen. At authoring time, this
+spec's own composed aspects were all `Blocked`, ultimately on **A-001 (Brand & Visual Identity
+System)**, which was `Not Started` — so this document was written as an approved-in-advance
+planning artifact only, per the explicit choice to write it while marking it `Blocked`.
+
+**2026-09-05 update:** A-001/A-002/A-003/A-012c were already `Completed` by the time this spec's
+implementation was picked up; the real remaining blockers were **A-018** and **A-009**, both still
+un-built. Both were implemented first (in dependency order, per `CLAUDE.md`), then this spec's own
+composition — see `SPEC_INDEX.md`'s Change Log for the full implementation summary. All ten ACs
+below are implemented; AC-8/AC-9 of the composed Home Promotions CMS spec (A/B testing and
+personalization of section order) remain documented, deliberate stubs (no analytics/personalization
+engine exists in this codebase), tracked as an open risk there, not here.
 
 A working design exploration of this page's visual direction already exists as a private Claude
 Artifact (built against the real CZ Digitizing design-system tokens — logo, color, typography — once

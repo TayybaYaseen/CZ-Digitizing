@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
+import { AccountMenu } from './AccountMenu';
 import { Logo } from './Logo';
 import { NotificationBell } from './NotificationBell';
 
@@ -222,12 +223,22 @@ export function Header() {
             )}
           </Link>
 
+          {/* AC-1/AC-2/AC-3 (Landing Page Experience spec) — signed-out shows Log in + Register,
+              signed-in replaces both with the notification bell and an account menu. */}
           {user ? (
-            <NotificationBell />
+            <>
+              <NotificationBell />
+              <AccountMenu />
+            </>
           ) : (
-            <Link href="/login" className="rounded-md bg-brand-gold px-3 py-1.5 text-sm font-semibold text-brand-navy hover:brightness-110">
-              Log in
-            </Link>
+            <>
+              <Link href="/login" className="rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5">
+                Log in
+              </Link>
+              <Link href="/register" className="rounded-md bg-brand-gold px-3 py-1.5 text-sm font-semibold text-brand-navy hover:brightness-110">
+                Register
+              </Link>
+            </>
           )}
         </div>
 
@@ -261,13 +272,22 @@ export function Header() {
               Cart{itemCount > 0 ? ` (${itemCount})` : ''}
             </Link>
             {!user && (
-              <Link
-                href="/login"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-md px-3 py-2 text-sm font-semibold text-brand-gold hover:bg-white/5"
-              >
-                Log in
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-semibold text-brand-silver hover:bg-white/5"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-semibold text-brand-gold hover:bg-white/5"
+                >
+                  Register
+                </Link>
+              </>
             )}
           </nav>
         </div>
