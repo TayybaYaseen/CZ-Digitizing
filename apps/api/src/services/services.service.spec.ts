@@ -33,7 +33,7 @@ function createFakePrisma(services: ReturnType<typeof makeService>[], faqs: Retu
           .filter((r) => {
             if (where.parentServiceId === null && r.parentServiceId !== null) return false;
             const inClause = where.parentServiceId as { in?: bigint[] } | undefined;
-            if (inClause?.in && !inClause.in.includes(r.parentServiceId as bigint)) return false;
+            if (inClause?.in && (r.parentServiceId === null || !inClause.in.includes(r.parentServiceId as unknown as bigint))) return false;
             if (where.isPublished !== undefined && r.isPublished !== where.isPublished) return false;
             return true;
           })
