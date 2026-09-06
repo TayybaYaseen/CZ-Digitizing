@@ -36,6 +36,8 @@ import { AboutModule } from './about/about.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { HomeCmsModule } from './home-cms/home-cms.module';
 import { ServicesModule } from './services/services.module';
+import { QuoteQuestionsModule } from './quote-questions/quote-questions.module';
+import { QuotesModule } from './quotes/quotes.module';
 
 @Module({
   imports: [
@@ -77,6 +79,10 @@ import { ServicesModule } from './services/services.module';
     // Services (A-014) — depends on DesignsModule (AC-10 relatedDesignCategoryId FK) and FaqModule
     // (AC-6 FAQ resolution by value match), so it's registered after both.
     ServicesModule,
+    // Smart Get a Quote (A-016) — depends on ServicesModule (Step 1's service scoping) and
+    // OrdersModule (AC-7 quote->order conversion), so both are registered before it.
+    QuoteQuestionsModule,
+    QuotesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

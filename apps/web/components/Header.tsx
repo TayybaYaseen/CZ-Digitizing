@@ -27,6 +27,7 @@ const PRIMARY_LINKS = [
   { href: '/categories', label: 'Design Categories' },
   { href: '/designs', label: 'All Designs' },
   { href: '/bundles', label: 'Design Bundles' },
+  { href: '/get-a-quote', label: 'Get a Quote' },
 ];
 
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
@@ -45,6 +46,7 @@ const MORE_LINKS = [
   { href: '/portfolio', label: 'Portfolio' },
   { href: '/pricing', label: 'Subscription' },
   { href: '/account', label: 'My Account' },
+  { href: '/account/quotes', label: 'My Quotes' },
 ];
 
 // AC-6 — debounced live suggestions (design name/category/subcategory/tags today; services/blog/
