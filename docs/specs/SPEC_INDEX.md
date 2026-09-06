@@ -133,6 +133,20 @@ ahead of A-017 itself reaching `Completed`; flagged here rather than silently le
 per `CLAUDE.md` §5's "computed mechanically, investigate before trusting" guidance — the actual
 work is real, not a premature status flip.
 
+As of the 2026-09-07 update: A-010 (Contact Us) is `Completed`. No dedicated spec file exists for
+this aspect (built directly from SRS §15, the same way A-009 Footer was) — WhatsApp/email/social
+are read from the already-completed A-005a `PlatformSettings`/`GET /api/settings/public` (same call
+Footer.tsx already makes), plus a new `ContactMessage` model (migration
+`20260907120000_add_contact_messages`), `POST /api/contact` (public, rate-limited 5/60s, no
+CAPTCHA per explicit decision — matches the codebase's existing rate-limit-only pattern on other
+public/unauthenticated routes like `auth.controller.ts`'s `dev-login`), and admin fan-out via
+`NotificationService.notify()` reusing the `contact_message` `NotificationType` that already existed
+in the enum (unused until now). Frontend: `apps/web/app/contact/page.tsx` (new) + a `Header.tsx` nav
+entry + `Footer.tsx`'s existing link (its `TODO(A-010)` comment removed now that the page is real).
+Verified against a running instance: unit tests (2, fan-out + zero-admin-fallback), integration
+tests (2, against real Postgres — persistence + 400 on invalid payload) both pass, plus a live
+smoke test (POST persisted, rate limit triggers at the 5th request, page renders at `/contact`).
+
 ---
 
 ## Aspect Registry
@@ -169,7 +183,7 @@ work is real, not a premature status flip.
 | A-020 | Taebo Helping Panda (Chatbot) | A-012a | A-012a, A-004 | 4 | Not Started | 28 |
 | A-008 | Design Bundles | A-006 | A-006, A-007 | 5 | Completed | 29 |
 | A-009 | Footer & Social Buttons | A-005a | A-005a | 5 | Completed | 30 |
-| A-010 | Contact Us | A-005a | A-005a | 5 | Not Started | 31 |
+| A-010 | Contact Us | A-005a | A-005a | 5 | Completed | 31 |
 | A-014a | Embroidery Digitizing + 9 sub-categories | A-014 | A-014 | 5 | Completed | 32 |
 | A-014b | Vector Art + 9 sub-categories | A-014 | A-014 | 5 | Completed | 33 |
 | A-016 | Smart Get a Quote (parent) | A-014 | A-014, A-004, A-012 | 5 | Completed | 34 |
