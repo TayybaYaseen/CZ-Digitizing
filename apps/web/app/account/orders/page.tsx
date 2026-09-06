@@ -72,11 +72,68 @@ export default function OrderHistoryPage() {
                   {order.status}
                 </Link>
                 {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
+                {(order.status === 'processing' || order.status === 'ready' || order.status === 'completed') && (
+                  <FileFormatRequestButton orderId={order.id} accessToken={accessToken} />
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// docs/specs/2026-08-28-12-custom-design-requests.md AC-6 (aspect A-017a) — "Need Another File
+// Format?" on an already-purchased order.
+function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; accessToken: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [requestedFormat, setRequestedFormat] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (submitted) return <p className="mt-1 text-xs text-emerald-600">Format request sent</p>;
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-1 block text-xs text-brand-navy underline">
+        Need Another File Format?
+      </button>
+    );
+  }
+
+  async function submit() {
+    if (!accessToken || !requestedFormat.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/orders/${orderId}/file-format-request`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ requestedFormat, notes: notes || undefined }),
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not submit the request.', traceId: '' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-left">
+      <ErrorBanner error={error} />
+      <input
+        value={requestedFormat}
+        onChange={(e) => setRequestedFormat(e.target.value)}
+        placeholder="Format needed (e.g. PES)"
+        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+      />
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" className="w-full rounded border border-gray-300 px-2 py-1 text-xs" rows={2} />
+      <button disabled={busy || !requestedFormat.trim()} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
+        Submit
+      </button>
     </div>
   );
 }

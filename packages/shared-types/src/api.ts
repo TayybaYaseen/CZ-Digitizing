@@ -59,4 +59,8 @@ export type ApiErrorCode =
   // Smart Get a Quote spec (docs/specs/2026-08-28-11-smart-get-a-quote.md §3, AC-7/§8 risk #2)
   | 'CUSTOMER_ACCOUNT_REQUIRED'
   | 'QUOTE_NOT_IN_DRAFT'
-  | 'QUOTE_NOT_RESPONDED';
+  | 'QUOTE_NOT_RESPONDED'
+  // Custom Design Request System spec (docs/specs/2026-08-28-12-custom-design-requests.md §3)
+  | 'INVALID_CUSTOM_REQUEST_TRANSITION'
+  | 'CUSTOM_REQUEST_NOT_QUOTED'
+  | 'FILE_FORMAT_REQUEST_ALREADY_FULFILLED';

@@ -59,6 +59,11 @@ export default function AccountPage() {
           </Link>
         </li>
         <li>
+          <Link href="/account/custom-requests" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Custom requests
+          </Link>
+        </li>
+        <li>
           <Link href="/account/notifications" className="block px-4 py-3 text-sm hover:bg-gray-50">
             Notifications
           </Link>

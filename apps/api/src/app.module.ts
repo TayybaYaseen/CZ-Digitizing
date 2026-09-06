@@ -38,6 +38,8 @@ import { HomeCmsModule } from './home-cms/home-cms.module';
 import { ServicesModule } from './services/services.module';
 import { QuoteQuestionsModule } from './quote-questions/quote-questions.module';
 import { QuotesModule } from './quotes/quotes.module';
+import { CustomRequestsModule } from './custom-requests/custom-requests.module';
+import { FileFormatRequestsModule } from './file-format-requests/file-format-requests.module';
 
 @Module({
   imports: [
@@ -83,6 +85,11 @@ import { QuotesModule } from './quotes/quotes.module';
     // OrdersModule (AC-7 quote->order conversion), so both are registered before it.
     QuoteQuestionsModule,
     QuotesModule,
+    // Custom Design Request System (A-017) — depends on FilesModule (private-file delivery),
+    // OrdersModule (AC-4 quote-approval -> order), NotificationsModule; File Format Requests
+    // (A-017a) depends on the same private-file pipeline via FilesModule/DesignFilesService.
+    CustomRequestsModule,
+    FileFormatRequestsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

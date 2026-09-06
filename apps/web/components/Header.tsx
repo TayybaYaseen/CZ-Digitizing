@@ -28,6 +28,7 @@ const PRIMARY_LINKS = [
   { href: '/designs', label: 'All Designs' },
   { href: '/bundles', label: 'Design Bundles' },
   { href: '/get-a-quote', label: 'Get a Quote' },
+  { href: '/custom-request', label: 'Custom Request' },
 ];
 
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
