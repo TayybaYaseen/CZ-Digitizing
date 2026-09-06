@@ -39,6 +39,7 @@ enum UserStatus {
 enum AdminModule {
   designs
   categories
+  services
   bundles
   orders
   quotes
@@ -398,6 +399,7 @@ model DesignCategory {
   subcategories      DesignSubcategory[]
   assignments        DesignCategoryAssignment[]
   dynamicBundleRules DynamicBundleRule[]
+  services           Service[]
 
   @@map("design_categories")
 }
@@ -417,6 +419,46 @@ model DesignSubcategory {
 
   @@index([parentCategoryId], map: "idx_design_subcategories_parent")
   @@map("design_subcategories")
+}
+
+// docs/specs/2026-08-29-17-services-module.md §4 (aspect A-014/A-014a/A-014b). One table for both
+// the two main services and their sub-categories (parentServiceId null vs. set), same self-
+// referencing shape as DesignCategory/DesignSubcategory but flattened into one model since a
+// service and its sub-services share every other field. relatedDesignCategoryId is a plain
+// nullable FK (AC-10) rather than a join table since it's a single optional pointer, not a
+// many-to-many.
+enum ServiceMainType {
+  embroidery_digitizing
+  vector_art
+}
+
+model Service {
+  id     BigInt @id @default(autoincrement())
+  name   String
+  slug   String @unique
+  type   ServiceMainType
+
+  parentServiceId BigInt?   @map("parent_service_id")
+  parentService   Service?  @relation("ServiceHierarchy", fields: [parentServiceId], references: [id], onDelete: Cascade)
+  subServices     Service[] @relation("ServiceHierarchy")
+
+  description    String
+  visualImageUrl String @map("visual_image_url")
+  applications   String
+  process        String
+
+  relatedDesignCategoryId BigInt?         @map("related_design_category_id")
+  relatedDesignCategory   DesignCategory? @relation(fields: [relatedDesignCategoryId], references: [id])
+
+  sortOrder        Int      @default(0) @map("sort_order")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([parentServiceId], map: "idx_services_parent")
+  @@index([type], map: "idx_services_type")
+  @@map("services")
 }
 
 // AC-2 — a design assigned to multiple categories via this join table (spec §4: supersedes the
