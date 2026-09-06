@@ -25,6 +25,16 @@ export class TipsService {
     if (query.language_code) where.languageCode = query.language_code;
     if (query.linkedFaqId) where.faqLinks = { some: { faqId: BigInt(query.linkedFaqId) } };
 
+    const result = await this.runQuery(where, query);
+    // docs/specs/2026-08-28-16-internationalization.md AC-5 — a selected language with zero
+    // matching entries falls back to English rather than showing nothing.
+    if (result.total === 0 && query.language_code && query.language_code !== 'en') {
+      return this.runQuery({ ...where, languageCode: 'en' }, query);
+    }
+    return result;
+  }
+
+  private async runQuery(where: Prisma.EmbroidererTipWhereInput, query: TipQueryDto): Promise<PagedResult<ReturnType<typeof toTipDto>>> {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.embroidererTip.findMany({
         where,

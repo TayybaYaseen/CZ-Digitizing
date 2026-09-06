@@ -23,6 +23,15 @@ export class FaqService {
     if (query.language_code) where.languageCode = query.language_code;
 
     const rows = await this.prisma.faq.findMany({ where, orderBy: [{ topic: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }] });
+    // docs/specs/2026-08-28-16-internationalization.md AC-5 — a selected language with zero
+    // matching entries falls back to English rather than showing nothing.
+    if (rows.length === 0 && query.language_code && query.language_code !== 'en') {
+      const fallbackRows = await this.prisma.faq.findMany({
+        where: { ...where, languageCode: 'en' },
+        orderBy: [{ topic: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
+      });
+      return fallbackRows.map(toFaqDto);
+    }
     return rows.map(toFaqDto);
   }
 

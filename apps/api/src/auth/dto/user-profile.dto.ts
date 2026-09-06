@@ -10,6 +10,8 @@ export interface UserProfileDto {
   role: Role;
   gmailVerified: boolean;
   twoFactorEnabled: boolean;
+  // docs/specs/2026-08-28-16-internationalization.md AC-4 (aspect A-021).
+  preferredLocale: string | null;
 }
 
 export function toUserProfileDto(user: User): UserProfileDto {
@@ -20,5 +22,6 @@ export function toUserProfileDto(user: User): UserProfileDto {
     role: user.role,
     gmailVerified: user.gmailVerified,
     twoFactorEnabled: user.twoFactorEnabled,
+    preferredLocale: user.preferredLocale,
   };
 }

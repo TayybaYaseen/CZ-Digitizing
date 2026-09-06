@@ -91,6 +91,11 @@ model User {
   // as an unset Twilio credential).
   phone                 String?   @map("phone")
 
+  // docs/specs/2026-08-28-16-internationalization.md §4 (aspect A-021), AC-4 — persists a logged-
+  // in customer's language choice across visits. Nullable: guests persist via cookie instead, and
+  // a user who never picks a language simply falls through to the AC-2 default (English).
+  preferredLocale String? @map("preferred_locale")
+
   sessions                Session[]
   adminPermissions        AdminPermission[]
   auditLogs               AuditLog[]
@@ -1655,4 +1660,37 @@ model FileFormatRequest {
   @@index([orderId], map: "idx_file_format_requests_order")
   @@index([customerId], map: "idx_file_format_requests_customer")
   @@map("file_format_requests")
+}
+
+// docs/specs/2026-08-28-16-internationalization.md §4 (aspect A-021). AC-6 — adding a language
+// later is a data insert here, never a schema migration/deploy. Only a subset of the 15
+// SRS-named languages are seeded with real rows on this pass (en/ar/ur/es) — the rest simply
+// don't exist as rows yet, exactly matching AC-6's "no schema migration" requirement.
+model Language {
+  code       String  @id
+  name       String
+  nativeName String  @map("native_name")
+  isRtl      Boolean @default(false) @map("is_rtl")
+  isEnabled  Boolean @default(true) @map("is_enabled")
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  translations UiTranslation[]
+
+  @@map("languages")
+}
+
+// AC-6 — backs "add a language without a deploy" for UI-chrome strings. Content-level translation
+// (FAQs/Tips/Blog) already has its own languageCode column per entity and is not duplicated here.
+model UiTranslation {
+  id     BigInt @id @default(autoincrement())
+  locale String
+  lang   Language @relation(fields: [locale], references: [code], onDelete: Cascade)
+  key    String
+  value  String
+
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  updatedByAdminId BigInt?  @map("updated_by_admin_id")
+
+  @@unique([locale, key], map: "idx_ui_translations_locale_key")
+  @@map("ui_translations")
 }
