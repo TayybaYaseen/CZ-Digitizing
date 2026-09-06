@@ -19,12 +19,10 @@ interface SearchSuggestions {
 const SEARCH_DEBOUNCE_MS = 250;
 
 // SRS §4 "Header & Global Navigation" main nav, in source order. Design Categories/All Designs
-// (A-006) and Design Bundles (A-008) now have real pages. Services (A-014) still doesn't — that
-// aspect is still Blocked per docs/specs/SPEC_INDEX.md — so that link 404s until its aspect ships
-// its own page.
+// (A-006), Design Bundles (A-008), and Services (A-014) all have real pages now.
 const PRIMARY_LINKS = [
   { href: '/', label: 'Home' },
-  { href: '/services', label: 'Services' }, // TODO(A-014)
+  { href: '/services', label: 'Services' },
   { href: '/categories', label: 'Design Categories' },
   { href: '/designs', label: 'All Designs' },
   { href: '/bundles', label: 'Design Bundles' },
