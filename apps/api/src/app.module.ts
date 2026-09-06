@@ -40,6 +40,7 @@ import { QuoteQuestionsModule } from './quote-questions/quote-questions.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { CustomRequestsModule } from './custom-requests/custom-requests.module';
 import { FileFormatRequestsModule } from './file-format-requests/file-format-requests.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -90,6 +91,9 @@ import { FileFormatRequestsModule } from './file-format-requests/file-format-req
     // (A-017a) depends on the same private-file pipeline via FilesModule/DesignFilesService.
     CustomRequestsModule,
     FileFormatRequestsModule,
+    // Contact Us (A-010) — depends only on the already-global PrismaModule/NotificationsModule,
+    // so it has no ordering constraint relative to the modules above.
+    ContactModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

@@ -200,6 +200,19 @@ model PlatformSettings {
   @@map("platform_settings")
 }
 
+// Aspect A-010 (Contact Us), SRS §15: public contact form (name/email/message). Submission log
+// only — no admin CRUD on rows, they just back the `contact_message` notification fan-out (see
+// ContactService.submit()).
+model ContactMessage {
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contact_messages")
+}
+
 enum PaymentMethodType {
   paypal
   bank_transfer

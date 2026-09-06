@@ -54,7 +54,6 @@ export function Footer() {
             {/* TODO(A-014): Services Module still Blocked — links 404 until it ships, same posture as Header.tsx's Services link. */}
             <li><Link href="/services" className="hover:text-white">Embroidery Digitizing</Link></li>
             <li><Link href="/services" className="hover:text-white">Vector Art</Link></li>
-            {/* TODO(A-010): Contact Us page not yet built. */}
             <li><Link href="/contact" className="hover:text-white">Contact Us</Link></li>
           </ul>
         </div>
