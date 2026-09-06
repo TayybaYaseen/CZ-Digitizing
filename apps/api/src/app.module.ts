@@ -40,6 +40,7 @@ import { QuoteQuestionsModule } from './quote-questions/quote-questions.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { CustomRequestsModule } from './custom-requests/custom-requests.module';
 import { FileFormatRequestsModule } from './file-format-requests/file-format-requests.module';
+import { I18nModule } from './i18n/i18n.module';
 import { ContactModule } from './contact/contact.module';
 
 @Module({
@@ -94,6 +95,9 @@ import { ContactModule } from './contact/contact.module';
     // Contact Us (A-010) — depends only on the already-global PrismaModule/NotificationsModule,
     // so it has no ordering constraint relative to the modules above.
     ContactModule,
+    // Internationalization (A-021) — depends only on the already-global PrismaModule, so it has
+    // no ordering constraint relative to the modules above.
+    I18nModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

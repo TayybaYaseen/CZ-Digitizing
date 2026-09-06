@@ -6,3 +6,4 @@ export * from './home-cms';
 export * from './services';
 export * from './quotes';
 export * from './custom-requests';
+export * from './i18n';

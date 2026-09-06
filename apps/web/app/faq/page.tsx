@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ApiError, FaqDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 // docs/specs/2026-08-28-10-content-knowledge-base.md AC-1/AC-2/AC-8.
 export default function FaqPage() {
+  const { locale, t } = useLocale();
   const [faqs, setFaqs] = useState<FaqDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [q, setQ] = useState('');
@@ -14,10 +16,12 @@ export default function FaqPage() {
   const [voted, setVoted] = useState<Record<string, 'yes' | 'no'>>({});
 
   useEffect(() => {
-    apiFetch<FaqDto[]>('/api/faqs')
+    // docs/specs/2026-08-28-16-internationalization.md AC-5 — server falls back to English rows
+    // when the selected language has no matching FAQ entries.
+    apiFetch<FaqDto[]>(`/api/faqs?language_code=${locale}`)
       .then(setFaqs)
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load FAQs.', traceId: '' }));
-  }, []);
+  }, [locale]);
 
   const topics = useMemo(() => Array.from(new Set((faqs ?? []).map((f) => f.topic))), [faqs]);
 
@@ -56,7 +60,7 @@ export default function FaqPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Frequently Asked Questions</h1>
+        <h1 className="text-2xl font-bold">{t('faq.title')}</h1>
         <p className="mt-1 text-sm text-gray-600">Answers to common questions about pricing, formats, and downloads.</p>
       </div>
 

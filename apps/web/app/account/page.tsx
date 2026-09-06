@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/locale-context';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 
 // Minimal account landing page tying together what already exists under A-002/A-004 (profile,
@@ -14,6 +15,7 @@ import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 export default function AccountPage() {
   const router = useRouter();
   const { user, isReady, accessToken, logout } = useAuth();
+  const { t } = useLocale();
   const [favorites, setFavorites] = useState<DesignSummaryDto[] | null>(null);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function AccountPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">My Account</h1>
+        <h1 className="text-2xl font-bold">{t('account.title')}</h1>
         <p className="mt-1 text-sm text-gray-600">Signed in as {user.email}</p>
       </div>
 

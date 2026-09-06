@@ -147,6 +147,36 @@ Verified against a running instance: unit tests (2, fan-out + zero-admin-fallbac
 tests (2, against real Postgres — persistence + 400 on invalid payload) both pass, plus a live
 smoke test (POST persisted, rate limit triggers at the 5th request, page renders at `/contact`).
 
+As of the 2026-09-07 update: A-021 (Internationalization, mechanism) is `In Progress` — backend
+(`apps/api`) implementation of `docs/specs/2026-08-28-16-internationalization.md` (AC-1–AC-9,
+scoped per Admin direction to the *mechanism* plus 4 real languages rather than all 15 named in the
+SRS) is complete: new `Language`/`UiTranslation` Prisma models plus `users.preferredLocale`
+(migration `20260906212855_add_internationalization`), seeded with en/ar/ur/es (ar/ur as RTL
+coverage, es as an LTR non-English sanity check) and ~20 baseline `en` UI-chrome strings; admin CRUD
+(`GET/PUT /api/admin/settings/languages[/:code]`, `GET/PUT /api/admin/settings/translations/:locale`),
+public `GET /api/languages` + `GET /api/translations/:locale` (English-fallback merge, AC-3), and
+`PUT /api/account/preferred-locale` (AC-4). AC-8's "Machine translated" auto-fill ships as a stubbed
+seam (`isMachineTranslated` always `false` today) rather than a real translation-API integration,
+the same documented-stub posture as A-004's push notifications — swapping in a real provider later
+needs no call-site changes. AC-5 (FAQ/Tips English fallback) is a small addition to the existing
+`FaqService.list()`/`TipsService.list()` methods: an empty result for a non-English `language_code`
+retries once against `en`. Frontend (`apps/web`): a new `LocaleProvider`
+(`apps/web/lib/locale-context.tsx`, modeled on `auth-context.tsx`'s hydrate-after-mount pattern),
+a header `LanguageSwitcher`, `<html lang/dir>` flipped client-side for RTL, `apps/web/lib/format.ts`
+(AC-9, `Intl.NumberFormat`/`Intl.DateTimeFormat`), and representative `t()` wiring on the header nav
+plus the cart/checkout/account/FAQ page headings named in AC-1 (not an exhaustive sweep of every
+hardcoded string in the app — the mechanism and its wiring pattern are what this pass verifies).
+Admin (`apps/admin`): `/settings/languages` and `/settings/translations` CRUD pages. Verified: 3 new
+unit tests (English-fallback resolution) and 4 new integration tests (language CRUD, translation
+bundle per locale, `preferredLocale` persistence) against real Postgres, all passing; full existing
+`apps/api` suite re-run clean (225/225, one unrelated bcrypt-timeout flake confirmed by rerun); all
+three apps (`api`/`web`/`admin`) typecheck cleanly; public endpoints manually verified against a
+live running API (`GET /api/languages`, `GET /api/translations/ar` correctly falling back to
+English). Stays `In Progress` rather than `Completed` per `CLAUDE.md` §5's "existence is not
+completion" rule — the frontend has not yet been exercised in an actual browser session (no browser
+automation tool was available in this environment). A-022 (Header: Language Selector) remains
+`Blocked` until this reaches `Completed`.
+
 ---
 
 ## Aspect Registry
@@ -159,7 +189,7 @@ smoke test (POST persisted, rate limit triggers at the 5th request, page renders
 | A-004 | Notifications System | A-002 | A-002 | 2 | Completed | 4 |
 | A-012 | Content & Knowledge Base (parent) | A-002 | A-002 | 2 | Completed | 5 |
 | A-005f | Admin: Admin Users/Roles & Active Sessions | A-002 | A-002 | 2 | Not Started | 6 |
-| A-021 | Internationalization (mechanism) | A-002 | A-002 | 2 | Not Started | 7 |
+| A-021 | Internationalization (mechanism) | A-002 | A-002 | 2 | In Progress | 7 |
 | A-006 | Design Catalog, Categories & Card Browsing (parent) | A-002 | A-001, A-002, A-003 | 3 | Completed | 8 |
 | A-005 | Admin Platform Settings, Dashboard, Data Export & Audit (parent) | A-002 | A-002, A-004 | 3 | Completed | 9 |
 | A-012a | FAQ | A-012 | A-012 | 3 | Completed | 10 |

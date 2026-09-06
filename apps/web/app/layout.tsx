@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { CartProvider } from '@/lib/cart-context';
+import { LocaleProvider } from '@/lib/locale-context';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 
@@ -20,11 +21,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-brand-lightGray font-sans text-brand-navy antialiased">
         <AuthProvider>
-          <CartProvider>
-            <Header />
-            <main className="p-6">{children}</main>
-            <Footer />
-          </CartProvider>
+          <LocaleProvider>
+            <CartProvider>
+              <Header />
+              <main className="p-6">{children}</main>
+              <Footer />
+            </CartProvider>
+          </LocaleProvider>
         </AuthProvider>
       </body>
     </html>

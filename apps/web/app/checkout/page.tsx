@@ -7,6 +7,7 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
+import { useLocale } from '@/lib/locale-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 const PAYMENT_METHODS: { value: 'paypal' | 'stripe' | 'bank_transfer'; label: string }[] = [
@@ -30,6 +31,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
   const { cart, refresh } = useCart();
+  const { t } = useLocale();
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('paypal');
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -112,7 +114,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Checkout</h1>
+      <h1 className="text-2xl font-bold">{t('checkout.title')}</h1>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-brand-navy">Order Summary</h2>
@@ -168,7 +170,7 @@ export default function CheckoutPage() {
         className="flex w-full items-center justify-center gap-2 rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
       >
         {submitting && <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-navy border-t-transparent" aria-hidden />}
-        {submitting ? 'Placing order…' : 'Confirm Order'}
+        {submitting ? t('common.loading') : t('checkout.placeOrder')}
       </button>
     </div>
   );

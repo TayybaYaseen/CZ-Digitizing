@@ -7,6 +7,7 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { type CartItemDto, useCart } from '@/lib/cart-context';
+import { useLocale } from '@/lib/locale-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 function CartLine({ item, savedForLater }: { item: CartItemDto; savedForLater: boolean }) {
@@ -77,6 +78,7 @@ export default function CartPage() {
   const router = useRouter();
   const { user, accessToken } = useAuth();
   const { cart, error } = useCart();
+  const { t } = useLocale();
   const [creditsInput, setCreditsInput] = useState('');
   const [creditsError, setCreditsError] = useState<ApiError | null>(null);
 
@@ -108,7 +110,7 @@ export default function CartPage() {
   if (cart === null && !error) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <h1 className="text-2xl font-bold">My Cart</h1>
+        <h1 className="text-2xl font-bold">{t("cart.title")}</h1>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="h-24 animate-pulse rounded-lg bg-gray-100" />
         ))}
@@ -122,13 +124,13 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">My Cart</h1>
+      <h1 className="text-2xl font-bold">{t("cart.title")}</h1>
 
       <ErrorBanner error={error} />
 
       {cart.items.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center">
-          <p className="text-sm text-gray-500">Your cart is empty.</p>
+          <p className="text-sm text-gray-500">{t('cart.empty')}</p>
           <Link href="/designs" className="mt-3 inline-block rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy">
             Continue Shopping
           </Link>
@@ -179,7 +181,7 @@ export default function CartPage() {
               disabled={!allValid}
               className="mt-3 w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Proceed to Checkout
+              {t('cart.checkout')}
             </button>
           </div>
         </div>
