@@ -202,6 +202,72 @@ export class OrdersService {
     return toOrderDto(finalOrder);
   }
 
+  // docs/specs/2026-08-28-12-custom-design-requests.md AC-4 (aspect A-017) — §8 risk #2 resolved:
+  // quote acceptance creates a real Order here, mirroring createFromQuote() above, except the
+  // trigger is the *customer* accepting their own quote (not an admin converting one), so this
+  // takes a customerId to verify ownership instead of an AccessTokenPayload admin.
+  async createFromCustomRequest(customRequestId: string, customerId: bigint, paymentMethod: PaymentMethod): Promise<OrderDto> {
+    const request = await this.prisma.customRequest.findUnique({ where: { id: BigInt(customRequestId) } });
+    if (!request) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Custom request not found');
+    if (request.customerId !== customerId) throw new ApiException('FORBIDDEN', 403, 'You do not have access to this custom request');
+    if (request.status !== 'quote_sent') throw new ApiException('CUSTOM_REQUEST_NOT_QUOTED', 409, 'Only a request with a sent quote can be approved');
+    if (!request.quotedPricePkr) throw new ApiException('VALIDATION_ERROR', 400, 'This custom request has no quoted price');
+
+    const bankTransferReference = paymentMethod === 'bank_transfer' ? generateBankTransferReference() : null;
+    const totalPkr = Number(request.quotedPricePkr);
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          customerId,
+          status: 'payment_pending',
+          paymentStatus: 'pending',
+          paymentMethod,
+          totalPkr,
+          bankTransferReference,
+          items: {
+            create: [
+              {
+                customRequestId: request.id,
+                customDescription: `Custom design request #${request.requestNumber}`,
+                quantity: 1,
+                unitPricePkr: totalPkr,
+              },
+            ],
+          },
+        },
+        include: ORDER_INCLUDE,
+      });
+      await tx.customRequest.update({ where: { id: request.id }, data: { status: 'approved', orderId: created.id } });
+      return created;
+    });
+
+    let finalOrder: OrderWithRelations = order as OrderWithRelations;
+    if (paymentMethod === 'paypal') {
+      const created = await this.paypal.createOrder(totalPkr, order.id.toString());
+      if (created) finalOrder = (await this.prisma.order.update({ where: { id: order.id }, data: { paypalOrderId: created.paypalOrderId }, include: ORDER_INCLUDE })) as OrderWithRelations;
+    } else if (paymentMethod === 'stripe') {
+      const created = await this.stripe.createPaymentIntent(totalPkr, order.id.toString());
+      if (created) finalOrder = (await this.prisma.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: created.paymentIntentId }, include: ORDER_INCLUDE })) as OrderWithRelations;
+    }
+
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin' } });
+    for (const admin of admins) {
+      await this.notifications.notify({
+        recipientUserId: admin.id.toString(),
+        type: 'custom_request_status_update',
+        title: 'Custom request quote approved',
+        message: `Custom request #${request.requestNumber} was approved and order #${order.id} created (${totalPkr} PKR), awaiting payment confirmation.`,
+        relatedOrderId: order.id.toString(),
+        relatedCustomRequestId: request.id.toString(),
+        channels: ['email', 'in_app'],
+      });
+    }
+
+    this.logger.log(`Order ${order.id} created from custom request ${request.id} by customer ${customerId}`);
+    return toOrderDto(finalOrder);
+  }
+
   // AC-1 — webhook's real, DB-backed lookup: never trust a bare id echoed back by the provider,
   // always resolve through a reference this service itself wrote at order-creation time.
   async findByPaypalOrderId(paypalOrderId: string): Promise<bigint | null> {
@@ -453,6 +519,27 @@ export class OrdersService {
   // change never retroactively revokes or grants access (mirrors bundles.service.ts's own AC-4
   // comment on this).
   private async releaseFilesAndNotify(order: OrderWithRelations): Promise<void> {
+    // docs/specs/2026-08-28-12-custom-design-requests.md AC-4/§8 risk #2 — a custom-request order
+    // has no catalog design/bundle files to release yet (the deliverable is produced afterward, at
+    // the ready -> delivered step via CustomRequestFile), so payment confirmation here instead
+    // advances the linked request straight to in_production and marks its own paymentStatus
+    // completed, then returns early — the file-release/"zero resolvable files" logic below is only
+    // meaningful for catalog-design orders.
+    const linkedCustomRequest = await this.prisma.customRequest.findUnique({ where: { orderId: order.id } });
+    if (linkedCustomRequest) {
+      await this.prisma.customRequest.update({ where: { id: linkedCustomRequest.id }, data: { status: 'in_production', paymentStatus: 'completed' } });
+      await this.notifications.notify({
+        recipientUserId: order.customerId.toString(),
+        type: 'custom_request_status_update',
+        title: 'Payment confirmed — production started',
+        message: `Payment for custom request #${linkedCustomRequest.requestNumber} has been confirmed. Your request is now in production.`,
+        relatedOrderId: order.id.toString(),
+        relatedCustomRequestId: linkedCustomRequest.id.toString(),
+        channels: ['email', 'in_app'],
+      });
+      return;
+    }
+
     const targets: { designFileId: bigint }[] = [];
 
     const fullOrder = await this.prisma.order.findUniqueOrThrow({

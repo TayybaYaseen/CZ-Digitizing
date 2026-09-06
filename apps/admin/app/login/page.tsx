@@ -48,6 +48,12 @@ export default function AdminLoginPage() {
       router.push('/login/2fa');
     } catch (err) {
       if (err instanceof ApiClientError) {
+        // A freelancer/moderator account (RolesGuard also admits these to the admin portal) has no
+        // mandatory TOTP — an untrusted browser gets this instead of a pendingTwoFactorToken.
+        if (err.error.code === 'NEW_DEVICE_VERIFICATION_REQUIRED') {
+          router.push(`/login/verify-device?email=${encodeURIComponent(values.email)}`);
+          return;
+        }
         if (err.error.code === 'VALIDATION_ERROR' && err.error.errors) {
           for (const fieldError of err.error.errors) {
             setError(fieldError.field as keyof FormValues, { message: fieldError.message });

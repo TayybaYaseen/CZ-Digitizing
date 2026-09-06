@@ -95,6 +95,44 @@ payment layer), and risk #3 (dunning cadence) as 3 retry attempts over a 3-day g
 lapsing (`SubscriptionsService.RENEWAL_MAX_RETRIES`/`RENEWAL_GRACE_PERIOD_DAYS`). A-015a/A-015b
 remain mechanically `Blocked` until A-015 itself reaches `Completed`.
 
+As of the 2026-09-06 update: A-017 (Custom Design Request System) is `In Progress` — backend
+(`apps/api`) implementation of `docs/specs/2026-08-28-12-custom-design-requests.md` (AC-1–AC-9) is
+complete and verified: 13 new unit tests (status-transition validity incl. rejecting illegal jumps,
+designer-workload-balancing algorithm) and a 5-test integration suite against real Postgres
+(`test/integration/custom-requests.spec.ts`) covering the full submission → quote → approve →
+production → delivery → download flow and the file-format-request → fulfill → authorized-download
+flow. §8 risk #1 (the three proposed tables) is resolved: `custom_request_references`,
+`custom_request_messages`, `custom_request_files`, and `file_format_requests` are all real Prisma
+models (migration `20260906230000_add_custom_design_requests`), and `Notification.relatedCustomRequestId`
+now has a real `@relation` (was a plain `BigInt` with a `TODO(A-017)` comment). §8 risk #2 (payment
+timing / order mapping) is resolved as: quote acceptance creates a real `Order` via
+`OrdersService.createFromCustomRequest()` (mirrors `createFromQuote()`), and confirming that
+order's payment auto-advances the linked request straight to `in_production`
+(`OrdersService.releaseFilesAndNotify()`'s custom-request branch) — a documented, concrete choice
+rather than left open. AC-5's private-file delivery reuses the same signed-token mechanism as A-007
+(`StorageService.generateSignedToken`) via a new `CustomRequestFile` model (a custom request has no
+catalog `Design` to attach a `DesignFile` to). AC-6 (file-format-request fulfillment) is fulfilled
+by reusing the *existing* private-file pipeline outright — Admin uploads a new `DesignFile` in the
+requested format, then a `CustomerAuthorizedFile` row is created exactly as an order's original
+purchase does, so the customer downloads it through the same route as any other purchased file; no
+new download endpoint was added for it. AC-8 (real-time typing indicator + live message delivery)
+is the first WebSocket feature in this codebase — `@nestjs/websockets`/`socket.io` were added fresh
+(no existing gateway to extend) as `CustomRequestsGateway`, namespaced `/custom-requests`, JWT-
+authenticated at connection time via the existing `TokenService`. AC-9 (designer production
+tooling) ships as auto-assignment (least-active-request-count workload balancing among `freelancer`
+role users, `designer-assignment.util.ts`) plus admin-side status/notes/file-delivery controls —
+a full checklist/time-tracking/file-versioning UI beyond that was judged out of proportion for this
+pass and is not built. Frontend (`apps/web`/`apps/admin`) is built and typechecks cleanly
+(`/custom-request`, `/account/custom-requests`, `/admin/custom-requests`,
+`/admin/file-format-requests`, plus a "Need Another File Format?" control on `/account/orders`)
+but has not yet been exercised against a running browser session, so this stays `In Progress`
+rather than `Completed` per `CLAUDE.md` §5's "existence is not completion" rule. A-017a ("Need
+Another File Format?" / File Format Requests) is likewise `In Progress` — its own backend module
+(`file-format-requests`) and admin/customer UI are built and tested as part of the same pass,
+ahead of A-017 itself reaching `Completed`; flagged here rather than silently left `Blocked`,
+per `CLAUDE.md` §5's "computed mechanically, investigate before trusting" guidance — the actual
+work is real, not a premature status flip.
+
 ---
 
 ## Aspect Registry
@@ -146,11 +184,11 @@ remain mechanically `Blocked` until A-015 itself reaches `Completed`.
 | A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Blocked | 43 |
 | A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Blocked | 44 |
 | A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
-| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | Not Started | 46 |
+| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | In Progress | 46 |
 | A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
 | A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |
 | A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Blocked | 49 |
-| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | Blocked | 50 |
+| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | In Progress | 50 |
 | A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Blocked | 51 |
 | A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Blocked | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |

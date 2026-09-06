@@ -12,6 +12,6 @@ import { ZipService } from './zip.service';
 @Module({
   controllers: [FileFormatController, DesignFilesController, CustomerFilesController],
   providers: [StorageService, FileFormatService, DesignFilesService, CustomerFilesService, WatermarkService, ZipService],
-  exports: [StorageService, ZipService],
+  exports: [StorageService, ZipService, DesignFilesService],
 })
 export class FilesModule {}

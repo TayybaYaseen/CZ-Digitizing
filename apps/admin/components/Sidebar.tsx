@@ -22,6 +22,8 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/services', label: 'Services' }, // A-014
   { href: '/quotes', label: 'Quotes' }, // A-016
   { href: '/quote-questions', label: 'Quote Questions' }, // A-016a
+  { href: '/custom-requests', label: 'Custom Requests' }, // A-017
+  { href: '/file-format-requests', label: 'File Format Requests' }, // A-017a
   { href: '/pricing', label: 'Subscription Plans' }, // A-015
   { href: '/credits', label: 'Credit Packages' }, // A-015
   { section: 'Home' }, // A-018 (docs/specs/2026-08-28-13-home-promotions-cms.md)

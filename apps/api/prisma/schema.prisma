@@ -108,6 +108,10 @@ model User {
   sentGifts               CreditTransaction[]      @relation("CreditTransactionGiftCounterparty")
   submittedTestimonials   Testimonial[]            @relation("TestimonialSubmittedBy")
   quotes                  Quote[]
+  customRequests          CustomRequest[]          @relation("CustomRequestOwner")
+  assignedCustomRequests  CustomRequest[]          @relation("CustomRequestDesigner")
+  customRequestMessages   CustomRequestMessage[]
+  fileFormatRequests      FileFormatRequest[]
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -325,17 +329,16 @@ model Notification {
   title            String
   message          String?
 
-  // relatedCustomRequestId stays plain BigInt, no @relation — CustomRequest doesn't exist yet
-  // (A-017 still Blocked per docs/specs/SPEC_INDEX.md). That aspect wires the real @relation + FK
-  // constraint in its own migration once its table exists.
-  // relatedOrderId/relatedQuoteId now have real FKs: wired by A-013 (Orders & Payment Processing)
-  // and A-016 (Smart Get a Quote) respectively once their models existed, per this field's own
-  // former TODO(A-013)/TODO(A-016) comments.
-  relatedOrderId         BigInt? @map("related_order_id")
-  order                  Order?  @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
-  relatedQuoteId         BigInt? @map("related_quote_id")
-  quote                  Quote?  @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
-  relatedCustomRequestId BigInt? @map("related_custom_request_id")
+  // relatedOrderId/relatedQuoteId/relatedCustomRequestId now all have real FKs: wired by A-013
+  // (Orders & Payment Processing), A-016 (Smart Get a Quote), and A-017 (Custom Design Requests)
+  // respectively once their models existed, per this field's own former TODO(A-013)/TODO(A-016)/
+  // TODO(A-017) comments.
+  relatedOrderId         BigInt?        @map("related_order_id")
+  order                  Order?         @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+  relatedQuoteId         BigInt?        @map("related_quote_id")
+  quote                  Quote?         @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
+  relatedCustomRequestId BigInt?        @map("related_custom_request_id")
+  customRequest          CustomRequest? @relation(fields: [relatedCustomRequestId], references: [id], onDelete: SetNull)
 
   isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
@@ -355,6 +358,7 @@ model Notification {
   @@index([expiresAt], map: "idx_notifications_expires_at")
   @@index([relatedOrderId], map: "idx_notifications_related_order")
   @@index([relatedQuoteId], map: "idx_notifications_related_quote")
+  @@index([relatedCustomRequestId], map: "idx_notifications_related_custom_request")
   @@map("notifications")
 }
 
@@ -569,7 +573,8 @@ model DesignFile {
   createdByAdminId BigInt?  @map("created_by_admin_id")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  authorizedFiles CustomerAuthorizedFile[]
+  authorizedFiles    CustomerAuthorizedFile[]
+  fileFormatRequests FileFormatRequest[]
   // emb_never_public CHECK constraint added via raw SQL in this model's migration — see
   // AddPrivateFileManagement/migration.sql. Prisma's schema DSL has no @@check clause in this
   // Prisma version (5.x), so the constraint is hand-appended to the generated migration, the same
@@ -782,6 +787,10 @@ model Order {
   // AC-7 (Smart Get a Quote spec) — one-to-one, set only when this order was created via
   // OrdersService.createFromQuote() rather than the normal cart checkout path.
   quote              Quote?
+  // AC-4 (Custom Design Request spec) — one-to-one, set only when this order was created via
+  // CustomRequestsService.approveQuote() rather than the normal cart checkout path.
+  customRequest      CustomRequest?
+  fileFormatRequests FileFormatRequest[]
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -806,15 +815,21 @@ model OrderItem {
   // docs/specs/2026-08-28-11-smart-get-a-quote.md AC-7 (aspect A-016) — a quote-sourced line item
   // has no Design/Bundle record (it's custom work), so it carries its own free-text description
   // instead. Mutually exclusive with designId/bundleId — see the relaxed CHECK below.
-  quoteId          BigInt? @map("quote_id")
-  quote            Quote?  @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  customDescription String? @map("custom_description")
+  quoteId           BigInt?        @map("quote_id")
+  quote             Quote?         @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  // docs/specs/2026-08-28-12-custom-design-requests.md AC-4 (aspect A-017) — a custom-request-
+  // sourced line item, mirroring the quote-sourced case above: no Design/Bundle record, and the
+  // Order this belongs to is the same one pointed at by CustomRequest.orderId (one-to-one).
+  customRequestId   BigInt?        @map("custom_request_id")
+  customRequest     CustomRequest? @relation(fields: [customRequestId], references: [id], onDelete: Restrict)
+  customDescription String?        @map("custom_description")
 
   quantity     Int     @default(1)
   unitPricePkr Decimal @map("unit_price_pkr") @db.Decimal(10, 2)
-  // CHECK: an order_item is exactly one of a design line, a bundle line, or a quote line — same
-  // posture as cart_items' cart_item_exactly_one_of_design_or_bundle, extended for AC-7. Hand-
-  // appended to this model's migration (Prisma 5.x schema DSL has no @@check clause).
+  // CHECK: an order_item is exactly one of a design line, a bundle line, a quote line, or a
+  // custom-request line — same posture as cart_items' cart_item_exactly_one_of_design_or_bundle,
+  // extended for AC-7 (quote) and AC-4 (custom request). Hand-appended to this model's migration
+  // (Prisma 5.x schema DSL has no @@check clause).
 
   @@index([orderId], map: "idx_order_items_order")
   @@map("order_items")
@@ -1324,10 +1339,10 @@ enum ServiceMainType {
 }
 
 model Service {
-  id     BigInt @id @default(autoincrement())
-  name   String
-  slug   String @unique
-  type   ServiceMainType
+  id   BigInt          @id @default(autoincrement())
+  name String
+  slug String          @unique
+  type ServiceMainType
 
   parentServiceId BigInt?   @map("parent_service_id")
   parentService   Service?  @relation("ServiceHierarchy", fields: [parentServiceId], references: [id], onDelete: Cascade)
@@ -1386,7 +1401,7 @@ enum QuoteStatus {
 }
 
 model Quote {
-  id         BigInt @id @default(autoincrement())
+  id         BigInt  @id @default(autoincrement())
   customerId BigInt? @map("customer_id")
   customer   User?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
@@ -1429,9 +1444,9 @@ model Quote {
   orderId BigInt? @unique @map("order_id")
   order   Order?  @relation(fields: [orderId], references: [id])
 
-  messages          QuoteMessage[]
-  notifications     Notification[]
-  orderItems        OrderItem[]
+  messages      QuoteMessage[]
+  notifications Notification[]
+  orderItems    OrderItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1459,4 +1474,185 @@ model QuoteMessage {
 
   @@index([quoteId], map: "idx_quote_messages_quote")
   @@map("quote_messages")
+}
+
+// docs/specs/2026-08-28-12-custom-design-requests.md §4 (aspect A-017). Fields mirror the
+// architecture DDL's custom_requests table (architecture §Database Schema) exactly for everything
+// that table already defines; requestNumber/status/paymentStatus/etc. keep those exact names.
+enum CustomRequestType {
+  embroidery_custom
+  vector_custom
+}
+
+// AC-2 — the exact status graph, enforced in code by custom-request-state-machine.ts (same
+// posture as OrderStatus/order-state-machine.ts): new -> reviewing -> quote_sent -> approved ->
+// in_production -> ready -> delivered -> completed, with need_more_info/revision_required/
+// cancelled reachable as side-states from reviewing/in_production.
+enum CustomRequestStatus {
+  new
+  reviewing
+  quote_sent
+  approved
+  in_production
+  ready
+  delivered
+  completed
+  need_more_info
+  revision_required
+  cancelled
+}
+
+enum CustomRequestPaymentStatus {
+  pending
+  completed
+  refunded
+}
+
+model CustomRequest {
+  id            BigInt @id @default(autoincrement())
+  requestNumber String @unique @map("request_number")
+
+  customerId BigInt @map("customer_id")
+  customer   User   @relation("CustomRequestOwner", fields: [customerId], references: [id], onDelete: Cascade)
+
+  requestType CustomRequestType   @map("request_type")
+  status      CustomRequestStatus @default(new)
+
+  // AC-1 — minimum required fields: image/logo (imageUrl, a StorageService private-disk path, same
+  // posture as Quote.designUploadPath), size, and machine format. Fabric is optional. Additional
+  // reference uploads live in CustomRequestReference, not here (SRS's "multiple reference uploads").
+  imageUrl            String? @map("image_url")
+  sizeValue           String? @map("size_value")
+  machineFormat       String  @map("machine_format")
+  fabricType          String? @map("fabric_type")
+  specialInstructions String? @map("special_instructions")
+
+  quotedPricePkr Decimal?                   @map("quoted_price_pkr") @db.Decimal(10, 2)
+  finalPricePkr  Decimal?                   @map("final_price_pkr") @db.Decimal(10, 2)
+  paymentStatus  CustomRequestPaymentStatus @default(pending) @map("payment_status")
+
+  designerId BigInt? @map("designer_id")
+  designer   User?   @relation("CustomRequestDesigner", fields: [designerId], references: [id], onDelete: SetNull)
+
+  adminNotes String? @map("admin_notes")
+
+  // AC-4/§8 risk #2 (resolved) — quote acceptance creates a real Order (mirrors
+  // OrdersService.createFromQuote()), set once, one-to-one, before the request enters
+  // in_production. Null until then.
+  orderId BigInt? @unique @map("order_id")
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  references    CustomRequestReference[]
+  messages      CustomRequestMessage[]
+  notifications Notification[]
+  files         CustomRequestFile[]
+  orderItems    OrderItem[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deliveredAt DateTime? @map("delivered_at")
+
+  @@index([customerId], map: "idx_custom_requests_customer")
+  @@index([status], map: "idx_custom_requests_status")
+  @@index([designerId], map: "idx_custom_requests_designer")
+  @@map("custom_requests")
+}
+
+// AC-1/SRS "multiple reference uploads" — the current DDL's custom_requests.image_url is a single
+// field, so additional reference images attach here instead of overloading that column.
+model CustomRequestReference {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  // StorageService private-disk path — same posture as CustomRequest.imageUrl, never a public URL.
+  imageUrl   String   @map("image_url")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  @@index([customRequestId], map: "idx_custom_request_references_request")
+  @@map("custom_request_references")
+}
+
+// AC-7/AC-8 — message history + the thread AC-8's WebSocket typing indicator/live delivery attach
+// to. senderUserId is a real User (customer or admin/designer both have accounts already), unlike
+// QuoteMessage's plain senderRole enum — this thread needs to show/attribute a specific person.
+model CustomRequestMessage {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  senderUserId BigInt @map("sender_user_id")
+  sender       User   @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([customRequestId], map: "idx_custom_request_messages_request")
+  @@map("custom_request_messages")
+}
+
+// AC-5 — final deliverable files for a completed custom request. Distinct from DesignFile (which
+// is always owned by a catalog Design) and from CustomerAuthorizedFile (which grants access to an
+// existing DesignFile via an Order) — a custom-request file has no catalog Design to attach to, so
+// it carries its own storage + per-customer download-authorization fields directly, following the
+// same private-file posture (StorageService signed tokens, download-attempt cap) as
+// docs/specs/2026-08-28-05-private-file-management.md (aspect A-007).
+model CustomRequestFile {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  fileFormat    String @map("file_format")
+  storagePath   String @map("storage_path")
+  fileSizeBytes BigInt @map("file_size_bytes")
+  uploadHash    String @map("upload_hash")
+
+  downloadCount       Int       @default(0) @map("download_count")
+  firstDownloadAt     DateTime? @map("first_download_at")
+  lastDownloadAt      DateTime? @map("last_download_at")
+  maxDownloadAttempts Int?      @map("max_download_attempts")
+
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([customRequestId], map: "idx_custom_request_files_request")
+  @@map("custom_request_files")
+}
+
+enum FileFormatRequestStatus {
+  pending
+  fulfilled
+  rejected
+}
+
+// AC-6 — "Need Another File Format?" on an already-purchased order. Fulfillment reuses the
+// existing private-file authorization pipeline: Admin uploads a new DesignFile in the requested
+// format for the order's design, then a CustomerAuthorizedFile row is created granting the
+// customer access to it — the customer downloads it through the exact same
+// GET/POST /api/orders/:id/files[...]/download route as any other purchased file (AC-6's "standard
+// authorized-download path"), so this model needs no download mechanism of its own.
+model FileFormatRequest {
+  id BigInt @id @default(autoincrement())
+
+  orderId    BigInt @map("order_id")
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId BigInt @map("customer_id")
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  requestedFormat String                  @map("requested_format")
+  notes           String?
+  status          FileFormatRequestStatus @default(pending)
+
+  fulfilledFileId BigInt?     @map("fulfilled_file_id")
+  fulfilledFile   DesignFile? @relation(fields: [fulfilledFileId], references: [id])
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  fulfilledAt DateTime? @map("fulfilled_at")
+
+  @@index([orderId], map: "idx_file_format_requests_order")
+  @@index([customerId], map: "idx_file_format_requests_customer")
+  @@map("file_format_requests")
 }
