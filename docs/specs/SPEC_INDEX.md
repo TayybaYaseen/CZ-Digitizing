@@ -133,35 +133,19 @@ ahead of A-017 itself reaching `Completed`; flagged here rather than silently le
 per `CLAUDE.md` §5's "computed mechanically, investigate before trusting" guidance — the actual
 work is real, not a premature status flip.
 
-As of the 2026-09-07 update: A-021 (Internationalization, mechanism) is `In Progress` — backend
-(`apps/api`) implementation of `docs/specs/2026-08-28-16-internationalization.md` (AC-1–AC-9,
-scoped per Admin direction to the *mechanism* plus 4 real languages rather than all 15 named in the
-SRS) is complete: new `Language`/`UiTranslation` Prisma models plus `users.preferredLocale`
-(migration `20260906212855_add_internationalization`), seeded with en/ar/ur/es (ar/ur as RTL
-coverage, es as an LTR non-English sanity check) and ~20 baseline `en` UI-chrome strings; admin CRUD
-(`GET/PUT /api/admin/settings/languages[/:code]`, `GET/PUT /api/admin/settings/translations/:locale`),
-public `GET /api/languages` + `GET /api/translations/:locale` (English-fallback merge, AC-3), and
-`PUT /api/account/preferred-locale` (AC-4). AC-8's "Machine translated" auto-fill ships as a stubbed
-seam (`isMachineTranslated` always `false` today) rather than a real translation-API integration,
-the same documented-stub posture as A-004's push notifications — swapping in a real provider later
-needs no call-site changes. AC-5 (FAQ/Tips English fallback) is a small addition to the existing
-`FaqService.list()`/`TipsService.list()` methods: an empty result for a non-English `language_code`
-retries once against `en`. Frontend (`apps/web`): a new `LocaleProvider`
-(`apps/web/lib/locale-context.tsx`, modeled on `auth-context.tsx`'s hydrate-after-mount pattern),
-a header `LanguageSwitcher`, `<html lang/dir>` flipped client-side for RTL, `apps/web/lib/format.ts`
-(AC-9, `Intl.NumberFormat`/`Intl.DateTimeFormat`), and representative `t()` wiring on the header nav
-plus the cart/checkout/account/FAQ page headings named in AC-1 (not an exhaustive sweep of every
-hardcoded string in the app — the mechanism and its wiring pattern are what this pass verifies).
-Admin (`apps/admin`): `/settings/languages` and `/settings/translations` CRUD pages. Verified: 3 new
-unit tests (English-fallback resolution) and 4 new integration tests (language CRUD, translation
-bundle per locale, `preferredLocale` persistence) against real Postgres, all passing; full existing
-`apps/api` suite re-run clean (225/225, one unrelated bcrypt-timeout flake confirmed by rerun); all
-three apps (`api`/`web`/`admin`) typecheck cleanly; public endpoints manually verified against a
-live running API (`GET /api/languages`, `GET /api/translations/ar` correctly falling back to
-English). Stays `In Progress` rather than `Completed` per `CLAUDE.md` §5's "existence is not
-completion" rule — the frontend has not yet been exercised in an actual browser session (no browser
-automation tool was available in this environment). A-022 (Header: Language Selector) remains
-`Blocked` until this reaches `Completed`.
+As of the 2026-09-07 update: A-010 (Contact Us) is `Completed`. No dedicated spec file exists for
+this aspect (built directly from SRS §15, the same way A-009 Footer was) — WhatsApp/email/social
+are read from the already-completed A-005a `PlatformSettings`/`GET /api/settings/public` (same call
+Footer.tsx already makes), plus a new `ContactMessage` model (migration
+`20260907120000_add_contact_messages`), `POST /api/contact` (public, rate-limited 5/60s, no
+CAPTCHA per explicit decision — matches the codebase's existing rate-limit-only pattern on other
+public/unauthenticated routes like `auth.controller.ts`'s `dev-login`), and admin fan-out via
+`NotificationService.notify()` reusing the `contact_message` `NotificationType` that already existed
+in the enum (unused until now). Frontend: `apps/web/app/contact/page.tsx` (new) + a `Header.tsx` nav
+entry + `Footer.tsx`'s existing link (its `TODO(A-010)` comment removed now that the page is real).
+Verified against a running instance: unit tests (2, fan-out + zero-admin-fallback), integration
+tests (2, against real Postgres — persistence + 400 on invalid payload) both pass, plus a live
+smoke test (POST persisted, rate limit triggers at the 5th request, page renders at `/contact`).
 
 As of the 2026-09-07 update: A-021 (Internationalization, mechanism) is `In Progress` — backend
 (`apps/api`) implementation of `docs/specs/2026-08-28-16-internationalization.md` (AC-1–AC-9,
@@ -229,7 +213,7 @@ automation tool was available in this environment). A-022 (Header: Language Sele
 | A-020 | Taebo Helping Panda (Chatbot) | A-012a | A-012a, A-004 | 4 | Not Started | 28 |
 | A-008 | Design Bundles | A-006 | A-006, A-007 | 5 | Completed | 29 |
 | A-009 | Footer & Social Buttons | A-005a | A-005a | 5 | Completed | 30 |
-| A-010 | Contact Us | A-005a | A-005a | 5 | Not Started | 31 |
+| A-010 | Contact Us | A-005a | A-005a | 5 | Completed | 31 |
 | A-014a | Embroidery Digitizing + 9 sub-categories | A-014 | A-014 | 5 | Completed | 32 |
 | A-014b | Vector Art + 9 sub-categories | A-014 | A-014 | 5 | Completed | 33 |
 | A-016 | Smart Get a Quote (parent) | A-014 | A-014, A-004, A-012 | 5 | Completed | 34 |
