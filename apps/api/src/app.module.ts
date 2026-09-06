@@ -35,6 +35,7 @@ import { BlogModule } from './blog/blog.module';
 import { AboutModule } from './about/about.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { HomeCmsModule } from './home-cms/home-cms.module';
+import { ServicesModule } from './services/services.module';
 
 @Module({
   imports: [
@@ -73,6 +74,9 @@ import { HomeCmsModule } from './home-cms/home-cms.module';
     AboutModule,
     PortfolioModule,
     HomeCmsModule,
+    // Services (A-014) — depends on DesignsModule (AC-10 relatedDesignCategoryId FK) and FaqModule
+    // (AC-6 FAQ resolution by value match), so it's registered after both.
+    ServicesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
