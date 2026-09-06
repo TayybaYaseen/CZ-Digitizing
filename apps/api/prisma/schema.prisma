@@ -107,6 +107,7 @@ model User {
   creditTransactions      CreditTransaction[]      @relation("CreditTransactionOwner")
   sentGifts               CreditTransaction[]      @relation("CreditTransactionGiftCounterparty")
   submittedTestimonials   Testimonial[]            @relation("TestimonialSubmittedBy")
+  quotes                  Quote[]
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -324,14 +325,16 @@ model Notification {
   title            String
   message          String?
 
-  // relatedQuoteId/relatedCustomRequestId stay plain BigInt, no @relation — Quote/CustomRequest
-  // models don't exist yet (A-016/A-017 still Blocked per docs/specs/SPEC_INDEX.md). Those aspects
-  // wire the real @relation + FK constraint in their own migration once their table exists.
-  // relatedOrderId now has a real FK: wired by A-013 (Orders & Payment Processing) once Order
-  // exists, per this field's own former TODO(A-013) comment.
+  // relatedCustomRequestId stays plain BigInt, no @relation — CustomRequest doesn't exist yet
+  // (A-017 still Blocked per docs/specs/SPEC_INDEX.md). That aspect wires the real @relation + FK
+  // constraint in its own migration once its table exists.
+  // relatedOrderId/relatedQuoteId now have real FKs: wired by A-013 (Orders & Payment Processing)
+  // and A-016 (Smart Get a Quote) respectively once their models existed, per this field's own
+  // former TODO(A-013)/TODO(A-016) comments.
   relatedOrderId         BigInt? @map("related_order_id")
   order                  Order?  @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
   relatedQuoteId         BigInt? @map("related_quote_id")
+  quote                  Quote?  @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
   relatedCustomRequestId BigInt? @map("related_custom_request_id")
 
   isRead    Boolean   @default(false) @map("is_read")
@@ -351,6 +354,7 @@ model Notification {
   @@index([recipientUserId, isRead], map: "idx_notifications_user")
   @@index([expiresAt], map: "idx_notifications_expires_at")
   @@index([relatedOrderId], map: "idx_notifications_related_order")
+  @@index([relatedQuoteId], map: "idx_notifications_related_quote")
   @@map("notifications")
 }
 
@@ -775,6 +779,9 @@ model Order {
   notifications      Notification[]
   creditTransactions CreditTransaction[]
   testimonials       Testimonial[]
+  // AC-7 (Smart Get a Quote spec) — one-to-one, set only when this order was created via
+  // OrdersService.createFromQuote() rather than the normal cart checkout path.
+  quote              Quote?
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -796,11 +803,18 @@ model OrderItem {
   sizeId   BigInt?       @map("size_id")
   size     DesignSize?   @relation(fields: [sizeId], references: [id], onDelete: SetNull)
 
+  // docs/specs/2026-08-28-11-smart-get-a-quote.md AC-7 (aspect A-016) — a quote-sourced line item
+  // has no Design/Bundle record (it's custom work), so it carries its own free-text description
+  // instead. Mutually exclusive with designId/bundleId — see the relaxed CHECK below.
+  quoteId          BigInt? @map("quote_id")
+  quote            Quote?  @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  customDescription String? @map("custom_description")
+
   quantity     Int     @default(1)
   unitPricePkr Decimal @map("unit_price_pkr") @db.Decimal(10, 2)
-  // CHECK: an order_item is a design line or a bundle line, never both/neither — same posture as
-  // cart_items' cart_item_exactly_one_of_design_or_bundle. Hand-appended to this model's migration
-  // (Prisma 5.x schema DSL has no @@check clause).
+  // CHECK: an order_item is exactly one of a design line, a bundle line, or a quote line — same
+  // posture as cart_items' cart_item_exactly_one_of_design_or_bundle, extended for AC-7. Hand-
+  // appended to this model's migration (Prisma 5.x schema DSL has no @@check clause).
 
   @@index([orderId], map: "idx_order_items_order")
   @@map("order_items")
@@ -1333,7 +1347,116 @@ model Service {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
+  quoteQuestions QuoteQuestion[]
+  quotes         Quote[]
+
   @@index([parentServiceId], map: "idx_services_parent")
   @@index([type], map: "idx_services_type")
   @@map("services")
+}
+
+// docs/specs/2026-08-28-11-smart-get-a-quote.md §4 (aspect A-016). Scoped to a specific Service
+// (real FK — unlike the FAQ<->Service value-matching used elsewhere, this table is owned entirely
+// by this spec, so there's no cross-spec shared-column-ownership concern to avoid).
+model QuoteQuestion {
+  id        BigInt  @id @default(autoincrement())
+  question  String
+  answer    String
+  serviceId BigInt  @map("service_id")
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  sortOrder        Int      @default(0) @map("sort_order")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdByAdminId BigInt?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([serviceId], map: "idx_quote_questions_service")
+  @@map("quote_questions")
+}
+
+// AC-9 — a Quote starts life as `draft` the moment a customer reaches Step 3 (so the embedded
+// pre-submission chat has something to attach to), then moves draft -> new on real submission
+// (AC-4), -> responded (AC-6), -> converted_to_order (AC-7).
+enum QuoteStatus {
+  draft
+  new
+  responded
+  converted_to_order
+}
+
+model Quote {
+  id         BigInt @id @default(autoincrement())
+  customerId BigInt? @map("customer_id")
+  customer   User?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // AC-4 — captured directly on the payload; real even for a guest submission (customerId null).
+  name     String  @default("")
+  email    String  @default("")
+  whatsapp String?
+  country  String?
+
+  serviceId BigInt  @map("service_id")
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  // StorageService private-disk path, same posture as PaymentReceipt.fileUrl (spec §4: "same PII
+  // posture as Custom Design Requests").
+  designUploadPath String?   @map("design_upload_path")
+  size             String?
+  quantity         Int?
+  fabric           String?
+  threadColors     String?   @map("thread_colors")
+  formatPreference String?   @map("format_preference")
+  deadline         DateTime?
+  instructions     String?
+
+  status QuoteStatus @default(draft)
+
+  // AC-9 — a `draft` quote (pre-submission) has no logged-in owner to check against, so this
+  // opaque token (returned once, at draft creation) is what proves "this browser owns this draft"
+  // for the PATCH/submit/messages calls that follow. Not a long-term auth mechanism — once a quote
+  // is `new` or later, the customer's own follow-up access goes through real auth (GET
+  // /api/quotes/user/history), same as every other authenticated-customer read in this API.
+  accessToken String @unique @default(cuid()) @map("access_token")
+
+  suggestedPricePkr Decimal? @map("suggested_price_pkr") @db.Decimal(10, 2)
+  quotedPricePkr    Decimal? @map("quoted_price_pkr") @db.Decimal(10, 2)
+  adminNotes        String?  @map("admin_notes")
+
+  respondedByAdminId BigInt?   @map("responded_by_admin_id")
+  respondedAt        DateTime? @map("responded_at")
+
+  orderId BigInt? @unique @map("order_id")
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  messages          QuoteMessage[]
+  notifications     Notification[]
+  orderItems        OrderItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([customerId], map: "idx_quotes_customer")
+  @@index([serviceId], map: "idx_quotes_service")
+  @@index([status], map: "idx_quotes_status")
+  @@map("quotes")
+}
+
+enum QuoteMessageSender {
+  customer
+  admin
+}
+
+// AC-9 — the embedded multi-turn chat on the Step 3 form, distinct from Taebo (A-020, still
+// Blocked/not built).
+model QuoteMessage {
+  id         BigInt             @id @default(autoincrement())
+  quoteId    BigInt             @map("quote_id")
+  quote      Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  senderRole QuoteMessageSender @map("sender_role")
+  body       String
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  @@index([quoteId], map: "idx_quote_messages_quote")
+  @@map("quote_messages")
 }

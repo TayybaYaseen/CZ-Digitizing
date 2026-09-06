@@ -138,6 +138,70 @@ export class OrdersService {
     return toOrderDto(finalOrder);
   }
 
+  // docs/specs/2026-08-28-11-smart-get-a-quote.md AC-7 (aspect A-016). Mirrors createFromCart()'s
+  // shape but for a single custom (quote-sourced) line item rather than cart contents. Requires a
+  // real customer account (Order.customerId is non-null by schema) — a guest quote's Admin must
+  // resolve/create that account before conversion, surfaced as CUSTOMER_ACCOUNT_REQUIRED rather
+  // than silently guessing at an implicit account-creation policy (spec §8 risk #2, genuinely Open).
+  async createFromQuote(quoteId: string, paymentMethod: PaymentMethod, admin: AccessTokenPayload): Promise<OrderDto> {
+    const quote = await this.prisma.quote.findUnique({ where: { id: BigInt(quoteId) }, include: { service: true } });
+    if (!quote) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Quote not found');
+    if (quote.status !== 'responded') throw new ApiException('QUOTE_NOT_RESPONDED', 409, 'Only a responded quote can be converted to an order');
+    if (!quote.customerId) throw new ApiException('CUSTOMER_ACCOUNT_REQUIRED', 400, 'This quote has no linked customer account — resolve or create one before converting');
+    if (!quote.quotedPricePkr) throw new ApiException('VALIDATION_ERROR', 400, 'This quote has no quoted price');
+
+    const bankTransferReference = paymentMethod === 'bank_transfer' ? generateBankTransferReference() : null;
+    const totalPkr = Number(quote.quotedPricePkr);
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          customerId: quote.customerId!,
+          status: 'payment_pending',
+          paymentStatus: 'pending',
+          paymentMethod,
+          totalPkr,
+          bankTransferReference,
+          items: {
+            create: [
+              {
+                quoteId: quote.id,
+                customDescription: `${quote.service.name} — quote #${quote.id}`,
+                quantity: quote.quantity ?? 1,
+                unitPricePkr: totalPkr / (quote.quantity ?? 1),
+              },
+            ],
+          },
+        },
+        include: ORDER_INCLUDE,
+      });
+      await tx.quote.update({ where: { id: quote.id }, data: { status: 'converted_to_order', orderId: created.id } });
+      return created;
+    });
+
+    let finalOrder: OrderWithRelations = order as OrderWithRelations;
+    if (paymentMethod === 'paypal') {
+      const created = await this.paypal.createOrder(totalPkr, order.id.toString());
+      if (created) finalOrder = (await this.prisma.order.update({ where: { id: order.id }, data: { paypalOrderId: created.paypalOrderId }, include: ORDER_INCLUDE })) as OrderWithRelations;
+    } else if (paymentMethod === 'stripe') {
+      const created = await this.stripe.createPaymentIntent(totalPkr, order.id.toString());
+      if (created) finalOrder = (await this.prisma.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: created.paymentIntentId }, include: ORDER_INCLUDE })) as OrderWithRelations;
+    }
+
+    await this.notifications.notify({
+      recipientUserId: quote.customerId.toString(),
+      type: 'order_confirmed',
+      title: 'Order created from your quote',
+      message: `Your quote #${quote.id} has been converted into order #${order.id} (${totalPkr} PKR), awaiting payment confirmation.`,
+      relatedOrderId: order.id.toString(),
+      relatedQuoteId: quote.id.toString(),
+      channels: ['email', 'in_app'],
+    });
+
+    this.logger.log(`Order ${order.id} created from quote ${quote.id} by admin ${admin.sub}`);
+    return toOrderDto(finalOrder);
+  }
+
   // AC-1 — webhook's real, DB-backed lookup: never trust a bare id echoed back by the provider,
   // always resolve through a reference this service itself wrote at order-creation time.
   async findByPaypalOrderId(paypalOrderId: string): Promise<bigint | null> {

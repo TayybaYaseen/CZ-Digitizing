@@ -6,10 +6,10 @@ import { useAuth } from '@/lib/auth-context';
 import { Logo } from './Logo';
 
 // Mirrors the NAV structure decoded from docs/CZ Digitizing Admin Panel.html's bundled
-// AdminShell (SidebarNav items, 3 sections). Dashboard/Designs/Bundles/Settings/Accounts have real
-// pages; Orders/Customers/Payments/Quotes/Reports are still Blocked in docs/specs/SPEC_INDEX.md
-// (their owning aspects — A-013, A-019, A-005e — don't exist yet) and 404 until built, same
-// posture as apps/web's Header.tsx nav.
+// AdminShell (SidebarNav items, 3 sections). Dashboard/Designs/Bundles/Settings/Accounts/Orders/
+// Payments/Quotes have real pages now; Customers/Reports are still Blocked in
+// docs/specs/SPEC_INDEX.md (their owning aspects — A-019, A-005e — don't exist yet) and 404 until
+// built, same posture as apps/web's Header.tsx nav.
 const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'Main' },
   { href: '/dashboard', label: 'Dashboard' },
@@ -20,7 +20,8 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'Business' },
   { href: '/payments', label: 'Payments' }, // TODO(A-013)
   { href: '/services', label: 'Services' }, // A-014
-  { href: '/quotes', label: 'Quotes' }, // TODO(A-016)
+  { href: '/quotes', label: 'Quotes' }, // A-016
+  { href: '/quote-questions', label: 'Quote Questions' }, // A-016a
   { href: '/pricing', label: 'Subscription Plans' }, // A-015
   { href: '/credits', label: 'Credit Packages' }, // A-015
   { section: 'Home' }, // A-018 (docs/specs/2026-08-28-13-home-promotions-cms.md)

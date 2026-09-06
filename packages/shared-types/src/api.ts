@@ -55,4 +55,8 @@ export type ApiErrorCode =
   | 'SLUG_ALREADY_EXISTS'
   | 'ORDER_NOT_ELIGIBLE_FOR_REVIEW'
   // Home Promotions CMS spec (docs/specs/2026-08-28-13-home-promotions-cms.md §3, §8 risk #2)
-  | 'ADVERTISEMENT_TARGET_CONFLICT';
+  | 'ADVERTISEMENT_TARGET_CONFLICT'
+  // Smart Get a Quote spec (docs/specs/2026-08-28-11-smart-get-a-quote.md §3, AC-7/§8 risk #2)
+  | 'CUSTOMER_ACCOUNT_REQUIRED'
+  | 'QUOTE_NOT_IN_DRAFT'
+  | 'QUOTE_NOT_RESPONDED';
