@@ -220,6 +220,47 @@ left unfinished (both are backend-complete, browser-verification-only gaps), so 
 discarded, but the out-of-sequence start is recorded here per §6's "flag every conflict, don't
 resolve it silently" rule rather than backdated or hidden.
 
+As of the 2026-09-07 update: A-013a (PayPal Integration), A-013b (Bank Transfer, Manual), and
+A-013c (Order History / Payment State Machine) are corrected from `Blocked` to `Completed` — an
+audit found this was a stale registry entry, not an unbuilt feature: their only dependency, A-013,
+has been `Completed` since that aspect's own build, so per `CLAUDE.md` §5 they were never
+mechanically `Blocked` to begin with (`Blocked` requires an *incomplete* dependency), and all three
+turn out to already be fully implemented as part of A-013's own pass. Evidence: **A-013a** — a real
+PayPal REST integration in `apps/api/src/orders/payments/paypal.service.ts` (OAuth2 client-
+credentials token fetch, `createOrder()` against `/v2/checkout/orders`, `verifyWebhookSignature()`
+against PayPal's own verify endpoint, not hand-rolled HMAC), `POST /api/webhooks/paypal` in
+`webhooks.controller.ts`, `Order.paypalOrderId`, a `paypal` option in `apps/web/app/checkout/
+page.tsx`. **A-013b** — `bank-transfer-reference.util.ts`, `Order.bankTransferReference` (unique)
+and the `PaymentReceipt` model, `POST /api/orders/:id/receipt` + admin `reviewPaymentConfirmation`,
+customer UI at `apps/web/app/checkout/bank-transfer/[id]/page.tsx`. **A-013c** — a real state
+machine in `order-state-machine.ts` (`TRANSITIONS` map, `assertValidOrderTransition`,
+`statusAllowsFileAccess`) with a dedicated 9-test spec file, `GET /api/orders/user/history` /
+`GET /api/orders`, and `apps/web/app/account/orders/page.tsx`. All three verified against
+`test/integration/orders.spec.ts`'s 5 tests (bank-transfer checkout, receipt-confirm-releases-
+files, receipt-reject, order-history pagination, unconfigured-PayPal-webhook-safety) passing
+against a freshly-reset real Postgres database.
+
+That verification pass also surfaced and fixed one real, previously-undetected bug directly in
+A-013c's own `GET /api/orders/user/history`: NestJS's global `ValidationPipe` runs with
+`forbidNonWhitelisted: true`, and the handler bound `@Query() query: CurrencyQueryDto` (only
+declaring `currencyCode`) against the *entire* query string while `page`/`pageSize` arrived via
+separate `@Query('page')`/`@Query('pageSize')` parameters on the same handler — so any request
+carrying `page`/`pageSize` together with the DTO-bound query 400'd as containing unrecognized
+properties. This had never been caught because the codebase's own established practice (see every
+other dated note in this file) is to run one integration spec file at a time on freshly-reset data,
+never the whole `test/integration/` directory in one invocation — which is also the only way to get
+an accurate signal, since none of these spec files' own `beforeEach` hooks reset the *whole*
+database, only the tables that spec file itself owns, so an earlier file's leftover rows
+(e.g. `order_items` referencing a `design` a later file's `beforeEach` tries to delete) cause
+unrelated-looking FK-violation failures in a full-directory run. Confirmed by reproducing the same
+failure both in parallel and under `--runInBand` on a freshly-reset database — it is a test-
+isolation characteristic of this suite, not a concurrency bug and not a feature bug. Fixed by moving
+`page`/`pageSize` onto `CurrencyQueryDto` itself (`apps/api/src/orders/dto/order-write.dto.ts`) and
+updating both call sites (`OrdersController.history()` and the equivalent `AccountController.
+listOrders()` added by A-019, which had copied the same now-fixed pattern) to read them off the one
+validated DTO instance. Re-verified: `test/integration/orders.spec.ts` 5/5 and the full `apps/api`
+unit suite 233/233, both on a freshly-reset database.
+
 ---
 
 ## Aspect Registry
@@ -267,9 +308,9 @@ resolve it silently" rule rather than backdated or hidden.
 | A-016a | Quote Questions & Answers (Step 2) | A-016 | A-016 | 6 | Completed | 39 |
 | A-016b | Quote Submission Form (Step 3) | A-016 | A-016 | 6 | Completed | 40 |
 | A-013 | Orders & Payment Processing (parent) | A-011 | A-011, A-007, A-005, A-004 | 7 | Completed | 41 |
-| A-013a | PayPal Integration | A-013 | A-013 | 8 | Blocked | 42 |
-| A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Blocked | 43 |
-| A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Blocked | 44 |
+| A-013a | PayPal Integration | A-013 | A-013 | 8 | Completed | 42 |
+| A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Completed | 43 |
+| A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Completed | 44 |
 | A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
 | A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | In Progress | 46 |
 | A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
