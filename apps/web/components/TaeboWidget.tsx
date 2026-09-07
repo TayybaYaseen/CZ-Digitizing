@@ -61,10 +61,9 @@ export function TaeboWidget() {
       .catch(() => setWhatsappHref(null));
   }, []);
 
-  // The full-body panda "walks onto" the page once the customer scrolls, rather than sitting in
-  // the corner from the very first paint — reads as a character entering the scene, not UI chrome
-  // that was always there. A page short enough to need no scrolling shows it immediately instead
-  // of hiding the mascot (and the chat entry point) forever.
+  // The face avatar eases into view once the customer scrolls, rather than sitting in the corner
+  // from the very first paint. A page short enough to need no scrolling shows it immediately
+  // instead of hiding the mascot (and the chat entry point) forever.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const checkScroll = () => {
@@ -248,24 +247,19 @@ export function TaeboWidget() {
         </div>
       )}
 
-      {/* Full-body standing mascot — the click target when the chat panel is closed. Slides up
-          from below the viewport edge once the customer has scrolled (see the scroll effect
-          above), so it reads as Taebo walking onto the page rather than pinned chrome. */}
+      {/* Round face avatar — the click target when the chat panel is closed. Eases into view once
+          the customer has scrolled (see the scroll effect above). */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Taebo chat"
-          className="group relative -mb-2 transition-all duration-500 ease-out hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/50 focus-visible:ring-offset-2"
+          className="group flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-xl ring-2 ring-white transition-all duration-500 ease-out hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/50 focus-visible:ring-offset-2 sm:h-20 sm:w-20"
           style={{
-            transform: scrolledIn ? 'translateY(0)' : 'translateY(140%)',
+            transform: scrolledIn ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.6)',
             opacity: scrolledIn ? 1 : 0,
           }}
         >
-          {/* Soft contact-shadow "platform" so the photo reads as standing on the page rather
-              than floating — a raster photo needs this far more than the old SVG did, since it
-              has no built-in ground ellipse. */}
-          <div className="pointer-events-none absolute inset-x-6 bottom-1 h-4 rounded-full bg-black/25 blur-md transition-opacity duration-300 group-hover:opacity-70" />
-          <TaeboPanda variant="full" waving className="relative h-40 transition-transform duration-300 group-hover:-translate-y-1 sm:h-56" />
+          <TaeboPanda variant="head" waving className="h-full w-full transition-transform duration-300 group-hover:rotate-3" />
         </button>
       )}
     </div>

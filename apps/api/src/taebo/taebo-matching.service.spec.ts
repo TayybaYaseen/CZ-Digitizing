@@ -79,6 +79,31 @@ describe('TaeboMatchingService', () => {
     expect(result).toBeNull();
   });
 
+  it('matches word-family variants via fuzzy prefix ("customize" against "custom")', async () => {
+    const faqs = [
+      makeFaq({
+        id: '1',
+        question: 'Do you offer custom design services?',
+        topic: 'custom-design',
+        answer: 'Yes! We offer custom embroidery digitizing and custom vector art design tailored to your requirements.',
+      }),
+    ];
+    const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
+
+    const result = await service.findBestMatch('Would you design customize?');
+
+    expect(result?.faq.id).toBe('1');
+  });
+
+  it('does not fuzzy-match short unrelated words', async () => {
+    const faqs = [makeFaq({ id: '1', question: 'Do you have a cat mascot?', topic: 'misc' })];
+    const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
+
+    const result = await service.findBestMatch('Can I rent a car?');
+
+    expect(result).toBeNull();
+  });
+
   it('returns null when no FAQ meaningfully overlaps (AC-3: never guess)', async () => {
     const faqs = [makeFaq({ id: '1', question: 'What file formats do you support?', topic: 'formats' })];
     const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);

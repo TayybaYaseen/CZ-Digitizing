@@ -72,7 +72,7 @@ export function TaeboPanda({ variant = 'full', className = '', waving = false }:
     // object-contain, not cover — shows the whole image inside the circle rather than cropping
     // into it, per direction to use the same uncropped picture everywhere.
     return (
-      <span className={`flex items-center justify-center overflow-hidden rounded-full bg-brand-lightGray shadow-md ring-2 ring-white/80 ${className}`}>
+      <span className={`flex items-center justify-center overflow-hidden rounded-full bg-brand-lightGray shadow-md ring-2 ring-white/80 ${waving ? 'taebo-idle-bob' : ''} ${className}`}>
         <img src={SOURCE} alt="Taebo the panda" className="h-full w-full object-contain" draggable={false} />
       </span>
     );

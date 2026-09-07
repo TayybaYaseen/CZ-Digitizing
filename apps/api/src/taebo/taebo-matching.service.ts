@@ -32,13 +32,26 @@ function tokenize(text: string): Set<string> {
   );
 }
 
+// Catches word-family relations the crude suffix-stripper above misses — "customize"/
+// "customized"/"customization" all share a >=5-char prefix with "custom" without needing a real
+// stemmer's suffix rules for each one individually. Requires both tokens to be at least 5 chars
+// (not just any shared prefix) so short unrelated words ("cat"/"car") never collide.
+const FUZZY_PREFIX_MIN_LEN = 5;
+
+function tokensMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < FUZZY_PREFIX_MIN_LEN || b.length < FUZZY_PREFIX_MIN_LEN) return false;
+  return a.length <= b.length ? b.startsWith(a) : a.startsWith(b);
+}
+
 function overlapScore(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;
-  const overlap = [...a].filter((t) => b.has(t)).length;
+  const bArr = [...b];
+  const matched = [...a].filter((ta) => bArr.some((tb) => tokensMatch(ta, tb))).length;
   // Symmetric-ish: a short admin-authored FAQ question against a longer customer phrasing (or vice
   // versa) shouldn't be penalized just for length asymmetry — score against whichever side is
   // smaller, which is the more forgiving (but still meaningful-overlap-required) denominator.
-  return overlap / Math.min(a.size, b.size);
+  return matched / Math.min(a.size, b.size);
 }
 
 export interface MatchResult {
