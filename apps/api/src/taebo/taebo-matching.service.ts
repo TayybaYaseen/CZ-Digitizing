@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { FaqDto } from '@czd/shared-types';
 import { FaqService } from '../faq/faq.service';
+import { TaeboLlmMatchingService } from './taebo-llm-matching.service';
 
 const STOPWORDS = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'do', 'does', 'did', 'i', 'you', 'my', 'me', 'to',
@@ -65,6 +66,8 @@ export interface MatchResult {
 // MIN_CONFIDENCE), not any specific implementation.
 @Injectable()
 export class TaeboMatchingService {
+  private readonly logger = new Logger(TaeboMatchingService.name);
+
   // Conservative on purpose: a low bar here is exactly the fabrication risk AC-3/AC-4 exist to
   // prevent. Tuned to require multiple overlapping meaningful words, not a single common one.
   private static readonly MIN_CONFIDENCE = 0.5;
@@ -75,12 +78,29 @@ export class TaeboMatchingService {
   // made a perfect answer-text overlap mathematically unable to ever pass, silently dead code.
   private static readonly ANSWER_MIN_CONFIDENCE = 0.7;
 
-  constructor(private readonly faqs: FaqService) {}
+  constructor(
+    private readonly faqs: FaqService,
+    private readonly llm: TaeboLlmMatchingService,
+  ) {}
 
   async findBestMatch(question: string, languageCode?: string): Promise<MatchResult | null> {
     const candidates = await this.faqs.listTaeboVisible(languageCode);
     if (candidates.length === 0) return null;
 
+    // AC-7 — prefer the configured LLM matcher when available; any failure (unconfigured, network
+    // error, timeout, malformed response) falls straight through to the local keyword matcher
+    // below rather than surfacing an error, so Taebo never has a hard dependency on a third-party
+    // API for basic operation.
+    if (this.llm.isConfigured()) {
+      const llmResult = await this.llm.findBestMatch(question, candidates);
+      if (llmResult) return llmResult;
+      this.logger.debug('LLM matcher returned no match or failed; falling back to keyword matcher');
+    }
+
+    return this.keywordMatch(question, candidates);
+  }
+
+  private keywordMatch(question: string, candidates: FaqDto[]): MatchResult | null {
     const questionTokens = tokenize(question);
     if (questionTokens.size === 0) return null;
 

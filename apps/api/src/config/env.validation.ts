@@ -73,6 +73,21 @@ export const envSchema = z.object({
   // AC-8 — spec §8 risk #3 (provider not finalized): unset uses the hardcoded fallback rate table
   // in ExchangeRateService instead of a live provider.
   EXCHANGE_RATE_API_KEY: z.string().optional(),
+
+  // Taebo (docs/specs/2026-08-28-15-taebo-chatbot.md, AC-7 — "regardless of which specific
+  // model/library implements the matching"). Optional, same posture as every other third-party
+  // credential above: unset means TaeboMatchingService falls back to its local keyword matcher
+  // instead of failing. Never a substitute for the AC-3/AC-4 anti-fabrication contract — the LLM
+  // is only ever shown the approved, published, taebo_visible FAQ set and must return no-match
+  // rather than answer from general knowledge; that constraint lives in the prompt + response
+  // validation in taebo-matching.service.ts, not here.
+  OPENROUTER_API_KEY: z.string().optional(),
+  // A genuinely free (":free"-suffixed) OpenRouter model — a paid model would silently start
+  // costing money per request. The shared free-tier pool occasionally 429s under load; that's
+  // fine here specifically because TaeboMatchingService treats any LLM failure as "fall back to
+  // the local keyword matcher", never as an error — an unpaid model's unreliability is an
+  // acceptable tradeoff this app is already built to absorb.
+  OPENROUTER_MODEL: z.string().default('minimax/minimax-m2.7:free'),
 });
 
 export type Env = z.infer<typeof envSchema>;
