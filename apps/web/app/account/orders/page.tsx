@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/locale-context';
+import { formatDate, formatNumber } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 interface OrderSummaryDto {
@@ -22,6 +24,7 @@ interface OrderSummaryDto {
 export default function OrderHistoryPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
+  const { locale } = useLocale();
   const [orders, setOrders] = useState<OrderSummaryDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -63,11 +66,11 @@ export default function OrderHistoryPage() {
               <div>
                 <p className="font-semibold text-brand-navy">Order #{order.id}</p>
                 <p className="text-gray-500">
-                  {order.itemCount} item{order.itemCount === 1 ? '' : 's'} · {new Date(order.createdAt).toLocaleDateString()}
+                  {order.itemCount} item{order.itemCount === 1 ? '' : 's'} · {formatDate(order.createdAt, locale)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-semibold">Rs {order.totalPkr}</p>
+                <p className="font-semibold">Rs {formatNumber(order.totalPkr, locale)}</p>
                 <Link href={`/order-confirmation/${order.id}`} className="text-brand-navy underline">
                   {order.status}
                 </Link>

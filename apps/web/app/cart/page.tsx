@@ -8,10 +8,12 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { type CartItemDto, useCart } from '@/lib/cart-context';
 import { useLocale } from '@/lib/locale-context';
+import { formatNumber } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 function CartLine({ item, savedForLater }: { item: CartItemDto; savedForLater: boolean }) {
   const { updateQuantity, removeItem, saveForLater, moveToCart } = useCart();
+  const { locale } = useLocale();
 
   return (
     <div className="flex gap-4 rounded-lg border border-gray-200 bg-white p-4">
@@ -54,8 +56,8 @@ function CartLine({ item, savedForLater }: { item: CartItemDto; savedForLater: b
                 />
               </>
             )}
-            <span className="font-semibold text-brand-navy">Rs {item.unitPricePkr}</span>
-            {item.lineDiscountPkr > 0 && <span className="text-xs text-gray-400 line-through">Rs {item.unitPricePkr + item.lineDiscountPkr / item.quantity}</span>}
+            <span className="font-semibold text-brand-navy">Rs {formatNumber(item.unitPricePkr, locale)}</span>
+            {item.lineDiscountPkr > 0 && <span className="text-xs text-gray-400 line-through">Rs {formatNumber(item.unitPricePkr + item.lineDiscountPkr / item.quantity, locale)}</span>}
           </div>
 
           {savedForLater ? (
@@ -78,7 +80,7 @@ export default function CartPage() {
   const router = useRouter();
   const { user, accessToken } = useAuth();
   const { cart, error } = useCart();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [creditsInput, setCreditsInput] = useState('');
   const [creditsError, setCreditsError] = useState<ApiError | null>(null);
 
@@ -146,19 +148,19 @@ export default function CartPage() {
           <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
-              <span>Rs {cart.subtotalPkr}</span>
+              <span>Rs {formatNumber(cart.subtotalPkr, locale)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Discount</span>
-              <span>-Rs {cart.discountPkr}</span>
+              <span>-Rs {formatNumber(cart.discountPkr, locale)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Credits used</span>
-              <span>-Rs {cart.creditsUsed}</span>
+              <span>-Rs {formatNumber(cart.creditsUsed, locale)}</span>
             </div>
             <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-brand-navy">
               <span>Total</span>
-              <span>Rs {cart.totalPkr}</span>
+              <span>Rs {formatNumber(cart.totalPkr, locale)}</span>
             </div>
 
             <div className="flex items-center gap-2 pt-2">

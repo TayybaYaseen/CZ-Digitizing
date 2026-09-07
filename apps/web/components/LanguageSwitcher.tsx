@@ -1,18 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocale } from '@/lib/locale-context';
 
 // docs/specs/2026-08-28-16-internationalization.md AC-1 (aspect A-021, header entry for A-022).
 export function LanguageSwitcher() {
   const { locale, languages, setLocale } = useLocale();
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Mirrors Header.tsx's SearchBox click-outside pattern (aspect A-022).
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
 
   if (languages.length === 0) return null;
   const current = languages.find((l) => l.code === locale);
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
