@@ -9,8 +9,11 @@ export class PaymentMethodEntryDto {
   @IsBoolean()
   isEnabled!: boolean;
 
-  // Non-secret display config only (bank name/title for display, enabled currency — spec §4/§8
-  // risk #2). Never a client secret or account number; those belong in the secrets manager.
+  // Non-secret display config: for bank_transfer, the account details a customer transfers
+  // money INTO (bankName/accountTitle/accountNumber/iban) — necessarily customer-visible, not a
+  // secret, per docs/specs/2026-08-28-08-orders-payment-processing.md AC-3/AC-9. Real API
+  // credentials (PayPal client secret, Stripe secret key) never go here — those stay in .env,
+  // per that spec's own §8 risk #2 note.
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;

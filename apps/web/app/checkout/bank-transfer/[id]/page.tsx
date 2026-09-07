@@ -25,6 +25,12 @@ export default function BankTransferCheckoutPage() {
   const { user, accessToken, isReady } = useAuth();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [bankConfig, setBankConfig] = useState<Record<string, string> | null>(null);
+  // Distinct from bankConfig === null: that's a legitimate "Admin hasn't set up bank transfer
+  // yet" state, this is "we couldn't even check" (network/server error) — see
+  // docs/incidents/2026-09-07-bank-transfer-details-not-showing.md. Conflating the two used to
+  // mean any transient failure silently rendered as an empty details box with no explanation,
+  // right when a customer is about to send money.
+  const [bankConfigLoadFailed, setBankConfigLoadFailed] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -41,7 +47,7 @@ export default function BankTransferCheckoutPage() {
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
     apiFetch<{ bankTransferConfig: Record<string, string> | null }>('/api/settings/public')
       .then((s) => setBankConfig(s.bankTransferConfig ?? null))
-      .catch(() => setBankConfig(null));
+      .catch(() => setBankConfigLoadFailed(true));
   }, [user, accessToken, params.id]);
 
   async function onUpload() {
@@ -73,9 +79,23 @@ export default function BankTransferCheckoutPage() {
         <p>
           Please transfer <strong>Rs {order.totalPkr}</strong> to the account below and include your reference number.
         </p>
-        {bankConfig?.bankName && <p>Bank: {bankConfig.bankName}</p>}
-        {bankConfig?.accountTitle && <p>Account Title: {bankConfig.accountTitle}</p>}
-        {bankConfig?.accountNumber && <p>Account Number: {bankConfig.accountNumber}</p>}
+        {bankConfigLoadFailed ? (
+          <p className="rounded bg-amber-50 px-3 py-2 text-amber-800">
+            We couldn&apos;t load the bank account details right now. Please refresh this page before sending
+            payment — do not transfer money until you can see the account details below.
+          </p>
+        ) : bankConfig ? (
+          <>
+            {bankConfig.bankName && <p>Bank: {bankConfig.bankName}</p>}
+            {bankConfig.accountTitle && <p>Account Title: {bankConfig.accountTitle}</p>}
+            {bankConfig.accountNumber && <p>Account Number: {bankConfig.accountNumber}</p>}
+            {bankConfig.iban && <p>IBAN: {bankConfig.iban}</p>}
+          </>
+        ) : (
+          <p className="rounded bg-amber-50 px-3 py-2 text-amber-800">
+            Bank transfer account details aren&apos;t available yet. Please contact support before sending payment.
+          </p>
+        )}
         <p className="mt-2 rounded bg-gray-50 px-3 py-2 font-mono text-base font-semibold text-brand-navy">{order.bankTransferReference}</p>
       </div>
 
