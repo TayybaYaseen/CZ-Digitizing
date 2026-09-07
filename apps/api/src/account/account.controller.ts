@@ -52,10 +52,10 @@ export class AccountController {
   // read below) resolve to the primary account's history for an invited secondary member, per AC-7.
   @Get('orders')
   @Roles('customer')
-  async listOrders(@Query('page') page = '1', @Query('pageSize') pageSize = '20', @Query() query: CurrencyQueryDto, @CurrentUser() user: AccessTokenPayload) {
+  async listOrders(@Query() query: CurrencyQueryDto, @CurrentUser() user: AccessTokenPayload) {
     const customerId = await this.account.resolveEffectiveCustomerId(BigInt(user.sub));
-    const { items, total } = await this.orders.listHistory(customerId, Number(page), Number(pageSize), query.currencyCode);
-    return { data: items, meta: { page: Number(page), pageSize: Number(pageSize), total } };
+    const { items, total } = await this.orders.listHistory(customerId, query.page, query.pageSize, query.currencyCode);
+    return { data: items, meta: { page: query.page, pageSize: query.pageSize, total } };
   }
 
   @Get('quotes')

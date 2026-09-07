@@ -27,10 +27,10 @@ export class OrdersController {
 
   @Get('user/history')
   @Roles('customer')
-  history(@Query('page') page = '1', @Query('pageSize') pageSize = '20', @Query() query: CurrencyQueryDto, @CurrentUser() user: AccessTokenPayload) {
-    return this.service.listHistory(BigInt(user.sub), Number(page), Number(pageSize), query.currencyCode).then(({ items, total }) => ({
+  history(@Query() query: CurrencyQueryDto, @CurrentUser() user: AccessTokenPayload) {
+    return this.service.listHistory(BigInt(user.sub), query.page, query.pageSize, query.currencyCode).then(({ items, total }) => ({
       data: items,
-      meta: { page: Number(page), pageSize: Number(pageSize), total },
+      meta: { page: query.page, pageSize: query.pageSize, total },
     }));
   }
 

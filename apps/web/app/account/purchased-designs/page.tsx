@@ -71,7 +71,10 @@ export default function PurchasedDesignsPage() {
             const latest = [...item.purchases].sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime())[0]!;
             return (
               <li key={`${item.type}:${item.id}`} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                {item.previewImageUrl && <img src={item.previewImageUrl} alt={item.name} className="h-28 w-full object-cover" />}
+                {item.previewImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-supplied URL
+                  <img src={item.previewImageUrl} alt={item.name} className="h-28 w-full object-cover" />
+                )}
                 <div className="p-3">
                   <p className="truncate text-sm font-semibold text-brand-navy">{item.name}</p>
                   <p className="text-xs uppercase tracking-wide text-gray-500">{item.type}</p>

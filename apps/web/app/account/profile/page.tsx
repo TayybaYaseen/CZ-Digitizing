@@ -80,6 +80,7 @@ export default function ProfilePage() {
 
       <div className="flex items-center gap-4">
         {user.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded URL
           <img src={user.avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" />
         ) : (
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-500">
