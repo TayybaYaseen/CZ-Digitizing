@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ActivityService } from '../activity/activity.service';
 import { ApiException } from '../common/exceptions/api-exception';
 import { statusAllowsFileAccess } from '../orders/order-state-machine';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,6 +26,7 @@ export class CustomerFilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly activity: ActivityService,
   ) {}
 
   private async loadAuthorizedOrder(orderId: string, customerId: bigint) {
@@ -49,15 +51,29 @@ export class CustomerFilesService {
 
     await this.checkAttemptLimit(row.id);
     const { token, expiresAt } = this.generateDownloadToken(fileId);
-    await this.incrementDownload(row.id);
+    const newCount = await this.incrementDownload(row.id);
+
+    // AC-12/AC-15 — keyed on the post-increment count (same "resulting-state nonce" pattern
+    // ActivityService callers use elsewhere in this pass): a genuine repeat download strictly
+    // advances downloadCount each time, so it gets its own event; a network-level retry of the
+    // exact same download request lands on the same resulting count and collapses.
+    await this.activity.record({
+      customerId,
+      eventType: 'DOWNLOADED',
+      orderId: order.id,
+      fileId: row.designFileId,
+      source: 'web',
+      idempotencyKey: `${customerId}:DOWNLOADED:${row.id}:${newCount}`,
+    });
+
     return { downloadUrl: token, expiresAt };
   }
 
   // AC-6 — increments on every successful download and stamps first/last download timestamps.
-  async incrementDownload(authorizedFileId: bigint): Promise<void> {
+  async incrementDownload(authorizedFileId: bigint): Promise<number> {
     const now = new Date();
     const existing = await this.prisma.customerAuthorizedFile.findUniqueOrThrow({ where: { id: authorizedFileId } });
-    await this.prisma.customerAuthorizedFile.update({
+    const updated = await this.prisma.customerAuthorizedFile.update({
       where: { id: authorizedFileId },
       data: {
         downloadCount: { increment: 1 },
@@ -65,6 +81,7 @@ export class CustomerFilesService {
         firstDownloadAt: existing.firstDownloadAt ?? now,
       },
     });
+    return updated.downloadCount;
   }
 
   // AC-11 — Admin sets a per-record max-download-attempt count; exceeding it returns FORBIDDEN

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AdminModule } from './admin/admin.module';
+import { ActivityModule } from './activity/activity.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -42,6 +43,7 @@ import { CustomRequestsModule } from './custom-requests/custom-requests.module';
 import { FileFormatRequestsModule } from './file-format-requests/file-format-requests.module';
 import { I18nModule } from './i18n/i18n.module';
 import { ContactModule } from './contact/contact.module';
+import { AccountModule } from './account/account.module';
 
 @Module({
   imports: [
@@ -53,6 +55,10 @@ import { ContactModule } from './contact/contact.module';
     AuditModule,
     RateLimitModule,
     HealthModule,
+    // Customer Account & Purchase History (A-019) activity_events — registered early since Cart/
+    // Orders/Files below each import it to call ActivityService.record() as a side effect of their
+    // own handlers (this spec owns the event, not the triggering business logic).
+    ActivityModule,
     // Before AuthModule: auth's new-device-login trigger (AC-3) calls NotificationService.
     NotificationsModule,
     AuthModule,
@@ -98,6 +104,10 @@ import { ContactModule } from './contact/contact.module';
     // Internationalization (A-021) — depends only on the already-global PrismaModule, so it has
     // no ordering constraint relative to the modules above.
     I18nModule,
+    // Customer Account & Purchase History (A-019) — depends on OrdersModule/QuotesModule/
+    // CustomRequestsModule/DesignsModule (delegated reads + avatar upload reuse), all registered
+    // above.
+    AccountModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

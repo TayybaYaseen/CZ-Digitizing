@@ -14,5 +14,9 @@ import { ImageUploadService } from './image-upload.service';
   imports: [BlogModule],
   controllers: [CategoriesController, SubcategoriesController, DesignsController, ImageUploadController],
   providers: [CategoriesService, DesignsService, ImageUploadService],
+  // ImageUploadService is reused by AccountModule (A-019) for customer avatar uploads — same
+  // "content-addressed public upload" mechanism as an admin's design preview image, no reason to
+  // duplicate it.
+  exports: [ImageUploadService],
 })
 export class DesignsModule {}

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivityModule } from '../activity/activity.module';
 import { CustomerFilesController } from './customer-files.controller';
 import { CustomerFilesService } from './customer-files.service';
 import { DesignFilesController } from './design-files.controller';
@@ -10,6 +11,7 @@ import { WatermarkService } from './watermark.service';
 import { ZipService } from './zip.service';
 
 @Module({
+  imports: [ActivityModule],
   controllers: [FileFormatController, DesignFilesController, CustomerFilesController],
   providers: [StorageService, FileFormatService, DesignFilesService, CustomerFilesService, WatermarkService, ZipService],
   exports: [StorageService, ZipService, DesignFilesService],

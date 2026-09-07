@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -31,6 +32,7 @@ interface DesignDetailDto {
 export default function DesignDetailPage() {
   const params = useParams<{ id: string }>();
   const { addItem } = useCart();
+  const { user, accessToken } = useAuth();
   const [design, setDesign] = useState<DesignDetailDto | null>(null);
   const [related, setRelated] = useState<DesignSummaryDto[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
@@ -50,6 +52,16 @@ export default function DesignDetailPage() {
       .then(setRelated)
       .catch(() => setRelated([]));
   }, [params.id]);
+
+  // docs/specs/2026-08-28-14-customer-account-history.md AC-9 (aspect A-019) — fires once per
+  // page mount; the backend's idempotency key (per design+device/session) already collapses a
+  // React-strict-mode double-invoke or a page refresh into a single recorded event, so no
+  // additional guard is needed here. Guests (no accessToken) have nothing to attach the event to
+  // and are silently skipped, same posture as the cart's own guest handling.
+  useEffect(() => {
+    if (!user || !accessToken) return;
+    apiFetch(`/api/designs/${params.id}/view`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => {});
+  }, [params.id, user, accessToken]);
 
   async function onAddToCart() {
     if (!design || !selectedSizeId) return;

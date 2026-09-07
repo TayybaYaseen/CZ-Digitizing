@@ -11,6 +11,8 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName: string | null;
+  // docs/specs/2026-08-28-14-customer-account-history.md AC-3 (aspect A-019).
+  avatarUrl: string | null;
   role: Role;
   gmailVerified: boolean;
   twoFactorEnabled: boolean;
@@ -37,6 +39,9 @@ interface AuthContextValue extends AuthState {
   isReady: boolean;
   login: (tokens: AuthTokens) => void;
   logout: () => void;
+  // docs/specs/2026-08-28-14-customer-account-history.md AC-3 (aspect A-019) — syncs a profile
+  // edit (display name/avatar) into the stored session without a full re-login round trip.
+  updateUser: (user: AuthUser) => void;
 }
 
 const STORAGE_KEY = 'czd.auth';
@@ -99,7 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.localStorage.removeItem(STORAGE_KEY);
   }
 
-  return <AuthContext.Provider value={{ ...state, isReady, login, logout }}>{children}</AuthContext.Provider>;
+  function updateUser(user: AuthUser) {
+    setState((prev) => {
+      const next = { ...prev, user };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
+  return <AuthContext.Provider value={{ ...state, isReady, login, logout, updateUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

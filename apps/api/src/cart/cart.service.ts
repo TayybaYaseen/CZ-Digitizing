@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Cart, PaymentMethod, Prisma } from '../generated/prisma';
 import type { AccessTokenPayload } from '../auth/token.types';
+import { ActivityService } from '../activity/activity.service';
 import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
 import { CreditsService } from '../credits/credits.service';
@@ -31,6 +32,7 @@ export class CartService {
     private readonly bundles: BundlesService,
     private readonly orders: OrdersService,
     private readonly credits: CreditsService,
+    private readonly activity: ActivityService,
   ) {}
 
   // Only role=customer requests resolve to a customer-linked cart — admin/freelancer/moderator
@@ -85,6 +87,7 @@ export class CartService {
 
     const cart = await this.resolveCart(actor);
     let priceAtAddPkr: number;
+    let resultItem: { id: bigint; quantity: number };
 
     if (dto.designId) {
       const design = await this.prisma.design.findFirst({ where: { id: BigInt(dto.designId), deletedAt: null } });
@@ -99,9 +102,9 @@ export class CartService {
         where: { cartId: cart.id, designId: design.id, sizeId: size.id, status: 'active' },
       });
       if (existing) {
-        await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
+        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
       } else {
-        await this.prisma.cartItem.create({
+        resultItem = await this.prisma.cartItem.create({
           data: { cartId: cart.id, designId: design.id, sizeId: size.id, quantity: dto.quantity, priceAtAddPkr },
         });
       }
@@ -113,10 +116,26 @@ export class CartService {
 
       const existing = await this.prisma.cartItem.findFirst({ where: { cartId: cart.id, bundleId: bundle.id, status: 'active' } });
       if (existing) {
-        await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
+        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
       } else {
-        await this.prisma.cartItem.create({ data: { cartId: cart.id, bundleId: bundle.id, quantity: dto.quantity, priceAtAddPkr } });
+        resultItem = await this.prisma.cartItem.create({ data: { cartId: cart.id, bundleId: bundle.id, quantity: dto.quantity, priceAtAddPkr } });
       }
+    }
+
+    // AC-10 — guests have no customer identity to attach the event to; only authenticated
+    // customers get activity tracked (same posture as every other "optional customer" call site).
+    // Keyed on the item's post-mutation quantity, not a raw timestamp: a genuinely repeated add
+    // strictly increases quantity each time (a fresh, distinct key), while a network-level retry of
+    // the exact same add lands on the same resulting quantity and collapses per AC-15.
+    if (actor.customerId !== undefined) {
+      await this.activity.record({
+        customerId: actor.customerId,
+        eventType: 'ADDED_TO_CART',
+        designId: dto.designId ? BigInt(dto.designId) : undefined,
+        cartItemId: resultItem.id.toString(),
+        source: 'web',
+        idempotencyKey: `${actor.customerId}:ADDED_TO_CART:${resultItem.id}:${resultItem.quantity}`,
+      });
     }
 
     await this.touch(cart.id);
@@ -134,6 +153,19 @@ export class CartService {
     const item = await this.findOwnItemOrThrow(actor, itemId);
     await this.prisma.cartItem.delete({ where: { id: item.id } });
     await this.touch(item.cartId);
+
+    // AC-10/AC-15 — naturally idempotent without a quantity/timestamp component: once itemId is
+    // deleted, findOwnItemOrThrow above 404s on any retry before this point is ever reached again.
+    if (actor.customerId !== undefined) {
+      await this.activity.record({
+        customerId: actor.customerId,
+        eventType: 'REMOVED_FROM_CART',
+        designId: item.designId ?? undefined,
+        cartItemId: itemId,
+        source: 'web',
+        idempotencyKey: `${actor.customerId}:REMOVED_FROM_CART:${itemId}`,
+      });
+    }
   }
 
   // AC-8 — moves a line to/from the Saved-for-Later list without touching quantity/price.

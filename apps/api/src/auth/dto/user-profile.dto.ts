@@ -7,6 +7,7 @@ export interface UserProfileDto {
   id: string;
   email: string;
   displayName: string | null;
+  avatarUrl: string | null;
   role: Role;
   gmailVerified: boolean;
   twoFactorEnabled: boolean;
@@ -19,6 +20,7 @@ export function toUserProfileDto(user: User): UserProfileDto {
     id: user.id.toString(),
     email: user.email,
     displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     gmailVerified: user.gmailVerified,
     twoFactorEnabled: user.twoFactorEnabled,
