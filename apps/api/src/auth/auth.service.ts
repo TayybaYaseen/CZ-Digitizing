@@ -64,6 +64,13 @@ export class AuthService {
       text: `Verify your email: ${this.webBaseUrl}/verify-email?token=${encodeURIComponent(token)}`,
     });
 
+    // AC-8 (Customer Account & Purchase History, aspect A-019) — retroactively link any guest
+    // quote submitted with this same email before this account existed. Done directly against
+    // Prisma rather than via AccountService: CustomRequestsModule (imported by AccountModule)
+    // already imports AuthModule, so AuthModule depending on AccountModule back would be a cycle —
+    // this one-line update doesn't need a shared service to justify introducing it.
+    await this.prisma.quote.updateMany({ where: { customerId: null, email: user.email }, data: { customerId: user.id } });
+
     return toUserProfileDto(user);
   }
 

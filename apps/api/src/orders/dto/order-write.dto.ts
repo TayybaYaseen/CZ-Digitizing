@@ -67,8 +67,26 @@ export class OrderQueryDto {
 }
 
 // Shared by GET /api/orders/:id and GET /api/orders/user/history — AC-8's currency display.
+// page/pageSize live here too (rather than as separate @Query('page') params on the handler) so
+// the global ValidationPipe's forbidNonWhitelisted:true doesn't reject the request: a bare
+// `@Query() query: CurrencyQueryDto` binds against the *entire* query string, so any param not
+// declared on this DTO — including page/pageSize when they were only bound via their own separate
+// @Query('page')/@Query('pageSize') decorators — got 400'd as an unrecognized property. Both are
+// optional/unused on GET /api/orders/:id, which never sends them.
 export class CurrencyQueryDto {
   @IsOptional()
   @IsString()
   currencyCode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pageSize: number = 20;
 }

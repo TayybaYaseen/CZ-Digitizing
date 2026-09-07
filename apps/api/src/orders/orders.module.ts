@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivityModule } from '../activity/activity.module';
 import { BundlesModule } from '../bundles/bundles.module';
 import { CreditsModule } from '../credits/credits.module';
 import { FilesModule } from '../files/files.module';
@@ -15,7 +16,7 @@ import { WebhooksController } from './webhooks.controller';
 // PaymentsModule's own doc comment) so checkout can deduct a customer's applied credits (AC-7,
 // subscriptions-credits spec) and refund() can reverse them for real.
 @Module({
-  imports: [BundlesModule, FilesModule, PaymentsModule, CreditsModule],
+  imports: [BundlesModule, FilesModule, PaymentsModule, CreditsModule, ActivityModule],
   controllers: [OrdersController, WebhooksController],
   providers: [OrdersService, ExchangeRateService],
   exports: [OrdersService],

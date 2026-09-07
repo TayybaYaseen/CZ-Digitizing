@@ -117,6 +117,11 @@ model User {
   assignedCustomRequests  CustomRequest[]          @relation("CustomRequestDesigner")
   customRequestMessages   CustomRequestMessage[]
   fileFormatRequests      FileFormatRequest[]
+  activityEvents          ActivityEvent[]
+  // AC-7 (Customer Account & Purchase History, aspect A-019) — memberships where this user is the
+  // primary account owner (people they've invited in) vs. where they are the invited member.
+  accountMembersInvited   AccountMember[]          @relation("AccountMemberPrimary")
+  accountMembershipsHeld  AccountMember[]          @relation("AccountMemberUser")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -507,6 +512,7 @@ model Design {
   orderItems           OrderItem[]
   homeSectionEntries   HomeSectionDesign[]
   advertisementTargets AdvertisementTargetDesign[]
+  activityEvents       ActivityEvent[]
 
   @@index([subcategoryId], map: "idx_designs_subcategory")
   @@index([isPublished], map: "idx_designs_published")
@@ -593,6 +599,7 @@ model DesignFile {
 
   authorizedFiles    CustomerAuthorizedFile[]
   fileFormatRequests FileFormatRequest[]
+  activityEvents     ActivityEvent[]
   // emb_never_public CHECK constraint added via raw SQL in this model's migration — see
   // AddPrivateFileManagement/migration.sql. Prisma's schema DSL has no @@check clause in this
   // Prisma version (5.x), so the constraint is hand-appended to the generated migration, the same
@@ -809,6 +816,7 @@ model Order {
   // CustomRequestsService.approveQuote() rather than the normal cart checkout path.
   customRequest      CustomRequest?
   fileFormatRequests FileFormatRequest[]
+  activityEvents     ActivityEvent[]
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -1695,7 +1703,7 @@ model Language {
 // AC-6 — backs "add a language without a deploy" for UI-chrome strings. Content-level translation
 // (FAQs/Tips/Blog) already has its own languageCode column per entity and is not duplicated here.
 model UiTranslation {
-  id     BigInt @id @default(autoincrement())
+  id     BigInt   @id @default(autoincrement())
   locale String
   lang   Language @relation(fields: [locale], references: [code], onDelete: Cascade)
   key    String
@@ -1706,4 +1714,76 @@ model UiTranslation {
 
   @@unique([locale, key], map: "idx_ui_translations_locale_key")
   @@map("ui_translations")
+}
+
+// docs/specs/2026-08-28-14-customer-account-history.md §4 (aspect A-019), AC-9–AC-15.
+enum ActivityEventType {
+  VIEWED
+  ADDED_TO_CART
+  REMOVED_FROM_CART
+  PURCHASED
+  PAID
+  DOWNLOADED
+}
+
+enum ActivityEventSource {
+  web
+  mobile
+}
+
+// AC-15's idempotency-key uniqueness is load-bearing and must ship in this same migration — a
+// retried API call or a repeated webhook/callback for the same view session, cart action, or
+// download must never create a second row. ActivityService.record() is the only writer; nothing
+// else in the codebase inserts into this table directly.
+model ActivityEvent {
+  id         BigInt @id @default(autoincrement())
+  customerId BigInt @map("customer_id")
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  eventType ActivityEventType   @map("event_type")
+  source    ActivityEventSource @default(web)
+
+  designId   BigInt?     @map("design_id")
+  design     Design?     @relation(fields: [designId], references: [id], onDelete: SetNull)
+  orderId    BigInt?     @map("order_id")
+  order      Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  // Not a real FK — cart items are deleted at checkout/removal, so by the time an ADDED_TO_CART
+  // event is read back the referenced cart_items row may no longer exist. Kept as an opaque id for
+  // display/debugging only, same posture as AuditLog.resourceId above.
+  cartItemId String?     @map("cart_item_id")
+  fileId     BigInt?     @map("file_id")
+  file       DesignFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([customerId, createdAt], map: "idx_activity_events_customer_created")
+  @@map("activity_events")
+}
+
+// AC-7 — a secondary user (e.g. a small business's employee) gets their own login linked to the
+// same shared order/purchase history. Every row here is a "member" grant — there is no `owner`
+// value because the primary account's ownership is implicit (whoever the customer_id belongs to
+// on the shared orders/quotes/etc.), not a row in this table. A member can read the primary's
+// order/quote/custom-request/purchased-designs/activity history but cannot place new orders,
+// spend credits, or change account/billing settings — the least-privilege reading, since the spec
+// leaves the exact permission limits undefined (§8 risk #1 is a distinct, still-Open question
+// about merging two *separately registered* accounts; this table is about one account
+// intentionally granting a second login read access, not merging identities).
+model AccountMember {
+  id BigInt @id @default(autoincrement())
+
+  primaryUserId BigInt @map("primary_user_id")
+  primaryUser   User   @relation("AccountMemberPrimary", fields: [primaryUserId], references: [id], onDelete: Cascade)
+
+  memberUserId BigInt @map("member_user_id")
+  memberUser   User   @relation("AccountMemberUser", fields: [memberUserId], references: [id], onDelete: Cascade)
+
+  invitedAt  DateTime  @default(now()) @map("invited_at")
+  acceptedAt DateTime? @map("accepted_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  @@unique([primaryUserId, memberUserId], map: "uq_account_members_primary_member")
+  @@index([memberUserId], map: "idx_account_members_member")
+  @@map("account_members")
 }

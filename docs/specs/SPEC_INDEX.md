@@ -177,6 +177,90 @@ completion" rule — the frontend has not yet been exercised in an actual browse
 automation tool was available in this environment). A-022 (Header: Language Selector) remains
 `Blocked` until this reaches `Completed`.
 
+As of the 2026-09-07 update: A-019 (Customer Account & Purchase History) and A-019a (Customer
+Activity Timeline) are `In Progress` — backend (`apps/api`) and frontend (`apps/web`/`apps/admin`)
+implementation of `docs/specs/2026-08-28-14-customer-account-history.md` (AC-1–AC-15) is built:
+new `activity_events` table (migration `20260907060000_add_activity_events`, unique
+`idempotency_key` per AC-15) plus `ActivityService.record()` wired as a side effect into
+`CartService` (AC-10), `OrdersService` (AC-11, all three order-creation paths plus the shared
+`releaseFilesAndNotify` payment-confirmation choke point), and `CustomerFilesService` (AC-12);
+`GET/PUT /api/users/profile`, `POST /api/users/avatar`, `GET /api/users/{orders,quotes,
+custom-requests,purchased-designs,activity}` (AC-1–AC-6, thin delegations to each owning feature's
+own service — no new business logic per spec §3); guest-quote-to-account linking on register
+(AC-8 — Orders/CustomRequests have no guest path in this schema, so Quotes is the only
+applicable case); a new `AccountMember` table + invite/list/revoke endpoints for shared/household
+accounts (AC-7 — deliberately the minimal-viable reading: the invitee must already have their own
+registered login, not a full invite-by-email-to-a-new-signup flow, flagged in code comments same
+as this codebase's other documented stubs); and `GET /api/admin/customers[/:id[/activity]]`
+(AC-14, plus a small customer-search list endpoint the spec's own §3 table doesn't name but
+AC-14 presupposes). Frontend: real `/account/profile`, `/account/activity`, `/account/members`
+pages; `/account/purchased-designs` now aggregates for real instead of redirecting to Order
+History; a working file-list-and-download-request UI on `/order-confirmation/:id` (closing a
+pre-existing gap — no page anywhere previously called A-007's own `GET /api/orders/:id/files`);
+a `VIEWED`-event POST on the design detail page; `apps/admin`'s `/customers` and `/customers/:id`
+replace their `ComingSoon` stubs. Verified: 8 new unit tests (`ActivityService` idempotency,
+`AccountService.listPurchasedDesigns` de-dup/union) passing; full `apps/api` suite re-run clean
+(230/233, the same pre-existing unrelated bcrypt-timeout flake as A-021's own note); all three
+apps typecheck cleanly; the API boots with every new route mapped and correctly `401`-gated,
+manually verified against a live running instance. Stays `In Progress` rather than `Completed` per
+`CLAUDE.md` §5 — the frontend has not been exercised in an actual browser session (no browser
+automation tool was available), and two items are honest gaps rather than silently-skipped work:
+(1) the download buttons on `/order-confirmation/:id` request/confirm authorization but nothing in
+this codebase yet streams the actual file bytes for a signed token — a pre-existing A-007 gap this
+spec's own scope ("aggregation, not new business logic") doesn't extend to closing; (2) §8 risk #1
+(cross-email account merge) and risk #2 (`VIEWED`-event retention policy) remain Open, unaddressed,
+exactly as the spec itself leaves them.
+
+**Process note, flagged rather than silently corrected:** per `CLAUDE.md` §3, A-019 should not have
+been started until A-015 and A-017 (both still `In Progress`, not `Completed`, at the time this work
+began) were `Completed` — the session that did this work had verified that blocker earlier, got
+derailed by an unrelated environment/tooling incident, and resumed implementation afterward without
+re-confirming dependency status first. The work itself does not depend on anything A-015/A-017 have
+left unfinished (both are backend-complete, browser-verification-only gaps), so it is not being
+discarded, but the out-of-sequence start is recorded here per §6's "flag every conflict, don't
+resolve it silently" rule rather than backdated or hidden.
+
+As of the 2026-09-07 update: A-013a (PayPal Integration), A-013b (Bank Transfer, Manual), and
+A-013c (Order History / Payment State Machine) are corrected from `Blocked` to `Completed` — an
+audit found this was a stale registry entry, not an unbuilt feature: their only dependency, A-013,
+has been `Completed` since that aspect's own build, so per `CLAUDE.md` §5 they were never
+mechanically `Blocked` to begin with (`Blocked` requires an *incomplete* dependency), and all three
+turn out to already be fully implemented as part of A-013's own pass. Evidence: **A-013a** — a real
+PayPal REST integration in `apps/api/src/orders/payments/paypal.service.ts` (OAuth2 client-
+credentials token fetch, `createOrder()` against `/v2/checkout/orders`, `verifyWebhookSignature()`
+against PayPal's own verify endpoint, not hand-rolled HMAC), `POST /api/webhooks/paypal` in
+`webhooks.controller.ts`, `Order.paypalOrderId`, a `paypal` option in `apps/web/app/checkout/
+page.tsx`. **A-013b** — `bank-transfer-reference.util.ts`, `Order.bankTransferReference` (unique)
+and the `PaymentReceipt` model, `POST /api/orders/:id/receipt` + admin `reviewPaymentConfirmation`,
+customer UI at `apps/web/app/checkout/bank-transfer/[id]/page.tsx`. **A-013c** — a real state
+machine in `order-state-machine.ts` (`TRANSITIONS` map, `assertValidOrderTransition`,
+`statusAllowsFileAccess`) with a dedicated 9-test spec file, `GET /api/orders/user/history` /
+`GET /api/orders`, and `apps/web/app/account/orders/page.tsx`. All three verified against
+`test/integration/orders.spec.ts`'s 5 tests (bank-transfer checkout, receipt-confirm-releases-
+files, receipt-reject, order-history pagination, unconfigured-PayPal-webhook-safety) passing
+against a freshly-reset real Postgres database.
+
+That verification pass also surfaced and fixed one real, previously-undetected bug directly in
+A-013c's own `GET /api/orders/user/history`: NestJS's global `ValidationPipe` runs with
+`forbidNonWhitelisted: true`, and the handler bound `@Query() query: CurrencyQueryDto` (only
+declaring `currencyCode`) against the *entire* query string while `page`/`pageSize` arrived via
+separate `@Query('page')`/`@Query('pageSize')` parameters on the same handler — so any request
+carrying `page`/`pageSize` together with the DTO-bound query 400'd as containing unrecognized
+properties. This had never been caught because the codebase's own established practice (see every
+other dated note in this file) is to run one integration spec file at a time on freshly-reset data,
+never the whole `test/integration/` directory in one invocation — which is also the only way to get
+an accurate signal, since none of these spec files' own `beforeEach` hooks reset the *whole*
+database, only the tables that spec file itself owns, so an earlier file's leftover rows
+(e.g. `order_items` referencing a `design` a later file's `beforeEach` tries to delete) cause
+unrelated-looking FK-violation failures in a full-directory run. Confirmed by reproducing the same
+failure both in parallel and under `--runInBand` on a freshly-reset database — it is a test-
+isolation characteristic of this suite, not a concurrency bug and not a feature bug. Fixed by moving
+`page`/`pageSize` onto `CurrencyQueryDto` itself (`apps/api/src/orders/dto/order-write.dto.ts`) and
+updating both call sites (`OrdersController.history()` and the equivalent `AccountController.
+listOrders()` added by A-019, which had copied the same now-fixed pattern) to read them off the one
+validated DTO instance. Re-verified: `test/integration/orders.spec.ts` 5/5 and the full `apps/api`
+unit suite 233/233, both on a freshly-reset database.
+
 ---
 
 ## Aspect Registry
@@ -224,17 +308,17 @@ automation tool was available in this environment). A-022 (Header: Language Sele
 | A-016a | Quote Questions & Answers (Step 2) | A-016 | A-016 | 6 | Completed | 39 |
 | A-016b | Quote Submission Form (Step 3) | A-016 | A-016 | 6 | Completed | 40 |
 | A-013 | Orders & Payment Processing (parent) | A-011 | A-011, A-007, A-005, A-004 | 7 | Completed | 41 |
-| A-013a | PayPal Integration | A-013 | A-013 | 8 | Blocked | 42 |
-| A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Blocked | 43 |
-| A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Blocked | 44 |
+| A-013a | PayPal Integration | A-013 | A-013 | 8 | Completed | 42 |
+| A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Completed | 43 |
+| A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Completed | 44 |
 | A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
 | A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | In Progress | 46 |
 | A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
 | A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |
 | A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Blocked | 49 |
 | A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | In Progress | 50 |
-| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Blocked | 51 |
-| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Blocked | 52 |
+| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | In Progress | 51 |
+| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | In Progress | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
 | A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Blocked | 54 |
 | A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { CartWithItems } from '../cart/dto/cart.dto';
+import { ActivityService } from '../activity/activity.service';
 import { AuditLogService } from '../audit/audit-log.service';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { BundlesService } from '../bundles/bundles.service';
@@ -38,6 +39,7 @@ export class OrdersService {
     private readonly stripe: StripeService,
     private readonly audit: AuditLogService,
     private readonly credits: CreditsService,
+    private readonly activity: ActivityService,
   ) {}
 
   // AC-6/AC-7 (Cart spec) — called by CartService.checkout() only, once its own pre-validation
@@ -99,6 +101,7 @@ export class OrdersService {
     });
 
     this.logger.log(`Order ${order.id} created for customer ${actor.sub} (${paymentMethod}, ${grandTotalPkr} PKR, ${creditsToApplyPkr} credits applied)`);
+    await this.recordPurchased(order.id, BigInt(actor.sub));
 
     let finalOrder: OrderWithRelations = order as OrderWithRelations;
     if (amountToChargePkr === 0) {
@@ -199,6 +202,7 @@ export class OrdersService {
     });
 
     this.logger.log(`Order ${order.id} created from quote ${quote.id} by admin ${admin.sub}`);
+    await this.recordPurchased(order.id, quote.customerId!);
     return toOrderDto(finalOrder);
   }
 
@@ -265,7 +269,24 @@ export class OrdersService {
     }
 
     this.logger.log(`Order ${order.id} created from custom request ${request.id} by customer ${customerId}`);
+    await this.recordPurchased(order.id, customerId);
     return toOrderDto(finalOrder);
+  }
+
+  // AC-11 — fired once per order, right after creation, across all three creation paths (cart
+  // checkout, admin quote-conversion, customer custom-request quote-approval). Keyed on order.id
+  // alone: an Order row is created exactly once by definition (autoincrement id), so no further
+  // idempotency component is needed here — unlike ActivityService callers elsewhere in Cart, a
+  // retried checkout call creates a brand-new Order row rather than reusing one, which is this
+  // service's own pre-existing non-idempotency, not something activity tracking should paper over.
+  private async recordPurchased(orderId: bigint, customerId: bigint): Promise<void> {
+    await this.activity.record({
+      customerId,
+      eventType: 'PURCHASED',
+      orderId,
+      source: 'web',
+      idempotencyKey: `${customerId}:PURCHASED:${orderId}`,
+    });
   }
 
   // AC-1 — webhook's real, DB-backed lookup: never trust a bare id echoed back by the provider,
@@ -519,6 +540,20 @@ export class OrdersService {
   // change never retroactively revokes or grants access (mirrors bundles.service.ts's own AC-4
   // comment on this).
   private async releaseFilesAndNotify(order: OrderWithRelations): Promise<void> {
+    // AC-11 — fired once, here, regardless of which of the three call sites (webhook, receipt
+    // approval, confirmAutomaticPayment) drove the payment_confirmed transition — this is the
+    // single choke point all three already funnel through. Keyed on order.id alone: the order-
+    // state-machine guard earlier in each call site (paymentStatus === 'completed' -> ignore
+    // duplicate webhook) already prevents this method from running twice for the same order, so no
+    // further idempotency component is needed.
+    await this.activity.record({
+      customerId: order.customerId,
+      eventType: 'PAID',
+      orderId: order.id,
+      source: 'web',
+      idempotencyKey: `${order.customerId}:PAID:${order.id}`,
+    });
+
     // docs/specs/2026-08-28-12-custom-design-requests.md AC-4/§8 risk #2 — a custom-request order
     // has no catalog design/bundle files to release yet (the deliverable is produced afterward, at
     // the ready -> delivered step via CustomRequestFile), so payment confirmation here instead

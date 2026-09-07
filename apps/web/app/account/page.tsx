@@ -8,10 +8,10 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/locale-context';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 
-// Minimal account landing page tying together what already exists under A-002/A-004 (profile,
-// notification preferences) so "My Account" in the header (A-003) resolves to something real
-// instead of a 404. Purchase history lands here once A-013 (Orders) ships — still Blocked per
-// docs/specs/SPEC_INDEX.md. AC-8 — favorites persist per-account and are surfaced here.
+// Account landing page — quick links into every owning feature's own account-area view, per
+// docs/specs/2026-08-28-14-customer-account-history.md §5 (aspect A-019). Favorites (A-006d)
+// persist per-account and are surfaced here directly rather than as a link, since there's no
+// separate /account/favorites route.
 export default function AccountPage() {
   const router = useRouter();
   const { user, isReady, accessToken, logout } = useAuth();
@@ -41,8 +41,18 @@ export default function AccountPage() {
 
       <ul className="divide-y divide-gray-200 rounded-md border border-gray-200">
         <li>
+          <Link href="/account/profile" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Profile
+          </Link>
+        </li>
+        <li>
           <Link href="/account/orders" className="block px-4 py-3 text-sm hover:bg-gray-50">
             Order history
+          </Link>
+        </li>
+        <li>
+          <Link href="/account/quotes" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            My quotes
           </Link>
         </li>
         <li>
@@ -63,6 +73,16 @@ export default function AccountPage() {
         <li>
           <Link href="/account/custom-requests" className="block px-4 py-3 text-sm hover:bg-gray-50">
             Custom requests
+          </Link>
+        </li>
+        <li>
+          <Link href="/account/activity" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Activity
+          </Link>
+        </li>
+        <li>
+          <Link href="/account/members" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            Shared account members
           </Link>
         </li>
         <li>
