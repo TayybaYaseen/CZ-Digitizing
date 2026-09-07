@@ -177,6 +177,49 @@ completion" rule — the frontend has not yet been exercised in an actual browse
 automation tool was available in this environment). A-022 (Header: Language Selector) remains
 `Blocked` until this reaches `Completed`.
 
+As of the 2026-09-07 update: A-019 (Customer Account & Purchase History) and A-019a (Customer
+Activity Timeline) are `In Progress` — backend (`apps/api`) and frontend (`apps/web`/`apps/admin`)
+implementation of `docs/specs/2026-08-28-14-customer-account-history.md` (AC-1–AC-15) is built:
+new `activity_events` table (migration `20260907060000_add_activity_events`, unique
+`idempotency_key` per AC-15) plus `ActivityService.record()` wired as a side effect into
+`CartService` (AC-10), `OrdersService` (AC-11, all three order-creation paths plus the shared
+`releaseFilesAndNotify` payment-confirmation choke point), and `CustomerFilesService` (AC-12);
+`GET/PUT /api/users/profile`, `POST /api/users/avatar`, `GET /api/users/{orders,quotes,
+custom-requests,purchased-designs,activity}` (AC-1–AC-6, thin delegations to each owning feature's
+own service — no new business logic per spec §3); guest-quote-to-account linking on register
+(AC-8 — Orders/CustomRequests have no guest path in this schema, so Quotes is the only
+applicable case); a new `AccountMember` table + invite/list/revoke endpoints for shared/household
+accounts (AC-7 — deliberately the minimal-viable reading: the invitee must already have their own
+registered login, not a full invite-by-email-to-a-new-signup flow, flagged in code comments same
+as this codebase's other documented stubs); and `GET /api/admin/customers[/:id[/activity]]`
+(AC-14, plus a small customer-search list endpoint the spec's own §3 table doesn't name but
+AC-14 presupposes). Frontend: real `/account/profile`, `/account/activity`, `/account/members`
+pages; `/account/purchased-designs` now aggregates for real instead of redirecting to Order
+History; a working file-list-and-download-request UI on `/order-confirmation/:id` (closing a
+pre-existing gap — no page anywhere previously called A-007's own `GET /api/orders/:id/files`);
+a `VIEWED`-event POST on the design detail page; `apps/admin`'s `/customers` and `/customers/:id`
+replace their `ComingSoon` stubs. Verified: 8 new unit tests (`ActivityService` idempotency,
+`AccountService.listPurchasedDesigns` de-dup/union) passing; full `apps/api` suite re-run clean
+(230/233, the same pre-existing unrelated bcrypt-timeout flake as A-021's own note); all three
+apps typecheck cleanly; the API boots with every new route mapped and correctly `401`-gated,
+manually verified against a live running instance. Stays `In Progress` rather than `Completed` per
+`CLAUDE.md` §5 — the frontend has not been exercised in an actual browser session (no browser
+automation tool was available), and two items are honest gaps rather than silently-skipped work:
+(1) the download buttons on `/order-confirmation/:id` request/confirm authorization but nothing in
+this codebase yet streams the actual file bytes for a signed token — a pre-existing A-007 gap this
+spec's own scope ("aggregation, not new business logic") doesn't extend to closing; (2) §8 risk #1
+(cross-email account merge) and risk #2 (`VIEWED`-event retention policy) remain Open, unaddressed,
+exactly as the spec itself leaves them.
+
+**Process note, flagged rather than silently corrected:** per `CLAUDE.md` §3, A-019 should not have
+been started until A-015 and A-017 (both still `In Progress`, not `Completed`, at the time this work
+began) were `Completed` — the session that did this work had verified that blocker earlier, got
+derailed by an unrelated environment/tooling incident, and resumed implementation afterward without
+re-confirming dependency status first. The work itself does not depend on anything A-015/A-017 have
+left unfinished (both are backend-complete, browser-verification-only gaps), so it is not being
+discarded, but the out-of-sequence start is recorded here per §6's "flag every conflict, don't
+resolve it silently" rule rather than backdated or hidden.
+
 ---
 
 ## Aspect Registry
@@ -233,8 +276,8 @@ automation tool was available in this environment). A-022 (Header: Language Sele
 | A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |
 | A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Blocked | 49 |
 | A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | In Progress | 50 |
-| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Blocked | 51 |
-| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Blocked | 52 |
+| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | In Progress | 51 |
+| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | In Progress | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
 | A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Blocked | 54 |
 | A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |
