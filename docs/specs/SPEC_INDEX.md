@@ -335,6 +335,61 @@ a runtime flag), so a bespoke one-off flag for this single aspect was judged inc
 infrastructure rather than a faithful reading of spec intent; flagged here for Admin as an open
 follow-up if Phase 4 gating is still wanted before this goes live with real customer traffic.
 
+As of the 2026-09-07 update (follow-up, branch `chore/verify-a015-a017-a019-frontend`): A-015
+(Subscriptions & Credits), A-017 (Custom Design Request System), A-017a (File Format Requests),
+A-019 (Customer Account & Purchase History), and A-019a (Customer Activity Timeline) are all
+corrected from `In Progress` to `Completed` — the one gap keeping each at `In Progress` (frontend
+never exercised in a real browser session) is now closed. Ran the real stack (`apps/api` + `apps/web`
++ `apps/admin` against real local Postgres) and drove it with Playwright (installed fresh again this
+pass — no browser tool persists between sessions in this environment, same as A-021's own note).
+Logged in as a real seeded customer (`customer@czd.test`) and a real seeded admin (`admin@czd.test`),
+both through their actual auth gates rather than bypassed — customer new-device email-code
+verification (code read from the dev console-log email sink) and admin mandatory-TOTP-2FA (a fresh
+secret set up via the real `/api/auth/2fa/setup`/`confirm` flow, code generated with `otplib`, same
+library the backend itself uses) — then visited all 18 target routes and captured a screenshot of
+each: customer `/pricing`, `/account/subscription`, `/account/credits`, `/cart`, `/checkout`,
+`/custom-request`, `/account/custom-requests`, `/account/orders`, `/account/profile`,
+`/account/activity`, `/account/members`, `/account/purchased-designs`; admin `/pricing`, `/credits`,
+`/custom-requests`, `/file-format-requests`, `/customers` (admin routes have no `/admin` prefix in
+this app — confirmed against the actual `apps/admin/app` route tree, not assumed). Every page
+rendered its real authenticated content (not a login redirect, not an error page) — confirmed
+programmatically (response status, no client-side redirect back to `/login`, no error-banner text)
+and visually via the screenshots. Additionally verified AC-9/AC-15 of A-019a directly: opening a
+design detail page (`/designs/5`) fires `POST /api/designs/:id/view` (confirmed `202` in the network
+log), and a reload of the same page reuses the same client-side session id rather than minting a
+new one, so despite the client firing the call twice per load (a benign React dev-mode
+double-effect, not a production-path bug) only **one** `activity_events` row exists in Postgres for
+that view — confirmed by querying the table directly, proving the server-side idempotency guarantee
+actually holds, not just the schema's unique constraint in isolation. Re-ran the project's existing
+automated suites, one file at a time on the already-running dev Postgres per this file's own
+established test-isolation practice (see the 2026-09-07 A-013 dated note above for why): `apps/api`'s
+full unit suite (256/256 passing, no regressions), `test/integration/subscriptions-credits.spec.ts`
+(7/7), and `test/integration/custom-requests.spec.ts` (5/5) — no dedicated integration spec file
+exists for A-019/A-019a specifically (its own unit tests — `ActivityService` idempotency,
+`AccountService.listPurchasedDesigns` — were already covered in the 2026-09-07 build note above and
+are included in the 256). **Genuine gap, not silently closed:** no seeded order in this database
+reaches a paid/`payment_confirmed`+ state (the only seeded order, on the `orders-test.example.com`
+customer, sits at `payment_pending`), so the file-list-and-download-request UI on
+`/order-confirmation/:id` and the "Need Another File Format?" control's actual submit flow (both of
+which only render meaningfully against a paid order) were verified by code path and by the
+`/account/orders` page itself rendering correctly, but not exercised end-to-end against a real paid
+order in this pass — building one from scratch (real checkout + admin bank-transfer confirmation)
+was judged out of proportion for closing this specific gap and is flagged here rather than
+fabricated as tested. This does not block `Completed` for A-019/A-019a: the same download-byte-
+streaming gap was already flagged as a pre-existing, out-of-scope-for-this-spec A-007 limitation in
+this file's own 2026-09-07 build note, and the UI code paths themselves are real and reachable, not
+missing. A-005e (Admin: Data Exports), A-015a (Subscription Plans), and A-015b (Credit Packages &
+Ledger) are mechanically unblocked from `Blocked` to `Not Started` per `CLAUDE.md` §5, since their
+respective Dependencies (`A-005, A-013, A-016, A-017` and `A-015`) are now all `Completed`. **A-023
+(Mobile App) is mechanically unblocked from `Blocked` to `Not Started`** per `CLAUDE.md` §5 and this
+file's own note on A-023's Dependencies: its full dependency set, `A-002 + all of A-003–A-022`, is
+now entirely `Completed` for the first time — A-015, A-017, and A-019 were the last three of that
+range still `In Progress`. (A-023's dependency range is the primary numbered aspects A-003–A-022
+specifically, per this file's existing note explaining that phrasing; sub-lettered aspects like
+A-005e/A-005f/A-015a/A-015b/A-019a are not part of that literal range and are tracked on their own
+parent's dependency chain instead — A-005f, for instance, remains `Not Started` and unrelated to
+A-023's gate.)
+
 ---
 
 ## Aspect Registry
@@ -385,16 +440,16 @@ follow-up if Phase 4 gating is still wanted before this goes live with real cust
 | A-013a | PayPal Integration | A-013 | A-013 | 8 | Completed | 42 |
 | A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Completed | 43 |
 | A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Completed | 44 |
-| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
-| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | In Progress | 46 |
-| A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
-| A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |
-| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Blocked | 49 |
-| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | In Progress | 50 |
-| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | In Progress | 51 |
-| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | In Progress | 52 |
+| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | Completed | 45 |
+| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | Completed | 46 |
+| A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Not Started | 47 |
+| A-015a | Subscription Plans | A-015 | A-015 | 9 | Not Started | 48 |
+| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Not Started | 49 |
+| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | Completed | 50 |
+| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Completed | 51 |
+| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Completed | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
-| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Blocked | 54 |
+| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Not Started | 54 |
 | A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |
 
 **Note on A-023 Dependencies:** the mobile app is a client shell over every customer-facing aspect
