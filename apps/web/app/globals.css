@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Taebo mascot (apps/web/components/TaeboPanda.tsx) — a gentle idle "breathing" bob so the
+   photographic full-body panda doesn't sit dead-still on the page; kept subtle since a raster
+   photo reads as fake much faster than an illustration under a large motion. */
+@keyframes taebo-idle-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.taebo-idle-bob {
+  animation: taebo-idle-bob 3.2s ease-in-out infinite;
+}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TaeboMessageDto, TaeboReplyDto, TaeboSuggestionDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { TaeboPanda } from './TaeboPanda';
 
 // docs/specs/2026-08-28-15-taebo-chatbot.md (aspect A-020). Floating widget on every public page
 // (spec §5 Route(s)) — mounted once in app/layout.tsx.
@@ -12,6 +13,7 @@ import { useAuth } from '@/lib/auth-context';
 const SESSION_KEY = 'czd.taebo.sessionId';
 const GREETED_KEY = 'czd.taebo.greeted';
 const IDLE_MS = 30000;
+const SCROLL_REVEAL_PX = 200;
 
 interface DisplayMessage {
   id: string;
@@ -39,6 +41,7 @@ export function TaeboWidget() {
   const { accessToken } = useAuth();
 
   const [open, setOpen] = useState(false);
+  const [scrolledIn, setScrolledIn] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,26 @@ export function TaeboWidget() {
     apiFetch<PublicSettings>('/api/settings/public')
       .then((s) => setWhatsappHref(s.whatsappNumber ? `https://wa.me/${s.whatsappNumber.replace(/[^\d]/g, '')}` : null))
       .catch(() => setWhatsappHref(null));
+  }, []);
+
+  // The full-body panda "walks onto" the page once the customer scrolls, rather than sitting in
+  // the corner from the very first paint — reads as a character entering the scene, not UI chrome
+  // that was always there. A page short enough to need no scrolling shows it immediately instead
+  // of hiding the mascot (and the chat entry point) forever.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkScroll = () => {
+      const pastThreshold = window.scrollY > SCROLL_REVEAL_PX;
+      const pageTooShortToScroll = document.documentElement.scrollHeight <= window.innerHeight + SCROLL_REVEAL_PX;
+      setScrolledIn(pastThreshold || pageTooShortToScroll);
+    };
+    checkScroll();
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      window.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
   }, []);
 
   // AC-1 — greets once per session, never re-triggers the greeting on later navigation.
@@ -134,23 +157,26 @@ export function TaeboWidget() {
   );
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+    <div className="fixed bottom-0 right-4 z-50 flex flex-col items-end gap-2 sm:right-8">
       {!open && proactiveOffer && (
         <button
           onClick={() => {
             setOpen(true);
             void send(proactiveOffer.question);
           }}
-          className="max-w-xs rounded-lg bg-white px-4 py-2 text-left text-sm text-brand-navy shadow-lg ring-1 ring-black/10"
+          className="mb-1 max-w-xs rounded-lg bg-white px-4 py-2 text-left text-sm text-brand-navy shadow-lg ring-1 ring-black/10"
         >
           Need help with <span className="font-medium">{proactiveOffer.question}</span>?
         </button>
       )}
 
       {open && (
-        <div className="flex h-96 w-80 flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/10">
-          <div className="flex items-center justify-between bg-brand-navy px-4 py-3 text-white">
-            <span className="font-medium">🐼 Taebo Helping Panda</span>
+        <div className="mb-2 flex h-96 w-80 flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/10">
+          <div className="flex items-center justify-between bg-brand-navy px-3 py-2 text-white">
+            <div className="flex items-center gap-2">
+              <TaeboPanda variant="head" className="h-9 w-9 rounded-full" />
+              <span className="font-medium">Taebo Helping Panda</span>
+            </div>
             <button onClick={() => setOpen(false)} aria-label="Close chat">✕</button>
           </div>
 
@@ -222,13 +248,24 @@ export function TaeboWidget() {
         </div>
       )}
 
+      {/* Full-body standing mascot — the click target when the chat panel is closed. Slides up
+          from below the viewport edge once the customer has scrolled (see the scroll effect
+          above), so it reads as Taebo walking onto the page rather than pinned chrome. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Taebo chat"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-navy text-2xl text-white shadow-lg"
+          className="group relative -mb-2 transition-all duration-500 ease-out hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/50 focus-visible:ring-offset-2"
+          style={{
+            transform: scrolledIn ? 'translateY(0)' : 'translateY(140%)',
+            opacity: scrolledIn ? 1 : 0,
+          }}
         >
-          🐼
+          {/* Soft contact-shadow "platform" so the photo reads as standing on the page rather
+              than floating — a raster photo needs this far more than the old SVG did, since it
+              has no built-in ground ellipse. */}
+          <div className="pointer-events-none absolute inset-x-6 bottom-1 h-4 rounded-full bg-black/25 blur-md transition-opacity duration-300 group-hover:opacity-70" />
+          <TaeboPanda variant="full" waving className="relative h-40 transition-transform duration-300 group-hover:-translate-y-1 sm:h-56" />
         </button>
       )}
     </div>
