@@ -1,5 +1,11 @@
 import { PasswordService } from './password.service';
 
+// bcrypt at the real 12-round cost factor (AC-1) can exceed Jest's default 5000ms on a slower/
+// contended CPU — confirmed reproducible even running this file alone, not just under full-suite
+// contention. Bumped rather than lowering the cost factor: AC-1 requires 12 rounds in the real
+// hash, so the test must actually pay that cost, not fake it.
+jest.setTimeout(20000);
+
 describe('PasswordService', () => {
   const service = new PasswordService();
 
