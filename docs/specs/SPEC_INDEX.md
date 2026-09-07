@@ -261,6 +261,38 @@ listOrders()` added by A-019, which had copied the same now-fixed pattern) to re
 validated DTO instance. Re-verified: `test/integration/orders.spec.ts` 5/5 and the full `apps/api`
 unit suite 233/233, both on a freshly-reset database.
 
+As of the 2026-09-07 update: A-020 (Taebo Helping Panda / Chatbot) is `Completed` — full
+implementation of `docs/specs/2026-08-28-15-taebo-chatbot.md` (AC-1–AC-9). Its dependencies, A-012a
+(FAQ) and A-004 (Notifications), were both already `Completed` (see A-012's own prior audit note),
+so this was unblocked and built directly. Backend (`apps/api/src/taebo/`): `TaeboConversation`/
+`TaeboMessage`/`TaeboWaitingQuestion` Prisma models (migration `add_taebo_chatbot`), a keyword-based
+`isRestrictedTopic()` util enforcing AC-4's payment/price/order-status/file-availability escalation
+(checked *before* matching, so a restricted topic always escalates even if a loosely-matching FAQ
+exists), `TaeboMatchingService` (token-overlap scoring against `FaqService.listTaeboVisible()`,
+deliberately swappable behind one interface per AC-7 so a real NLP/embedding matcher can replace it
+later without touching `TaeboService`), and `TaeboService` orchestrating the anti-fabrication
+contract end to end. `POST /api/taebo/chat` and `GET /api/taebo/suggestions` are public/
+opportunistically-authenticated (guest-or-customer, AC-1/AC-6); `GET /api/taebo/unanswered`,
+`POST /api/taebo/unanswered/:id/answer`, and `POST /api/taebo/unanswered/:id/save-as-faq` are
+admin-gated behind a new `taebo` `AdminModule` permission value (migration
+`add_taebo_admin_module`). Frontend: `apps/web/components/TaeboWidget.tsx` (floating widget mounted
+in `app/layout.tsx`, once-per-session greeting via `sessionStorage`, typing indicator, distinct
+matched-answer vs. escalated states, always-visible WhatsApp link per AC-6, AC-9's idle-based
+proactive suggestion, AC-8's voice input via the browser's own Web Speech API transcribing to the
+same `/chat` endpoint — no server-side speech-to-text added); `apps/admin/app/taebo/unanswered/
+page.tsx` (answer form + "Save as FAQ" action). Verified: 16 new unit tests (`taebo-restricted-
+topics.util.spec.ts`, `taebo-matching.service.spec.ts`, `taebo.service.spec.ts` — including the
+AC-4 case asserting the matcher is never even called on a restricted-topic question) and 4
+integration tests (`test/integration/taebo.spec.ts`: matched-answer, restricted-topic-always-
+escalates, full no-match→escalate→admin-answers→customer-notified→save-as-FAQ, page-scoped
+suggestions), all passing against a real Postgres database; full `apps/api` unit suite 249/249;
+`apps/web`/`apps/admin`/`packages/shared-types` all typecheck and lint clean. **Deliberately not
+built:** a `taebo-enabled` feature flag (spec §9) — no feature-flag mechanism exists anywhere else
+in this codebase (every other aspect ships gated by this registry's dependency status instead, not
+a runtime flag), so a bespoke one-off flag for this single aspect was judged inconsistent
+infrastructure rather than a faithful reading of spec intent; flagged here for Admin as an open
+follow-up if Phase 4 gating is still wanted before this goes live with real customer traffic.
+
 ---
 
 ## Aspect Registry
@@ -294,7 +326,7 @@ unit suite 233/233, both on a freshly-reset database.
 | A-005d | Admin: Dashboard | A-005 | A-005, A-004 | 4 | Completed | 25 |
 | A-014 | Services Module (parent) | A-006 | A-006, A-012 | 4 | Completed | 26 |
 | A-018 | Home Sections / Ads / Header Media (parent) | A-006 | A-006, A-012c | 4 | Completed | 27 |
-| A-020 | Taebo Helping Panda (Chatbot) | A-012a | A-012a, A-004 | 4 | Not Started | 28 |
+| A-020 | Taebo Helping Panda (Chatbot) | A-012a | A-012a, A-004 | 4 | Completed | 28 |
 | A-008 | Design Bundles | A-006 | A-006, A-007 | 5 | Completed | 29 |
 | A-009 | Footer & Social Buttons | A-005a | A-005a | 5 | Completed | 30 |
 | A-010 | Contact Us | A-005a | A-005a | 5 | Completed | 31 |

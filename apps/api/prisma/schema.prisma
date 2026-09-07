@@ -45,6 +45,7 @@ enum AdminModule {
   quotes
   custom_requests
   faqs
+  taebo
   tips
   testimonials
   blog
@@ -122,6 +123,8 @@ model User {
   // primary account owner (people they've invited in) vs. where they are the invited member.
   accountMembersInvited   AccountMember[]          @relation("AccountMemberPrimary")
   accountMembershipsHeld  AccountMember[]          @relation("AccountMemberUser")
+  taeboConversations      TaeboConversation[]
+  answeredTaeboQuestions  TaeboWaitingQuestion[]   @relation("TaeboQuestionAnsweredByAdmin")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -1116,7 +1119,9 @@ model Faq {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  tipLinks TipFaqLink[]
+  tipLinks                TipFaqLink[]
+  taeboMatchedMessages    TaeboMessage[]
+  taeboSavedFromQuestions TaeboWaitingQuestion[]
 
   @@index([topic], map: "idx_faqs_topic")
   @@index([languageCode], map: "idx_faqs_language")
@@ -1786,4 +1791,82 @@ model AccountMember {
   @@unique([primaryUserId, memberUserId], map: "uq_account_members_primary_member")
   @@index([memberUserId], map: "idx_account_members_member")
   @@map("account_members")
+}
+
+// docs/specs/2026-08-28-15-taebo-chatbot.md §4 (aspect A-020). customerId is nullable — AC-1/AC-6
+// allow a guest to chat before ever registering; sessionId is what ties a guest's messages
+// together across requests (mirrors Cart.guestSessionId's guest-identity posture).
+model TaeboConversation {
+  id         BigInt  @id @default(autoincrement())
+  customerId BigInt? @map("customer_id")
+  customer   User?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sessionId  String  @map("session_id")
+
+  startedAt     DateTime @default(now()) @map("started_at")
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
+  messages         TaeboMessage[]
+  waitingQuestions TaeboWaitingQuestion[]
+
+  @@index([customerId], map: "idx_taebo_conversations_customer")
+  @@index([sessionId], map: "idx_taebo_conversations_session")
+  @@map("taebo_conversations")
+}
+
+enum TaeboSender {
+  customer
+  taebo
+  admin
+}
+
+// AC-6 — full transcript, retrievable for Admin review/support continuity. matchedFaqId is set
+// only on a genuine FAQ match (AC-2); null on every escalated/no-match reply (AC-3/AC-4) — the
+// absence of a match is itself the anti-fabrication signal, never inferred after the fact.
+model TaeboMessage {
+  id             BigInt            @id @default(autoincrement())
+  conversationId BigInt            @map("conversation_id")
+  conversation   TaeboConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  sender  TaeboSender
+  message String
+
+  matchedFaqId BigInt? @map("matched_faq_id")
+  matchedFaq   Faq?    @relation(fields: [matchedFaqId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId], map: "idx_taebo_messages_conversation")
+  @@map("taebo_messages")
+}
+
+enum TaeboWaitingStatus {
+  waiting
+  answered
+}
+
+// AC-3/AC-4/AC-5 — created whenever Taebo cannot verifiably answer from approved content
+// (no FAQ match, or a restricted topic per AC-4's keyword list). savedAsFaqId is set only when
+// Admin uses the AC-5 "Save as FAQ" action; most answered rows leave it null (answered inline
+// without becoming a reusable FAQ entry).
+model TaeboWaitingQuestion {
+  id             BigInt            @id @default(autoincrement())
+  conversationId BigInt            @map("conversation_id")
+  conversation   TaeboConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  questionText String             @map("question_text")
+  status       TaeboWaitingStatus @default(waiting)
+
+  adminAnswer       String? @map("admin_answer")
+  answeredByAdminId BigInt? @map("answered_by_admin_id")
+  answeredByAdmin   User?   @relation("TaeboQuestionAnsweredByAdmin", fields: [answeredByAdminId], references: [id], onDelete: SetNull)
+
+  savedAsFaqId BigInt? @map("saved_as_faq_id")
+  savedAsFaq   Faq?    @relation(fields: [savedAsFaqId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  answeredAt DateTime? @map("answered_at")
+
+  @@index([conversationId], map: "idx_taebo_waiting_questions_conversation")
+  @@index([status], map: "idx_taebo_waiting_questions_status")
+  @@map("taebo_waiting_questions")
 }

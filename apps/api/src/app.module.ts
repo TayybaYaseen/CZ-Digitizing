@@ -44,6 +44,7 @@ import { FileFormatRequestsModule } from './file-format-requests/file-format-req
 import { I18nModule } from './i18n/i18n.module';
 import { ContactModule } from './contact/contact.module';
 import { AccountModule } from './account/account.module';
+import { TaeboModule } from './taebo/taebo.module';
 
 @Module({
   imports: [
@@ -108,6 +109,9 @@ import { AccountModule } from './account/account.module';
     // CustomRequestsModule/DesignsModule (delegated reads + avatar upload reuse), all registered
     // above.
     AccountModule,
+    // Taebo (A-020) — depends on FaqModule (AC-2/AC-4 matching source of truth) and
+    // NotificationsModule (AC-3/AC-5 escalation + answer notifications), both registered above.
+    TaeboModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

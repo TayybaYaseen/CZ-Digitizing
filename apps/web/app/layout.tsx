@@ -6,6 +6,7 @@ import { CartProvider } from '@/lib/cart-context';
 import { LocaleProvider } from '@/lib/locale-context';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { TaeboWidget } from '@/components/TaeboWidget';
 
 // docs/specs/2026-09-02-01-brand-visual-identity.md AC-4 — one consistent font family loaded via
 // next/font (self-hosted, no runtime <link>/layout-shift), not the default system-font stack.
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Header />
               <main className="p-6">{children}</main>
               <Footer />
+              <TaeboWidget />
             </CartProvider>
           </LocaleProvider>
         </AuthProvider>
