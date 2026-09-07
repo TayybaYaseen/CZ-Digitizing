@@ -38,6 +38,47 @@ describe('TaeboMatchingService', () => {
     expect(result?.faq.id).toBe('1');
   });
 
+  it('matches a longer, differently-worded customer question against a short FAQ question (stemming + min-size scoring)', async () => {
+    const faqs = [makeFaq({ id: '1', question: 'What file formats do you support?', topic: 'formats' })];
+    const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
+
+    const result = await service.findBestMatch('Hi there, I was wondering which embroidery file formats you are able to support for my project?');
+
+    expect(result?.faq.id).toBe('1');
+  });
+
+  it('matches via the answer text when the question wording shares nothing with the FAQ question but strongly overlaps the answer', async () => {
+    const faqs = [
+      makeFaq({
+        id: '1',
+        question: 'More details',
+        topic: 'info',
+        answer: 'We offer embroidery designs in multiple standard sizes such as 4x4, 5x7, and 6x10 inches.',
+      }),
+    ];
+    const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
+
+    const result = await service.findBestMatch('What standard sizes do you offer for embroidery designs?');
+
+    expect(result?.faq.id).toBe('1');
+  });
+
+  it('does not match via the answer text when overlap is only partial (answer channel needs a higher bar)', async () => {
+    const faqs = [
+      makeFaq({
+        id: '1',
+        question: 'More details',
+        topic: 'info',
+        answer: 'We offer embroidery designs in multiple standard sizes such as 4x4, 5x7, and 6x10 inches.',
+      }),
+    ];
+    const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
+
+    const result = await service.findBestMatch('Do you have any discounts on bulk orders?');
+
+    expect(result).toBeNull();
+  });
+
   it('returns null when no FAQ meaningfully overlaps (AC-3: never guess)', async () => {
     const faqs = [makeFaq({ id: '1', question: 'What file formats do you support?', topic: 'formats' })];
     const service = new TaeboMatchingService(createFakeFaqService(faqs) as never);
