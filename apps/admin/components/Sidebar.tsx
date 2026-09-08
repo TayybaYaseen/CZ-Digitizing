@@ -42,7 +42,7 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'System' },
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },
-  { href: '/settings/freelancer-accounts', label: 'Accounts' },
+  { href: '/settings/freelancer-accounts', label: 'Admin Users & Sessions' }, // A-005f
   { href: '/settings/file-formats', label: 'File Formats' },
   { href: '/settings/languages', label: 'Languages' }, // A-021
   { href: '/settings/translations', label: 'Translations' }, // A-021

@@ -88,6 +88,25 @@ export class SessionService {
     });
   }
 
+  // A-005f (Admin Users/Roles & Active Sessions) — every non-revoked, non-expired session for a
+  // staff account, newest activity first, for the Admin "Active Sessions" screen.
+  listActiveForUser(userId: bigint) {
+    return this.prisma.session.findMany({
+      where: { userId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      orderBy: { lastActivityAt: 'desc' },
+    });
+  }
+
+  // Throws if the session doesn't belong to the given user — callers must not let one staff
+  // account revoke another's session by guessing an id.
+  async revokeForUser(sessionId: string, userId: bigint) {
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) {
+      throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Session not found');
+    }
+    return this.revoke(sessionId);
+  }
+
   private isExpired(session: Session): boolean {
     return session.expiresAt !== null && session.expiresAt.getTime() < Date.now();
   }
