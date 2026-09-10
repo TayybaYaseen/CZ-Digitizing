@@ -27,4 +27,16 @@ describe('TotpService (AC-5)', () => {
     const enrollment = service.generateEnrollment('admin@example.com');
     expect(() => service.verify('000000', enrollment.encryptedSecret)).toThrow();
   });
+
+  // A code from the immediately-preceding 30s step must still verify — otherwise the ordinary
+  // read-code-off-phone-then-type-it latency intermittently rejects a genuinely correct code.
+  it('accepts a code from the previous 30-second step (submission latency tolerance)', () => {
+    const enrollment = service.generateEnrollment('admin@example.com');
+    const realNow = Date.now;
+    Date.now = () => realNow() - 30000;
+    const previousStepCode = authenticator.generate(enrollment.secret);
+    Date.now = realNow;
+
+    expect(() => service.verify(previousStepCode, enrollment.encryptedSecret)).not.toThrow();
+  });
 });

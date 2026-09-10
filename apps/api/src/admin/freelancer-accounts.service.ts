@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AdminAccessLevel, AdminModule, AdminPermission, User } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import { toUserProfileDto, type UserProfileDto } from '../auth/dto/user-profile.dto';
+import { toSessionInfoDto, type SessionInfoDto } from '../auth/dto/session-info.dto';
 import { SessionService } from '../auth/services/session.service';
 import { VerificationCodeService } from '../auth/services/verification-code.service';
 import type { AccessTokenPayload } from '../auth/token.types';
@@ -136,9 +137,10 @@ export class FreelancerAccountsService {
   // A-005f — Active Sessions: list a staff account's non-revoked, non-expired sessions. Any staff
   // role (admin/freelancer/moderator) can be inspected here, unlike updatePermissions/revoke which
   // are freelancer/moderator-only — viewing sessions isn't a scope-editing action.
-  async listSessions(id: string) {
+  async listSessions(id: string): Promise<SessionInfoDto[]> {
     const user = await this.findOrThrow(id, ['admin', 'freelancer', 'moderator']);
-    return this.sessions.listActiveForUser(user.id);
+    const sessions = await this.sessions.listActiveForUser(user.id);
+    return sessions.map(toSessionInfoDto);
   }
 
   async revokeSession(id: string, sessionId: string, admin: AccessTokenPayload): Promise<void> {
