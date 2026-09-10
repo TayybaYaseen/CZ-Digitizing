@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { PushTokensModule } from '../users/push-tokens/push-tokens.module';
 import { NotificationsAdminController } from './notifications-admin.controller';
 import { NotificationsCustomerController } from './notifications-customer.controller';
 import { NotificationBatchingService } from './services/notification-batching.service';
@@ -16,6 +17,7 @@ import { NotificationService } from './services/notification.service';
 // NotificationService without importing this module explicitly.
 @Global()
 @Module({
+  imports: [PushTokensModule],
   controllers: [NotificationsAdminController, NotificationsCustomerController],
   providers: [
     NotificationService,

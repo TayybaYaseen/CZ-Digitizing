@@ -102,6 +102,7 @@ model User {
   auditLogs               AuditLog[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  pushTokens              PushToken[]
   favorites               Favorite[]
   authorizedFiles         CustomerAuthorizedFile[]
   cart                    Cart?
@@ -419,6 +420,27 @@ model NotificationPreference {
 
   @@unique([userId, notificationType, channel], map: "uq_notification_preferences_user_type_channel")
   @@map("notification_preferences")
+}
+
+enum PushPlatform {
+  ios
+  android
+}
+
+// docs/specs/2026-08-29-18-mobile-app-android-ios.md §3/§4 (aspect A-023). Modeled the same way as
+// NotificationPreference above: one row per (user, device token), cascade-deleted with the user.
+// `token` is globally unique (a device/Expo push token identifies one installation, not one user —
+// re-registering the same token from a different account moves it, matching Expo's own semantics).
+model PushToken {
+  id       BigInt       @id @default(autoincrement())
+  userId   BigInt       @map("user_id")
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token    String       @unique
+  platform PushPlatform
+  createdAt   DateTime  @default(now()) @map("created_at")
+  lastSeenAt  DateTime  @default(now()) @updatedAt @map("last_seen_at")
+
+  @@map("push_tokens")
 }
 
 // docs/specs/2026-08-28-04-design-catalog-browsing.md §4 (aspect A-006). Two-level category tree

@@ -6,6 +6,8 @@ import { RedisService } from '../../redis/redis.service';
 import {
   DEVICE_CODE_MAX_ATTEMPTS,
   DEVICE_CODE_TTL_MS,
+  EMAIL_CODE_MAX_ATTEMPTS,
+  EMAIL_CODE_TTL_MS,
   RESET_CODE_MAX_ATTEMPTS,
   RESET_CODE_TTL_MS,
 } from '../auth.constants';
@@ -105,5 +107,44 @@ export class VerificationCodeService {
 
   consumeResetCode(userId: bigint): Promise<number> {
     return this.redis.client.del(this.resetKey(userId));
+  }
+
+  // Email verification code (aspect A-023) — same Redis-by-user-id shape as the reset code above;
+  // no session context exists yet either (the customer isn't logged in between register and
+  // verify), and a TTL here satisfies the same "purged after use or expiry" retention rule.
+  private emailCodeKey(userId: bigint): string {
+    return `auth:emailverify:${userId}`;
+  }
+
+  async issueEmailCode(userId: bigint): Promise<string> {
+    const code = this.generateCode();
+    const record: ResetCodeRecord = { hash: this.hash(code), attempts: 0 };
+    await this.redis.client.set(this.emailCodeKey(userId), JSON.stringify(record), 'PX', EMAIL_CODE_TTL_MS);
+    return code;
+  }
+
+  async verifyEmailCode(userId: bigint, code: string): Promise<void> {
+    const key = this.emailCodeKey(userId);
+    const raw = await this.redis.client.get(key);
+    if (!raw) throw new ApiException('INVALID_OR_EXPIRED_CODE', 401, 'Invalid or expired code');
+
+    const record = JSON.parse(raw) as ResetCodeRecord;
+    if (record.attempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+      throw new ApiException('RATE_LIMITED', 429, 'Too many attempts — request a new code');
+    }
+    if (record.hash === this.hash(code)) return;
+
+    record.attempts += 1;
+    const remainingTtl = await this.redis.client.pttl(key);
+    await this.redis.client.set(key, JSON.stringify(record), 'PX', Math.max(remainingTtl, 1));
+    throw new ApiException(
+      record.attempts >= EMAIL_CODE_MAX_ATTEMPTS ? 'RATE_LIMITED' : 'INVALID_OR_EXPIRED_CODE',
+      record.attempts >= EMAIL_CODE_MAX_ATTEMPTS ? 429 : 401,
+      record.attempts >= EMAIL_CODE_MAX_ATTEMPTS ? 'Too many attempts — request a new code' : 'Invalid or expired code',
+    );
+  }
+
+  consumeEmailCode(userId: bigint): Promise<number> {
+    return this.redis.client.del(this.emailCodeKey(userId));
   }
 }

@@ -58,10 +58,15 @@ export class AuthService {
     });
 
     const token = this.tokens.signEmailVerificationToken(user.id);
+    const code = await this.codes.issueEmailCode(user.id);
     await this.email.send({
       to: user.email,
       subject: 'Verify your CZ Digitizing account',
-      text: `Verify your email: ${this.webBaseUrl}/verify-email?token=${encodeURIComponent(token)}`,
+      // apps/web verifies via the link; apps/mobile (aspect A-023) has no deep-link handler back
+      // into the app, so it verifies via the code instead — both open the same underlying account.
+      // Code listed first: the JWT link token's own digits can otherwise satisfy a naive
+      // "first 4-digit run" scan (see test/integration/auth.spec.ts's lastEmailCodeTo helper).
+      text: `Your verification code: ${code}\n\nOr verify via link: ${this.webBaseUrl}/verify-email?token=${encodeURIComponent(token)}`,
     });
 
     // AC-8 (Customer Account & Purchase History, aspect A-019) — retroactively link any guest
@@ -77,6 +82,18 @@ export class AuthService {
   async verifyEmail(token: string): Promise<void> {
     const payload = this.tokens.verifyEmailVerificationToken(token);
     await this.prisma.user.update({ where: { id: BigInt(payload.sub) }, data: { gmailVerified: true } });
+  }
+
+  // Code counterpart to verifyEmail above (aspect A-023) — same effect, different client-provided
+  // proof. Looked up by email since the customer has no session yet at this point in the flow,
+  // mirroring resetPassword's own email-keyed lookup just below.
+  async verifyEmailByCode(email: string, code: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new ApiException('INVALID_OR_EXPIRED_CODE', 401, 'Invalid or expired code');
+
+    await this.codes.verifyEmailCode(user.id, code);
+    await this.prisma.user.update({ where: { id: user.id }, data: { gmailVerified: true } });
+    await this.codes.consumeEmailCode(user.id);
   }
 
   // --- Login (AC-2/AC-3/AC-5/AC-11) ---
@@ -289,7 +306,7 @@ export class AuthService {
     const accessToken = this.tokens.signAccessToken({ userId: user.id, email: user.email, role: user.role, deviceId, permissions });
     const refreshToken = this.tokens.signRefreshToken({ userId: user.id, sessionId });
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return { accessToken, refreshToken, user: toUserProfileDto(user) };
+    return { accessToken, refreshToken, user: toUserProfileDto(user), deviceId };
   }
 
   // AC-8/AC-21 — freelancer/moderator get the granular AdminPermission set; customer/admin don't

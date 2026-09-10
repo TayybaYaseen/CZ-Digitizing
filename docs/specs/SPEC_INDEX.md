@@ -335,6 +335,213 @@ a runtime flag), so a bespoke one-off flag for this single aspect was judged inc
 infrastructure rather than a faithful reading of spec intent; flagged here for Admin as an open
 follow-up if Phase 4 gating is still wanted before this goes live with real customer traffic.
 
+As of the 2026-09-10 update (branch `feature/23-mobile-app-android-ios`): A-023 (Mobile App
+(Android/iOS) & Cross-Platform Sync) is `In Progress` — its dependencies (`A-002` + all of
+`A-003`–`A-022`) were all `Completed` before this started (see the 2026-09-07 follow-up note below
+for how A-015/A-017/A-017a/A-019/A-019a's own gap was closed first), per `CLAUDE.md` §3. Per the
+spec's own scoping, this introduces no new business logic — every screen is a thin client over an
+API every owning feature spec already built and tested; the only genuinely new backend surface is
+`push_tokens` (spec §3/§4). **Built and verified this pass:** `PushToken` Prisma model + migration
+`20260907153250_add_push_tokens`; `apps/api/src/users/push-tokens/` module (`POST /api/users/
+push-token` upsert-on-`(user_id, token)`, `DELETE /api/users/push-token/:token` own-token-only);
+`NotificationPushService` rewritten from its `TODO(A-023)` stub (throwing "Push not yet wired") to
+a real send against Expo's push HTTP endpoint (`https://exp.host/--/api/v2/push/send`, which itself
+fans out to FCM/APNs — the standard Expo-managed path per architecture's "FCM + APNs"; calls the
+endpoint directly with `fetch` rather than the `expo-server-sdk` npm package, which ships ESM-only
+and is incompatible with this repo's CommonJS Jest toolchain — documented in the service's own file
+comment); `apps/mobile`, a new Expo-managed-workflow TypeScript app (resolves spec §8 risk #2),
+wired into the pnpm workspace and `turbo.json`, with `lib/api-client.ts`/`lib/auth-context.tsx`
+ported from `apps/web`'s own (SecureStore instead of localStorage, an explicit `x-device-id` header
+instead of the browser cookie jar — `apps/api/src/auth/auth.controller.ts`'s `resolveDevice()` now
+accepts either, additive and backward compatible with `apps/web`'s existing cookie-only flow), a
+React Navigation bottom-tab shell (Home/Categories/Search/Cart/Account, each its own stack), and the
+following screens calling the exact same routes `apps/web` already uses: Home, Search, Categories,
+Category Designs, Design Detail, Cart, Checkout (PayPal + bank-transfer), Order Confirmation,
+Login/Register/Forgot-Reset-Password/Verify-Device/Verify-Email, Account (Orders, Purchased
+Designs, Credits, Subscription, Notifications), Language Selection, and an Admin Login → TOTP-2FA →
+read-only Admin Dashboard summary path (AC-4) reachable only via a distinct entry, not the customer
+tab bar. Push-token registration on login/foreground and deregistration on logout
+(`lib/push-registration.ts`). Tests: `apps/api` push-tokens unit (6/6) + integration (5/5, real
+Postgres) + `notification-push.service.spec.ts` (4/4, mocked Expo transport); `apps/mobile`'s own
+`push/push-registration.spec.ts` (5/5, mocked `expo-notifications`); a new root-level
+`e2e/cross-platform-sync.e2e.spec.ts` (4/4 against real Postgres) proving AC-7/AC-8/AC-12/AC-13 by
+construction — two independent authenticated HTTP agents ("web" and "mobile") against the same
+account see identical cart/credit-balance/notification-read-state, since neither has any
+client-local cache to diverge from the other; full existing `apps/api` unit suite re-run clean
+(265/265, no regressions from the auth/notification changes); the whole monorepo (including the new
+`apps/mobile` package) typechecks clean via `pnpm turbo run typecheck`.
+
+**Follow-up (same day, same branch):** the first `expo start --web` compile above was misleading —
+it produced a bundle that compiled without a Metro error but rendered a blank page at runtime,
+caught only once an actual interactive check was run against it. Root cause: `apps/mobile`'s
+`metro.config.js` watches the whole monorepo root (needed so Metro's Haste map/symlink resolution
+covers the shared pnpm store), and Metro's default hierarchical module lookup let some of Expo's own
+internal modules (`expo/build/environment/DevLoadingView.js`) resolve `react` to `apps/web`/
+`apps/admin`'s `18.3.1` instead of the `18.2.0` this app pins for Expo SDK 51 — two live React
+instances in one bundle, which breaks every hook ("Cannot read properties of null (reading
+'useState')"), confirmed both via a Playwright `pageerror` listener and by grepping the built
+bundle's own module-path map for two different `react@…` package directories. `extraNodeModules`
+does **not** fix this (it's a last-resort fallback Metro only checks after hierarchical lookup
+already succeeded, even at the wrong path); the real fix is a custom `resolver.resolveRequest` in
+`metro.config.js` that resolves `react`/`react-dom`/`react-native`/`scheduler` to one concrete file
+each via Node's own `require.resolve` (scoped from `react-dom`'s own install directory for
+`scheduler`, since it's not apps/mobile's own direct dependency) — bypassing hierarchical lookup
+entirely for exactly these four singleton packages. Re-verified with Playwright end to end this
+time: `http://localhost:8083/` (booted alongside a real running `apps/api` on `:4000`) renders the
+actual `LoginScreen` (Sign in form, Email/Password fields, Sign in button, Create an account/Forgot
+password links) with zero console errors, screenshot taken — the Playwright evidence standard this
+file uses for `apps/web`/`apps/admin` passes, now actually met rather than assumed from a clean
+compile.
+
+**Second follow-up (same day):** clicking Login/Register from that same web preview surfaced a
+second, unrelated bug — every request failed with a browser CORS error and both screens showed only
+the generic "Something went wrong. Please try again." fallback (neither screen's `catch` block
+distinguishes a CORS/network failure from a real API error — see `LoginScreen.tsx`/
+`RegisterScreen.tsx`'s `catch (e) { ... else setError('Something went wrong...') }`). Root cause:
+`apps/api`'s `CORS_ORIGINS` allowlist (`apps/api/.env`, `.env.example`) only listed the web/admin
+dev ports (`3000`/`3002`/`3010`/`3012`), never updated for `apps/mobile`'s `expo start --web` dev
+preview (`8081`/`8083`). Fixed by adding both ports to `CORS_ORIGINS` in `.env` and `.env.example`
+(`.env` itself is git-ignored — the committed fix is the `.env.example` entry plus this note, so a
+fresh clone doesn't hit the same wall). Re-verified with Playwright end to end against the real
+API: `POST /api/auth/register` now returns `201` and the screen shows its real "Check your email"
+success state; `POST /api/auth/login` for that same new account correctly returns `401
+NEW_DEVICE_VERIFICATION_REQUIRED` (first login from an unrecognized device, exactly per the Auth
+spec's own AC-2/AC-3) and the screen correctly navigates to `VerifyDeviceScreen`, rather than
+showing an error — both flows working exactly as designed once the CORS block was gone. Note this
+CORS gap is a *dev-environment* config issue specific to the `expo start --web` preview target the
+web-based verification in this file relies on — the native app (iOS/Android) makes no browser-origin
+fetches and was never affected. Only Login/Register were click-through-verified this pass (proving
+both fixes, not full coverage); walking the rest of the core-slice screens the same way is still
+open.
+
+**Third follow-up (same day):** added a code-based email-verification path, additive to the
+existing link (spec §3/§4 introduced `push_tokens` as this aspect's own new backend surface;
+this is a second, smaller one, in the same spirit — apps/mobile has no deep-link handler to catch
+the register email's link, so it can't complete that flow at all today). `register()`
+(`apps/api/src/auth/auth.service.ts`) now also issues a 4-digit code via
+`VerificationCodeService.issueEmailCode()` (new method, Redis-keyed by user id, same TTL/attempt
+shape as the existing reset-password code — `EMAIL_CODE_TTL_MS`/`EMAIL_CODE_MAX_ATTEMPTS` in
+`auth.constants.ts`) and includes it in the same email the link already goes out in, listed first
+(the link's own JWT digits were shadowing the code in the code-extraction test helper otherwise —
+caught and fixed by the integration test itself, not assumed correct). New public, rate-limited
+`POST /api/auth/verify-email-code {email, code}` (`VerifyEmailCodeDto`, mirrors
+`VerifyNewDeviceDto`'s shape) — same effect as the existing link (`gmailVerified: true`), different
+proof. apps/web/apps/admin are untouched; this is additive only. `apps/mobile`'s `RegisterScreen`
+now shows a code-entry form on its "Check your email" success step (instead of the old dead-end
+message) and a distinct "Email verified" success state once verified — same visual pattern as
+`VerifyDeviceScreen`. Verified: 3 new `apps/api` integration tests (happy path, wrong code → 401
+`INVALID_OR_EXPIRED_CODE`, 3 wrong attempts → 429 `RATE_LIMITED`), full `apps/api` suite re-run
+clean (265/265); end-to-end against the real running stack with Playwright — register → the emailed
+code (read from the dev `EmailService` console-log sink) → `POST /api/auth/verify-email-code`
+returns `200 {"verified":true}` → screen shows "Email verified," screenshot taken; a wrong code
+correctly shows "Invalid or expired code." on-screen.
+
+**Fourth follow-up (same day):** the code-based email verification above surfaced a much bigger,
+previously-undetected bug while testing the very next step (login's own new-device verification,
+same AC-2/AC-3 mechanism) — a real customer hit it live during this pass, not just this file's own
+Playwright script. Root cause, found by direct reproduction: `expo-secure-store`'s own web platform
+module is a literal `export default {}` (verified in node_modules) — SecureStore has **no web
+implementation at all**, a documented Expo limitation (native-only: iOS Keychain / Android
+Keystore), not a bug in this app's code. Every `getItemAsync`/`setItemAsync` call was silently
+failing under `expo start --web` — meaning apps/mobile's session/device-id persistence has never
+actually worked in the *web preview specifically* (native iOS/Android builds are unaffected — a
+real SecureStore backs them). Concretely, this broke new-device verification: a customer's first
+login mints a fresh server-side device id (spec's own `resolveDevice()`), which apps/web gets "for
+free" via its httpOnly cookie but apps/mobile has no cookie jar for — it was meant to capture this
+id and resend it on the next request (`verify-new-device`), but with `setItemAsync` failing
+silently, the id was never actually stored; the next request sent no device id, the server minted a
+*second, different* one, and `AuthService.verifyNewDevice()`'s session lookup (keyed on device id)
+found nothing — the customer's correct code was rejected as `INVALID_OR_EXPIRED_CODE` no matter
+how many times they retried, only ever getting a fresh code that would fail the same way. Two-part
+fix: (1) new `apps/mobile/lib/storage.ts` — every caller (`api-client.ts`, `auth-context.tsx`,
+`locale-context.tsx`) now goes through this instead of importing `expo-secure-store` directly; it
+uses the real SecureStore on native and `localStorage` on web, so persistence actually works on
+both targets instead of silently no-op'ing on web. (2) closed a second, independent gap this
+surfaced: the very first `NEW_DEVICE_VERIFICATION_REQUIRED` response never carried the freshly-
+minted device id anywhere apps/mobile could read it from (only in the httpOnly cookie apps/web
+reads, invisible to `fetch()`), so even with working storage there was nothing to capture yet —
+`AuthController.resolveDevice()` (`apps/api`) now also echoes it via an `x-device-id` *response*
+header on every device-resolving route (register/login/verify-new-device/oauth-callback/magic-
+link), exposed cross-origin via `main.ts`'s CORS `exposedHeaders` (a custom header is otherwise
+invisible to browser JS cross-origin); `api-client.ts`'s `fetchWithAuthRetry()` reads it off every
+response (success or error) and persists it before the caller ever sees the error, so the very next
+request already carries the right id. Both fixes were additive/backward-compatible — apps/web is
+untouched (still cookie-only), and a stray defensive `try/catch` around `setDeviceId()` was also
+added so a storage failure can never again masquerade as a generic "Something went wrong" (it had
+been silently swallowing the real `NEW_DEVICE_VERIFICATION_REQUIRED` handling entirely during
+mid-fix testing — caught and fixed in the same pass, not shipped). Verified end-to-end against the
+real running stack with Playwright, this time all the way through: register → email-code verify →
+login → real new-device code (read from the dev `EmailService` log) → `verify-new-device` returns
+`200` with real access/refresh tokens → app lands on the Home tab bar (screenshot taken) — the first
+time this pass that a login has been proven to fully succeed in the web preview, not just reach the
+device-verification screen. Full `apps/api` suite re-run clean (265/265) and the `auth.spec.ts`
+integration suite re-run clean (18/18); `apps/mobile`'s own unit suite re-run clean (5/5);
+`pnpm turbo run typecheck` clean. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
+API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
+Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
+were judged lower-priority than the core purchase/account/sync-critical flows above for this initial
+pass. Also not built: AC-6's release-size/performance-budget verification (requires an actual app
+build, not just dev-mode `expo start`) and native iOS/Android device or emulator testing (none
+available in this environment — the `expo start --web` compile above is the closest substitute,
+same practical constraint this project has already solved for `apps/web` via Playwright). Given the
+deferred screens and the missing interactive-browser-verification step, this stays `In Progress`
+rather than `Completed`, per `CLAUDE.md` §5's "existence is not completion" rule.
+
+As of the 2026-09-07 update (follow-up, branch `chore/verify-a015-a017-a019-frontend`): A-015
+(Subscriptions & Credits), A-017 (Custom Design Request System), A-017a (File Format Requests),
+A-019 (Customer Account & Purchase History), and A-019a (Customer Activity Timeline) are all
+corrected from `In Progress` to `Completed` — the one gap keeping each at `In Progress` (frontend
+never exercised in a real browser session) is now closed. Ran the real stack (`apps/api` + `apps/web`
++ `apps/admin` against real local Postgres) and drove it with Playwright (installed fresh again this
+pass — no browser tool persists between sessions in this environment, same as A-021's own note).
+Logged in as a real seeded customer (`customer@czd.test`) and a real seeded admin (`admin@czd.test`),
+both through their actual auth gates rather than bypassed — customer new-device email-code
+verification (code read from the dev console-log email sink) and admin mandatory-TOTP-2FA (a fresh
+secret set up via the real `/api/auth/2fa/setup`/`confirm` flow, code generated with `otplib`, same
+library the backend itself uses) — then visited all 18 target routes and captured a screenshot of
+each: customer `/pricing`, `/account/subscription`, `/account/credits`, `/cart`, `/checkout`,
+`/custom-request`, `/account/custom-requests`, `/account/orders`, `/account/profile`,
+`/account/activity`, `/account/members`, `/account/purchased-designs`; admin `/pricing`, `/credits`,
+`/custom-requests`, `/file-format-requests`, `/customers` (admin routes have no `/admin` prefix in
+this app — confirmed against the actual `apps/admin/app` route tree, not assumed). Every page
+rendered its real authenticated content (not a login redirect, not an error page) — confirmed
+programmatically (response status, no client-side redirect back to `/login`, no error-banner text)
+and visually via the screenshots. Additionally verified AC-9/AC-15 of A-019a directly: opening a
+design detail page (`/designs/5`) fires `POST /api/designs/:id/view` (confirmed `202` in the network
+log), and a reload of the same page reuses the same client-side session id rather than minting a
+new one, so despite the client firing the call twice per load (a benign React dev-mode
+double-effect, not a production-path bug) only **one** `activity_events` row exists in Postgres for
+that view — confirmed by querying the table directly, proving the server-side idempotency guarantee
+actually holds, not just the schema's unique constraint in isolation. Re-ran the project's existing
+automated suites, one file at a time on the already-running dev Postgres per this file's own
+established test-isolation practice (see the 2026-09-07 A-013 dated note above for why): `apps/api`'s
+full unit suite (256/256 passing, no regressions), `test/integration/subscriptions-credits.spec.ts`
+(7/7), and `test/integration/custom-requests.spec.ts` (5/5) — no dedicated integration spec file
+exists for A-019/A-019a specifically (its own unit tests — `ActivityService` idempotency,
+`AccountService.listPurchasedDesigns` — were already covered in the 2026-09-07 build note above and
+are included in the 256). **Genuine gap, not silently closed:** no seeded order in this database
+reaches a paid/`payment_confirmed`+ state (the only seeded order, on the `orders-test.example.com`
+customer, sits at `payment_pending`), so the file-list-and-download-request UI on
+`/order-confirmation/:id` and the "Need Another File Format?" control's actual submit flow (both of
+which only render meaningfully against a paid order) were verified by code path and by the
+`/account/orders` page itself rendering correctly, but not exercised end-to-end against a real paid
+order in this pass — building one from scratch (real checkout + admin bank-transfer confirmation)
+was judged out of proportion for closing this specific gap and is flagged here rather than
+fabricated as tested. This does not block `Completed` for A-019/A-019a: the same download-byte-
+streaming gap was already flagged as a pre-existing, out-of-scope-for-this-spec A-007 limitation in
+this file's own 2026-09-07 build note, and the UI code paths themselves are real and reachable, not
+missing. A-005e (Admin: Data Exports), A-015a (Subscription Plans), and A-015b (Credit Packages &
+Ledger) are mechanically unblocked from `Blocked` to `Not Started` per `CLAUDE.md` §5, since their
+respective Dependencies (`A-005, A-013, A-016, A-017` and `A-015`) are now all `Completed`. **A-023
+(Mobile App) is mechanically unblocked from `Blocked` to `Not Started`** per `CLAUDE.md` §5 and this
+file's own note on A-023's Dependencies: its full dependency set, `A-002 + all of A-003–A-022`, is
+now entirely `Completed` for the first time — A-015, A-017, and A-019 were the last three of that
+range still `In Progress`. (A-023's dependency range is the primary numbered aspects A-003–A-022
+specifically, per this file's existing note explaining that phrasing; sub-lettered aspects like
+A-005e/A-005f/A-015a/A-015b/A-019a are not part of that literal range and are tracked on their own
+parent's dependency chain instead — A-005f, for instance, remains `Not Started` and unrelated to
+A-023's gate.)
+
 ---
 
 ## Aspect Registry
@@ -385,16 +592,16 @@ follow-up if Phase 4 gating is still wanted before this goes live with real cust
 | A-013a | PayPal Integration | A-013 | A-013 | 8 | Completed | 42 |
 | A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Completed | 43 |
 | A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Completed | 44 |
-| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | In Progress | 45 |
-| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | In Progress | 46 |
-| A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Blocked | 47 |
-| A-015a | Subscription Plans | A-015 | A-015 | 9 | Blocked | 48 |
-| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Blocked | 49 |
-| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | In Progress | 50 |
-| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | In Progress | 51 |
-| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | In Progress | 52 |
+| A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | Completed | 45 |
+| A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | Completed | 46 |
+| A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Not Started | 47 |
+| A-015a | Subscription Plans | A-015 | A-015 | 9 | Not Started | 48 |
+| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Not Started | 49 |
+| A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | Completed | 50 |
+| A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Completed | 51 |
+| A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Completed | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
-| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Blocked | 54 |
+| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | In Progress | 54 |
 | A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |
 
 **Note on A-023 Dependencies:** the mobile app is a client shell over every customer-facing aspect

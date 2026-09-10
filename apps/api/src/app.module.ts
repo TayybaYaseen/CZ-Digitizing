@@ -45,6 +45,7 @@ import { I18nModule } from './i18n/i18n.module';
 import { ContactModule } from './contact/contact.module';
 import { AccountModule } from './account/account.module';
 import { TaeboModule } from './taebo/taebo.module';
+import { PushTokensModule } from './users/push-tokens/push-tokens.module';
 
 @Module({
   imports: [
@@ -60,6 +61,9 @@ import { TaeboModule } from './taebo/taebo.module';
     // Orders/Files below each import it to call ActivityService.record() as a side effect of their
     // own handlers (this spec owns the event, not the triggering business logic).
     ActivityModule,
+    // Before NotificationsModule: NotificationPushService (inside NotificationsModule) injects
+    // PushTokensService to resolve a user's registered device tokens.
+    PushTokensModule,
     // Before AuthModule: auth's new-device-login trigger (AC-3) calls NotificationService.
     NotificationsModule,
     AuthModule,

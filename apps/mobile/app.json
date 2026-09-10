@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "CZ Digitizing",
+    "slug": "cz-digitizing-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "czdigitizing",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.czdigitizing.mobile"
+    },
+    "android": {
+      "package": "com.czdigitizing.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

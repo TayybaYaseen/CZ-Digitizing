@@ -24,6 +24,13 @@ export const PENDING_2FA_TTL_SECONDS = 5 * 60;
 // Email verification link (AC-1) — no window stated in spec/architecture; 24h is a common default.
 export const EMAIL_VERIFICATION_TTL_SECONDS = 24 * 60 * 60;
 
+// Email verification code (docs/specs/2026-08-29-18-mobile-app-android-ios.md, aspect A-023) —
+// apps/mobile's register success screen has no way to open the link email (no deep-link handler
+// built), so registration also issues a short code the customer types in-app instead, alongside
+// the existing link apps/web already uses. Same TTL/attempt shape as the other short-lived codes.
+export const EMAIL_CODE_TTL_MS = 15 * 60 * 1000;
+export const EMAIL_CODE_MAX_ATTEMPTS = 3;
+
 // Device-trust cookie (spec §8 risk #2 — fingerprinting method chosen here).
 export const DEVICE_ID_COOKIE = 'czd_device_id';
 export const DEVICE_ID_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000; // ~13 months
