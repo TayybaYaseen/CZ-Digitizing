@@ -391,9 +391,28 @@ time: `http://localhost:8083/` (booted alongside a real running `apps/api` on `:
 actual `LoginScreen` (Sign in form, Email/Password fields, Sign in button, Create an account/Forgot
 password links) with zero console errors, screenshot taken — the Playwright evidence standard this
 file uses for `apps/web`/`apps/admin` passes, now actually met rather than assumed from a clean
-compile. Only the Login screen was click-through-verified this pass (proving the fix, not full
-coverage); walking the rest of the core-slice screens the same way is still open. **Deliberately
-deferred to a follow-up pass** (same "thin screen over existing
+compile.
+
+**Second follow-up (same day):** clicking Login/Register from that same web preview surfaced a
+second, unrelated bug — every request failed with a browser CORS error and both screens showed only
+the generic "Something went wrong. Please try again." fallback (neither screen's `catch` block
+distinguishes a CORS/network failure from a real API error — see `LoginScreen.tsx`/
+`RegisterScreen.tsx`'s `catch (e) { ... else setError('Something went wrong...') }`). Root cause:
+`apps/api`'s `CORS_ORIGINS` allowlist (`apps/api/.env`, `.env.example`) only listed the web/admin
+dev ports (`3000`/`3002`/`3010`/`3012`), never updated for `apps/mobile`'s `expo start --web` dev
+preview (`8081`/`8083`). Fixed by adding both ports to `CORS_ORIGINS` in `.env` and `.env.example`
+(`.env` itself is git-ignored — the committed fix is the `.env.example` entry plus this note, so a
+fresh clone doesn't hit the same wall). Re-verified with Playwright end to end against the real
+API: `POST /api/auth/register` now returns `201` and the screen shows its real "Check your email"
+success state; `POST /api/auth/login` for that same new account correctly returns `401
+NEW_DEVICE_VERIFICATION_REQUIRED` (first login from an unrecognized device, exactly per the Auth
+spec's own AC-2/AC-3) and the screen correctly navigates to `VerifyDeviceScreen`, rather than
+showing an error — both flows working exactly as designed once the CORS block was gone. Note this
+CORS gap is a *dev-environment* config issue specific to the `expo start --web` preview target the
+web-based verification in this file relies on — the native app (iOS/Android) makes no browser-origin
+fetches and was never affected. Only Login/Register were click-through-verified this pass (proving
+both fixes, not full coverage); walking the rest of the core-slice screens the same way is still
+open. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
 API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
 Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
 were judged lower-priority than the core purchase/account/sync-critical flows above for this initial
