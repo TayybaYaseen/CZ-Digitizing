@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ApiClientError, apiFetch } from '../../lib/api-client';
+import { PasswordInput } from '../../components/PasswordInput';
+import { apiFetch } from '../../lib/api-client';
+import { getErrorMessage } from '../../lib/errors';
 import type { AuthStackParamList } from '../../navigation/types';
 
 // Port of apps/web/app/register/page.tsx — POST /api/auth/register, then routes to sign-in.
@@ -25,7 +27,7 @@ export function RegisterScreen({ navigation }: Props) {
       });
       setSuccess(true);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.error.message : 'Something went wrong. Please try again.');
+      setError(getErrorMessage(e, 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -48,7 +50,7 @@ export function RegisterScreen({ navigation }: Props) {
       <Text style={styles.title}>Create account</Text>
       <TextInput style={styles.input} placeholder="Display name (optional)" value={displayName} onChangeText={setDisplayName} />
       <TextInput style={styles.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+      <PasswordInput placeholder="Password" value={password} onChangeText={setPassword} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create account</Text>}

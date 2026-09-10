@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ApiClientError, apiFetch } from '../../lib/api-client';
+import { apiFetch } from '../../lib/api-client';
 import { useAuth, type AuthTokens } from '../../lib/auth-context';
+import { getErrorMessage } from '../../lib/errors';
 import { registerPushToken } from '../../lib/push-registration';
 import type { AuthStackParamList } from '../../navigation/types';
 
@@ -26,7 +27,7 @@ export function VerifyDeviceScreen({ route }: Props) {
       await login(tokens);
       void registerPushToken(tokens.accessToken);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.error.message : 'Invalid or expired code.');
+      setError(getErrorMessage(e, 'Invalid or expired code.'));
     } finally {
       setLoading(false);
     }

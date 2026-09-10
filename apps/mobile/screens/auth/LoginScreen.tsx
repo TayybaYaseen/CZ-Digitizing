@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { PasswordInput } from '../../components/PasswordInput';
 import { ApiClientError, apiFetch } from '../../lib/api-client';
 import { useAuth, type AuthUser } from '../../lib/auth-context';
+import { getErrorMessage } from '../../lib/errors';
 import { registerPushToken } from '../../lib/push-registration';
 import type { AuthStackParamList } from '../../navigation/types';
 
@@ -40,10 +42,8 @@ export function LoginScreen({ navigation }: Props) {
           navigation.navigate('VerifyDevice', { email });
           return;
         }
-        setError(e.error.message);
-      } else {
-        setError('Something went wrong. Please try again.');
       }
+      setError(getErrorMessage(e, 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ export function LoginScreen({ navigation }: Props) {
         onChangeText={setEmail}
         testID="login-email"
       />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} testID="login-password" />
+      <PasswordInput placeholder="Password" value={password} onChangeText={setPassword} testID="login-password" />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={onSubmit} disabled={loading} testID="login-submit">
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}

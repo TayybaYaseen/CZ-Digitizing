@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ApiClientError, apiFetch } from '../../lib/api-client';
+import { apiFetch } from '../../lib/api-client';
 import { useAuth, type AuthTokens } from '../../lib/auth-context';
+import { getErrorMessage } from '../../lib/errors';
 import type { AdminStackParamList } from '../../navigation/types';
 
 // Port of apps/admin/app/login/2fa/page.tsx's verify path (this pass covers an already-enrolled
@@ -29,7 +30,7 @@ export function AdminTwoFactorScreen({ route, navigation }: Props) {
       await login(tokens);
       navigation.replace('AdminDashboard');
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.error.message : 'Invalid code.');
+      setError(getErrorMessage(e, 'Invalid code.'));
     } finally {
       setLoading(false);
     }

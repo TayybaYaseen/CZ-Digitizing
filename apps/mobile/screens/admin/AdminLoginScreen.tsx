@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ApiClientError, apiFetch } from '../../lib/api-client';
+import { PasswordInput } from '../../components/PasswordInput';
+import { apiFetch } from '../../lib/api-client';
+import { getErrorMessage } from '../../lib/errors';
 import type { AdminStackParamList } from '../../navigation/types';
 
 interface PendingTwoFactorResult {
@@ -28,7 +30,7 @@ export function AdminLoginScreen({ navigation }: Props) {
       const result = await apiFetch<PendingTwoFactorResult>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       navigation.navigate('AdminTwoFactor', { challengeToken: result.pendingTwoFactorToken });
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.error.message : 'Something went wrong. Please try again.');
+      setError(getErrorMessage(e, 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -38,7 +40,7 @@ export function AdminLoginScreen({ navigation }: Props) {
     <View style={styles.container}>
       <Text style={styles.title}>Admin sign in</Text>
       <TextInput style={styles.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+      <PasswordInput dark placeholder="Password" value={password} onChangeText={setPassword} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue</Text>}

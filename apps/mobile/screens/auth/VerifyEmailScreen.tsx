@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ApiClientError, apiFetch } from '../../lib/api-client';
+import { apiFetch } from '../../lib/api-client';
+import { getErrorMessage } from '../../lib/errors';
 import type { AuthStackParamList } from '../../navigation/types';
 
 // Port of apps/web/app/verify-email/page.tsx — GET /api/auth/verify-email?token=...
@@ -22,7 +23,7 @@ export function VerifyEmailScreen({ route }: Props) {
       .then(() => setStatus('success'))
       .catch((e) => {
         setStatus('error');
-        setMessage(e instanceof ApiClientError ? e.error.message : 'This verification link is invalid or expired.');
+        setMessage(getErrorMessage(e, 'This verification link is invalid or expired.'));
       });
   }, [route.params?.token]);
 
