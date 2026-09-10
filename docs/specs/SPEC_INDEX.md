@@ -369,13 +369,31 @@ construction — two independent authenticated HTTP agents ("web" and "mobile") 
 account see identical cart/credit-balance/notification-read-state, since neither has any
 client-local cache to diverge from the other; full existing `apps/api` unit suite re-run clean
 (265/265, no regressions from the auth/notification changes); the whole monorepo (including the new
-`apps/mobile` package) typechecks clean via `pnpm turbo run typecheck`. `expo start --web`
-(react-native-web) was booted and its Metro bundle fetched directly to confirm a real, error-free
-compile (3.6MB bundle ending in the entry-point `__r(0)` call, not an error payload) — this confirms
-the app builds and boots, but **no interactive browser click-through of the screens was performed
-this pass** (no screenshots), unlike the Playwright evidence standard used for `apps/web`/
-`apps/admin` passes — flagged honestly as a real, not-yet-closed gap rather than assumed from the
-successful compile. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
+`apps/mobile` package) typechecks clean via `pnpm turbo run typecheck`.
+
+**Follow-up (same day, same branch):** the first `expo start --web` compile above was misleading —
+it produced a bundle that compiled without a Metro error but rendered a blank page at runtime,
+caught only once an actual interactive check was run against it. Root cause: `apps/mobile`'s
+`metro.config.js` watches the whole monorepo root (needed so Metro's Haste map/symlink resolution
+covers the shared pnpm store), and Metro's default hierarchical module lookup let some of Expo's own
+internal modules (`expo/build/environment/DevLoadingView.js`) resolve `react` to `apps/web`/
+`apps/admin`'s `18.3.1` instead of the `18.2.0` this app pins for Expo SDK 51 — two live React
+instances in one bundle, which breaks every hook ("Cannot read properties of null (reading
+'useState')"), confirmed both via a Playwright `pageerror` listener and by grepping the built
+bundle's own module-path map for two different `react@…` package directories. `extraNodeModules`
+does **not** fix this (it's a last-resort fallback Metro only checks after hierarchical lookup
+already succeeded, even at the wrong path); the real fix is a custom `resolver.resolveRequest` in
+`metro.config.js` that resolves `react`/`react-dom`/`react-native`/`scheduler` to one concrete file
+each via Node's own `require.resolve` (scoped from `react-dom`'s own install directory for
+`scheduler`, since it's not apps/mobile's own direct dependency) — bypassing hierarchical lookup
+entirely for exactly these four singleton packages. Re-verified with Playwright end to end this
+time: `http://localhost:8083/` (booted alongside a real running `apps/api` on `:4000`) renders the
+actual `LoginScreen` (Sign in form, Email/Password fields, Sign in button, Create an account/Forgot
+password links) with zero console errors, screenshot taken — the Playwright evidence standard this
+file uses for `apps/web`/`apps/admin` passes, now actually met rather than assumed from a clean
+compile. Only the Login screen was click-through-verified this pass (proving the fix, not full
+coverage); walking the rest of the core-slice screens the same way is still open. **Deliberately
+deferred to a follow-up pass** (same "thin screen over existing
 API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
 Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
 were judged lower-priority than the core purchase/account/sync-critical flows above for this initial
