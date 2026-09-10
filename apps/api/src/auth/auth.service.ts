@@ -289,7 +289,7 @@ export class AuthService {
     const accessToken = this.tokens.signAccessToken({ userId: user.id, email: user.email, role: user.role, deviceId, permissions });
     const refreshToken = this.tokens.signRefreshToken({ userId: user.id, sessionId });
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return { accessToken, refreshToken, user: toUserProfileDto(user) };
+    return { accessToken, refreshToken, user: toUserProfileDto(user), deviceId };
   }
 
   // AC-8/AC-21 — freelancer/moderator get the granular AdminPermission set; customer/admin don't

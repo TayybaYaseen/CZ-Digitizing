@@ -335,6 +335,57 @@ a runtime flag), so a bespoke one-off flag for this single aspect was judged inc
 infrastructure rather than a faithful reading of spec intent; flagged here for Admin as an open
 follow-up if Phase 4 gating is still wanted before this goes live with real customer traffic.
 
+As of the 2026-09-10 update (branch `feature/23-mobile-app-android-ios`): A-023 (Mobile App
+(Android/iOS) & Cross-Platform Sync) is `In Progress` — its dependencies (`A-002` + all of
+`A-003`–`A-022`) were all `Completed` before this started (see the 2026-09-07 follow-up note below
+for how A-015/A-017/A-017a/A-019/A-019a's own gap was closed first), per `CLAUDE.md` §3. Per the
+spec's own scoping, this introduces no new business logic — every screen is a thin client over an
+API every owning feature spec already built and tested; the only genuinely new backend surface is
+`push_tokens` (spec §3/§4). **Built and verified this pass:** `PushToken` Prisma model + migration
+`20260907153250_add_push_tokens`; `apps/api/src/users/push-tokens/` module (`POST /api/users/
+push-token` upsert-on-`(user_id, token)`, `DELETE /api/users/push-token/:token` own-token-only);
+`NotificationPushService` rewritten from its `TODO(A-023)` stub (throwing "Push not yet wired") to
+a real send against Expo's push HTTP endpoint (`https://exp.host/--/api/v2/push/send`, which itself
+fans out to FCM/APNs — the standard Expo-managed path per architecture's "FCM + APNs"; calls the
+endpoint directly with `fetch` rather than the `expo-server-sdk` npm package, which ships ESM-only
+and is incompatible with this repo's CommonJS Jest toolchain — documented in the service's own file
+comment); `apps/mobile`, a new Expo-managed-workflow TypeScript app (resolves spec §8 risk #2),
+wired into the pnpm workspace and `turbo.json`, with `lib/api-client.ts`/`lib/auth-context.tsx`
+ported from `apps/web`'s own (SecureStore instead of localStorage, an explicit `x-device-id` header
+instead of the browser cookie jar — `apps/api/src/auth/auth.controller.ts`'s `resolveDevice()` now
+accepts either, additive and backward compatible with `apps/web`'s existing cookie-only flow), a
+React Navigation bottom-tab shell (Home/Categories/Search/Cart/Account, each its own stack), and the
+following screens calling the exact same routes `apps/web` already uses: Home, Search, Categories,
+Category Designs, Design Detail, Cart, Checkout (PayPal + bank-transfer), Order Confirmation,
+Login/Register/Forgot-Reset-Password/Verify-Device/Verify-Email, Account (Orders, Purchased
+Designs, Credits, Subscription, Notifications), Language Selection, and an Admin Login → TOTP-2FA →
+read-only Admin Dashboard summary path (AC-4) reachable only via a distinct entry, not the customer
+tab bar. Push-token registration on login/foreground and deregistration on logout
+(`lib/push-registration.ts`). Tests: `apps/api` push-tokens unit (6/6) + integration (5/5, real
+Postgres) + `notification-push.service.spec.ts` (4/4, mocked Expo transport); `apps/mobile`'s own
+`push/push-registration.spec.ts` (5/5, mocked `expo-notifications`); a new root-level
+`e2e/cross-platform-sync.e2e.spec.ts` (4/4 against real Postgres) proving AC-7/AC-8/AC-12/AC-13 by
+construction — two independent authenticated HTTP agents ("web" and "mobile") against the same
+account see identical cart/credit-balance/notification-read-state, since neither has any
+client-local cache to diverge from the other; full existing `apps/api` unit suite re-run clean
+(265/265, no regressions from the auth/notification changes); the whole monorepo (including the new
+`apps/mobile` package) typechecks clean via `pnpm turbo run typecheck`. `expo start --web`
+(react-native-web) was booted and its Metro bundle fetched directly to confirm a real, error-free
+compile (3.6MB bundle ending in the entry-point `__r(0)` call, not an error payload) — this confirms
+the app builds and boots, but **no interactive browser click-through of the screens was performed
+this pass** (no screenshots), unlike the Playwright evidence standard used for `apps/web`/
+`apps/admin` passes — flagged honestly as a real, not-yet-closed gap rather than assumed from the
+successful compile. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
+API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
+Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
+were judged lower-priority than the core purchase/account/sync-critical flows above for this initial
+pass. Also not built: AC-6's release-size/performance-budget verification (requires an actual app
+build, not just dev-mode `expo start`) and native iOS/Android device or emulator testing (none
+available in this environment — the `expo start --web` compile above is the closest substitute,
+same practical constraint this project has already solved for `apps/web` via Playwright). Given the
+deferred screens and the missing interactive-browser-verification step, this stays `In Progress`
+rather than `Completed`, per `CLAUDE.md` §5's "existence is not completion" rule.
+
 As of the 2026-09-07 update (follow-up, branch `chore/verify-a015-a017-a019-frontend`): A-015
 (Subscriptions & Credits), A-017 (Custom Design Request System), A-017a (File Format Requests),
 A-019 (Customer Account & Purchase History), and A-019a (Customer Activity Timeline) are all
@@ -449,7 +500,7 @@ A-023's gate.)
 | A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Completed | 51 |
 | A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Completed | 52 |
 | A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
-| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | Not Started | 54 |
+| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | In Progress | 54 |
 | A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |
 
 **Note on A-023 Dependencies:** the mobile app is a client shell over every customer-facing aspect

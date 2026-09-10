@@ -41,10 +41,15 @@ function assertProvider(provider: string): OAuthProvider {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  // Resolves the device-trust cookie chosen for AC-2/AC-3 (spec §8 risk #2), minting one on
+  // Resolves the device-trust identity chosen for AC-2/AC-3 (spec §8 risk #2), minting one on
   // first contact so even an unauthenticated register/login call gets a stable device id.
+  // apps/web relies on the httpOnly cookie exclusively (no header sent); apps/mobile (aspect
+  // A-023) has no cookie jar, so it sends its SecureStore-persisted device id via the `x-device-id`
+  // header instead — checked here as a fallback so both clients share this one mechanism. The
+  // cookie is still set on every response (harmless no-op for a client that ignores it).
   private resolveDevice(req: Request, res: Response): DeviceContext {
-    const deviceId = req.cookies?.[DEVICE_ID_COOKIE] ?? randomUUID();
+    const headerDeviceId = req.headers['x-device-id'];
+    const deviceId = req.cookies?.[DEVICE_ID_COOKIE] ?? (typeof headerDeviceId === 'string' ? headerDeviceId : undefined) ?? randomUUID();
     res.cookie(DEVICE_ID_COOKIE, deviceId, {
       httpOnly: true,
       sameSite: 'lax',
