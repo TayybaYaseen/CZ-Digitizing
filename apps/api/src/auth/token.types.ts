@@ -37,6 +37,12 @@ export interface PartialSessionTokenPayload {
   purpose: 'pending_2fa';
   sub: string;
   device_id: string;
+  // Carried through from the initial /login request so the real session created after 2FA
+  // confirm/verify (completeAdminSession) can record them — without this, every admin session's
+  // Active Sessions entry (A-005f) shows "Unknown device" with no IP, regardless of the real
+  // request's headers, since nothing else threads them across the pending-2FA step.
+  ip_address?: string;
+  user_agent?: string;
   iat: number;
   exp: number;
 }

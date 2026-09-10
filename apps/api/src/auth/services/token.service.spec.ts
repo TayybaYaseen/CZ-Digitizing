@@ -52,4 +52,18 @@ describe('TokenService', () => {
     const magicLink = service.signMagicLinkToken({ userId: 1n, email: 'user@example.com', deviceId: 'device-1' });
     expect(() => service.verifyPendingTwoFactorToken(magicLink)).toThrow();
   });
+
+  // Regression: the pending-2FA token used to carry only device_id, so the real session created
+  // after admin 2FA confirm/verify had no ip/userAgent to record — every admin session's Active
+  // Sessions entry (A-005f) showed "Unknown device" with no IP regardless of the real request.
+  it('round-trips ip_address/user_agent on a pending-2FA token', () => {
+    const token = service.signPendingTwoFactorToken({
+      userId: 42n,
+      deviceId: 'device-1',
+      ipAddress: '203.0.113.5',
+      userAgent: 'Mozilla/5.0 (Test)',
+    });
+    const payload = service.verifyPendingTwoFactorToken(token);
+    expect(payload).toMatchObject({ sub: '42', device_id: 'device-1', ip_address: '203.0.113.5', user_agent: 'Mozilla/5.0 (Test)' });
+  });
 });

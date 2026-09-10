@@ -79,11 +79,13 @@ export class TokenService {
     return payload;
   }
 
-  signPendingTwoFactorToken(input: { userId: bigint; deviceId: string }): string {
+  signPendingTwoFactorToken(input: { userId: bigint; deviceId: string; ipAddress?: string; userAgent?: string }): string {
     const payload: Omit<PartialSessionTokenPayload, 'iat' | 'exp'> = {
       purpose: 'pending_2fa',
       sub: input.userId.toString(),
       device_id: input.deviceId,
+      ip_address: input.ipAddress,
+      user_agent: input.userAgent,
     };
     return this.jwt.sign(payload, { secret: this.accessSecret, expiresIn: PENDING_2FA_TTL_SECONDS });
   }
