@@ -4,5 +4,6 @@
   "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }] },
   "testRegex": "test/integration/.*\\.spec\\.ts$",
   "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleNameMapper": { "^ioredis$": "<rootDir>/test/mocks/ioredis.ts" },
   "testTimeout": 15000
 }
