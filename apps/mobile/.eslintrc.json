@@ -1,4 +1,13 @@
 {
   "extends": "expo",
-  "ignorePatterns": ["/dist/*"]
+  "ignorePatterns": ["/dist/*"],
+  "rules": {
+    "@typescript-eslint/ban-types": "off"
+  },
+  "overrides": [
+    {
+      "files": ["babel.config.js", "metro.config.js", "jest.config.js"],
+      "env": { "node": true }
+    }
+  ]
 }
