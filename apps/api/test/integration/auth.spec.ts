@@ -85,6 +85,40 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
   });
 
+  // aspect A-023 — code counterpart to the link-based verify-email flow, for apps/mobile
+  it('verifies an email via the register email\'s 4-digit code (mobile flow)', async () => {
+    await agent().post('/api/auth/register').send({ email: 'codeverify@example.com', password: 'password123' });
+    const code = lastEmailCodeTo('codeverify@example.com');
+
+    const res = await agent().post('/api/auth/verify-email-code').send({ email: 'codeverify@example.com', code });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ verified: true });
+
+    const stored = await prisma.user.findUniqueOrThrow({ where: { email: 'codeverify@example.com' } });
+    expect(stored.gmailVerified).toBe(true);
+  });
+
+  it('rejects an invalid email-verification code (401 INVALID_OR_EXPIRED_CODE)', async () => {
+    await agent().post('/api/auth/register').send({ email: 'badcode@example.com', password: 'password123' });
+    const res = await agent().post('/api/auth/verify-email-code').send({ email: 'badcode@example.com', code: '0000' });
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('INVALID_OR_EXPIRED_CODE');
+
+    const stored = await prisma.user.findUniqueOrThrow({ where: { email: 'badcode@example.com' } });
+    expect(stored.gmailVerified).toBe(false);
+  });
+
+  it('rate-limits repeated wrong email-verification codes (429 RATE_LIMITED after 3 attempts)', async () => {
+    await agent().post('/api/auth/register').send({ email: 'ratecode@example.com', password: 'password123' });
+    const client = agent();
+    let last;
+    for (let i = 0; i < 3; i++) {
+      last = await client.post('/api/auth/verify-email-code').send({ email: 'ratecode@example.com', code: '0000' });
+    }
+    expect(last?.status).toBe(429);
+    expect(last?.body.error.code).toBe('RATE_LIMITED');
+  });
+
   // AC-2 / AC-3 / AC-4
   it('requires new-device verification on first login, then trusts the device on the next login (AC-2/AC-3)', async () => {
     const client = agent();

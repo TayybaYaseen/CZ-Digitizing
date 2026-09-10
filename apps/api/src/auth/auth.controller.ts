@@ -12,6 +12,7 @@ import {
   DEVICE_CODE_MAX_ATTEMPTS,
   DEVICE_ID_COOKIE,
   DEVICE_ID_COOKIE_MAX_AGE_MS,
+  EMAIL_CODE_MAX_ATTEMPTS,
   RESET_CODE_MAX_ATTEMPTS,
 } from './auth.constants';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -21,6 +22,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
+import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { VerifyNewDeviceDto } from './dto/verify-new-device.dto';
 import type { DeviceContext } from './services/session.service';
 import type { OAuthProvider } from './services/oauth.service';
@@ -71,6 +73,16 @@ export class AuthController {
   @Get('verify-email')
   async verifyEmail(@Query('token') token: string) {
     await this.auth.verifyEmail(token);
+    return { verified: true };
+  }
+
+  // Code counterpart to verify-email above — apps/mobile's register success screen (aspect A-023).
+  @Public()
+  @RateLimit(EMAIL_CODE_MAX_ATTEMPTS, 15 * 60)
+  @Post('verify-email-code')
+  @HttpCode(200)
+  async verifyEmailCode(@Body() dto: VerifyEmailCodeDto) {
+    await this.auth.verifyEmailByCode(dto.email, dto.code);
     return { verified: true };
   }
 

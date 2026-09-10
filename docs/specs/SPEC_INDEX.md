@@ -412,7 +412,29 @@ CORS gap is a *dev-environment* config issue specific to the `expo start --web` 
 web-based verification in this file relies on — the native app (iOS/Android) makes no browser-origin
 fetches and was never affected. Only Login/Register were click-through-verified this pass (proving
 both fixes, not full coverage); walking the rest of the core-slice screens the same way is still
-open. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
+open.
+
+**Third follow-up (same day):** added a code-based email-verification path, additive to the
+existing link (spec §3/§4 introduced `push_tokens` as this aspect's own new backend surface;
+this is a second, smaller one, in the same spirit — apps/mobile has no deep-link handler to catch
+the register email's link, so it can't complete that flow at all today). `register()`
+(`apps/api/src/auth/auth.service.ts`) now also issues a 4-digit code via
+`VerificationCodeService.issueEmailCode()` (new method, Redis-keyed by user id, same TTL/attempt
+shape as the existing reset-password code — `EMAIL_CODE_TTL_MS`/`EMAIL_CODE_MAX_ATTEMPTS` in
+`auth.constants.ts`) and includes it in the same email the link already goes out in, listed first
+(the link's own JWT digits were shadowing the code in the code-extraction test helper otherwise —
+caught and fixed by the integration test itself, not assumed correct). New public, rate-limited
+`POST /api/auth/verify-email-code {email, code}` (`VerifyEmailCodeDto`, mirrors
+`VerifyNewDeviceDto`'s shape) — same effect as the existing link (`gmailVerified: true`), different
+proof. apps/web/apps/admin are untouched; this is additive only. `apps/mobile`'s `RegisterScreen`
+now shows a code-entry form on its "Check your email" success step (instead of the old dead-end
+message) and a distinct "Email verified" success state once verified — same visual pattern as
+`VerifyDeviceScreen`. Verified: 3 new `apps/api` integration tests (happy path, wrong code → 401
+`INVALID_OR_EXPIRED_CODE`, 3 wrong attempts → 429 `RATE_LIMITED`), full `apps/api` suite re-run
+clean (265/265); end-to-end against the real running stack with Playwright — register → the emailed
+code (read from the dev `EmailService` console-log sink) → `POST /api/auth/verify-email-code`
+returns `200 {"verified":true}` → screen shows "Email verified," screenshot taken; a wrong code
+correctly shows "Invalid or expired code." on-screen. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
 API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
 Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
 were judged lower-priority than the core purchase/account/sync-critical flows above for this initial
