@@ -56,7 +56,7 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <nav className="flex w-[216px] flex-shrink-0 flex-col bg-navy-800 text-white">
+    <nav className="flex w-[216px] flex-shrink-0 flex-col overflow-y-auto bg-navy-800 text-white">
       <div className="border-b border-white/10 px-4 py-[18px]">
         <Logo variant="dark" />
       </div>
