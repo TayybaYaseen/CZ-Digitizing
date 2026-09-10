@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
@@ -31,17 +31,31 @@ interface DesignSummaryDto {
   isPublished?: boolean;
 }
 
+// Admin enters width/height in whichever unit they have on hand (a customer's own reference,
+// a printed spec sheet, etc.) — converted to the schema's canonical mm at submit time so the
+// backend (DesignSize.sizeWidthMm/sizeHeightMm) never has to know or store a unit.
+const SIZE_UNITS = ['mm', 'cm', 'inch'] as const;
+type SizeUnit = (typeof SIZE_UNITS)[number];
+const UNIT_TO_MM: Record<SizeUnit, number> = { mm: 1, cm: 10, inch: 25.4 };
+
+const sizeRowSchema = z.object({
+  label: z.string().min(1, 'required'),
+  width: z.coerce.number().min(0),
+  height: z.coerce.number().min(0),
+});
+
 const schema = z.object({
   name: z.string().min(1, 'required').max(255),
   previewImageUrl: z.string().url('must be a valid URL'),
   categoryId: z.string().min(1, 'required'),
   pricePkr: z.coerce.number().min(0),
-  sizeLabel: z.string().min(1, 'required'),
-  sizeWidthMm: z.coerce.number().min(0),
-  sizeHeightMm: z.coerce.number().min(0),
+  sizeUnit: z.enum(SIZE_UNITS),
+  sizes: z.array(sizeRowSchema).min(1, 'add at least one size'),
   isPublished: z.boolean().default(true),
 });
 type FormValues = z.infer<typeof schema>;
+
+const EMPTY_SIZE_ROW = { label: '', width: 0, height: 0 };
 
 // docs/specs/2026-08-28-04-design-catalog-browsing.md AC-1/AC-2/AC-3/AC-4 — admin design CRUD.
 // Table layout ported from docs/CZ Digitizing Admin Panel.html's decoded DesignsView. One
@@ -58,12 +72,17 @@ export default function DesignsAdminPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { isPublished: true } });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { isPublished: true, sizeUnit: 'mm', sizes: [EMPTY_SIZE_ROW] },
+  });
+  const { fields: sizeFields, append: appendSize, remove: removeSize } = useFieldArray({ control, name: 'sizes' });
   const previewImageUrl = watch('previewImageUrl');
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<ApiError | null>(null);
@@ -118,6 +137,7 @@ export default function DesignsAdminPage() {
     setApiError(null);
     setSuccessMessage(null);
     try {
+      const unitToMm = UNIT_TO_MM[values.sizeUnit];
       await apiFetch('/api/designs', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -126,12 +146,16 @@ export default function DesignsAdminPage() {
           previewImageUrl: values.previewImageUrl,
           categoryIds: [values.categoryId],
           pricePkr: values.pricePkr,
-          sizes: [{ label: values.sizeLabel, widthMm: values.sizeWidthMm, heightMm: values.sizeHeightMm }],
+          sizes: values.sizes.map((size) => ({
+            label: size.label,
+            widthMm: Math.round(size.width * unitToMm * 100) / 100,
+            heightMm: Math.round(size.height * unitToMm * 100) / 100,
+          })),
           isPublished: values.isPublished,
         }),
       });
       setSuccessMessage(`Design "${values.name}" created.`);
-      reset({ name: '', previewImageUrl: '', categoryId: '', pricePkr: 0, sizeLabel: '', sizeWidthMm: 0, sizeHeightMm: 0, isPublished: true });
+      reset({ name: '', previewImageUrl: '', categoryId: '', pricePkr: 0, sizeUnit: 'mm', sizes: [EMPTY_SIZE_ROW], isPublished: true });
       if (imageInputRef.current) imageInputRef.current.value = '';
       load();
     } catch (err) {
@@ -264,16 +288,65 @@ export default function DesignsAdminPage() {
           <FormField label="Price (PKR)" htmlFor="pricePkr" error={errors.pricePkr}>
             <input id="pricePkr" type="number" step="0.01" className={inputClass} {...register('pricePkr')} />
           </FormField>
-          <div className="grid grid-cols-3 gap-2">
-            <FormField label="Size label" htmlFor="sizeLabel" error={errors.sizeLabel}>
-              <input id="sizeLabel" placeholder="Size 1" className={inputClass} {...register('sizeLabel')} />
-            </FormField>
-            <FormField label="Width (mm)" htmlFor="sizeWidthMm" error={errors.sizeWidthMm}>
-              <input id="sizeWidthMm" type="number" step="0.01" className={inputClass} {...register('sizeWidthMm')} />
-            </FormField>
-            <FormField label="Height (mm)" htmlFor="sizeHeightMm" error={errors.sizeHeightMm}>
-              <input id="sizeHeightMm" type="number" step="0.01" className={inputClass} {...register('sizeHeightMm')} />
-            </FormField>
+          <div className="space-y-2 rounded-field border border-gray-200 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-600">Sizes</span>
+              <FormField label="Unit" htmlFor="sizeUnit">
+                <select id="sizeUnit" className={`${inputClass} py-1`} {...register('sizeUnit')}>
+                  {SIZE_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+
+            {sizeFields.map((field, index) => (
+              <div key={field.id} className="grid grid-cols-[1fr_1fr_1fr_auto] items-start gap-2">
+                <FormField label="Size label" htmlFor={`sizes.${index}.label`} error={errors.sizes?.[index]?.label}>
+                  <input
+                    id={`sizes.${index}.label`}
+                    placeholder={`Size ${index + 1}`}
+                    className={inputClass}
+                    {...register(`sizes.${index}.label` as const)}
+                  />
+                </FormField>
+                <FormField label="Width" htmlFor={`sizes.${index}.width`} error={errors.sizes?.[index]?.width}>
+                  <input
+                    id={`sizes.${index}.width`}
+                    type="number"
+                    step="0.01"
+                    className={inputClass}
+                    {...register(`sizes.${index}.width` as const)}
+                  />
+                </FormField>
+                <FormField label="Height" htmlFor={`sizes.${index}.height`} error={errors.sizes?.[index]?.height}>
+                  <input
+                    id={`sizes.${index}.height`}
+                    type="number"
+                    step="0.01"
+                    className={inputClass}
+                    {...register(`sizes.${index}.height` as const)}
+                  />
+                </FormField>
+                <Button
+                  type="button"
+                  variant="outlineNavy"
+                  size="sm"
+                  disabled={sizeFields.length === 1}
+                  onClick={() => removeSize(index)}
+                  className="mt-6"
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            {typeof errors.sizes?.message === 'string' && <p className="text-sm text-status-redFg">{errors.sizes.message}</p>}
+
+            <Button type="button" variant="outlineNavy" size="sm" onClick={() => appendSize(EMPTY_SIZE_ROW)}>
+              + Add another size
+            </Button>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input type="checkbox" {...register('isPublished')} />
