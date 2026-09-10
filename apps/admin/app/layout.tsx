@@ -19,15 +19,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${playfair.variable} ${montserrat.variable}`}>
-      <body className="min-h-screen bg-gray-100 font-sans text-gray-700 antialiased">
+      <body className="h-screen overflow-hidden bg-gray-100 font-sans text-gray-700 antialiased">
         <AuthProvider>
-          <div className="flex min-h-screen">
+          <div className="flex h-screen">
             <Sidebar />
-            <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-center justify-end gap-3 border-b border-gray-200 bg-white px-6 py-3">
                 <NotificationBell />
               </div>
-              <main className="p-6">{children}</main>
+              <main className="flex-1 overflow-y-auto p-6">{children}</main>
             </div>
           </div>
         </AuthProvider>
