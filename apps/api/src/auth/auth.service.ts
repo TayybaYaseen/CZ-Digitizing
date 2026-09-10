@@ -27,6 +27,10 @@ function isPendingTwoFactor(result: AuthTokensDto | PendingTwoFactorDto): result
   return 'pendingTwoFactorToken' in result;
 }
 
+function pendingToDevice(pending: PartialSessionTokenPayload): DeviceContext {
+  return { deviceId: pending.device_id, ipAddress: pending.ip_address, userAgent: pending.user_agent };
+}
+
 @Injectable()
 export class AuthService {
   private readonly webBaseUrl: string;
@@ -111,7 +115,12 @@ export class AuthService {
   // device-trust branching (AC-2/AC-3), which also covers moderator (AC-11) with no special-casing.
   private async completeCredentialCheck(user: User, device: DeviceContext): Promise<AuthTokensDto | PendingTwoFactorDto> {
     if (user.role === 'admin') {
-      const pendingTwoFactorToken = this.tokens.signPendingTwoFactorToken({ userId: user.id, deviceId: device.deviceId });
+      const pendingTwoFactorToken = this.tokens.signPendingTwoFactorToken({
+        userId: user.id,
+        deviceId: device.deviceId,
+        ipAddress: device.ipAddress,
+        userAgent: device.userAgent,
+      });
       return { pendingTwoFactorToken, setupRequired: !user.twoFactorEnabled };
     }
     return this.completeDeviceTrustLogin(user, device);
@@ -185,7 +194,7 @@ export class AuthService {
 
     this.totp.verify(code, user.twoFactorSecret);
     const confirmed = await this.prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } });
-    return this.completeAdminSession(confirmed, pending.device_id);
+    return this.completeAdminSession(confirmed, pendingToDevice(pending));
   }
 
   async verifyTwoFactor(pending: PartialSessionTokenPayload, code: string): Promise<AuthTokensDto> {
@@ -193,15 +202,15 @@ export class AuthService {
     if (!user.twoFactorSecret) throw new ApiException('VALIDATION_ERROR', 400, 'Complete 2FA setup first');
 
     this.totp.verify(code, user.twoFactorSecret);
-    return this.completeAdminSession(user, pending.device_id);
+    return this.completeAdminSession(user, pendingToDevice(pending));
   }
 
-  private async completeAdminSession(user: User, deviceId: string): Promise<AuthTokensDto> {
-    const existing = await this.sessions.findTrustedSession(user.id, deviceId);
+  private async completeAdminSession(user: User, device: DeviceContext): Promise<AuthTokensDto> {
+    const existing = await this.sessions.findTrustedSession(user.id, device.deviceId);
     const session = existing
       ? await this.sessions.touch(existing.id)
-      : await this.sessions.markVerifiedAndExtend((await this.sessions.createUnverifiedSession(user.id, { deviceId })).id);
-    return this.issueTokens(user, session.id, deviceId);
+      : await this.sessions.markVerifiedAndExtend((await this.sessions.createUnverifiedSession(user.id, device)).id);
+    return this.issueTokens(user, session.id, device.deviceId);
   }
 
   // --- Forgot / reset password (AC-6) ---
