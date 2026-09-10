@@ -1,13 +1,13 @@
-import * as SecureStore from 'expo-secure-store';
 import type { ApiError, ApiResponse } from '@czd/shared-types';
+import { deleteItem, getItem, setItem } from './storage';
 
 // docs/specs/2026-08-29-18-mobile-app-android-ios.md (aspect A-023). Port of
 // apps/web/lib/api-client.ts's exact shape (apiFetch/apiFetchWithMeta/ApiClientError/refresh-token
 // dedupe) with two RN-appropriate swaps:
-//  - localStorage -> expo-secure-store (session tokens are sensitive; SecureStore is the RN
-//    platform-appropriate encrypted-storage equivalent).
+//  - localStorage -> ./storage (native: expo-secure-store; web: localStorage, since SecureStore
+//    has no web implementation at all — see storage.ts's own comment).
 //  - credentials:'include' (browser cookie jar) -> an explicit `x-device-id` header read from
-//    SecureStore, since React Native has no cookie jar. This preserves the auth spec's new-device-
+//    storage, since React Native has no cookie jar. This preserves the auth spec's new-device-
 //    verification flow (NEW_DEVICE_VERIFICATION_REQUIRED), which apps/web gets "for free" via the
 //    httpOnly czd_device_id cookie the API sets — apps/mobile instead persists the device id it
 //    receives back from login/register and sends it explicitly on every request.
@@ -24,7 +24,7 @@ interface StoredAuth {
 
 async function readStoredAuth(): Promise<StoredAuth | null> {
   try {
-    const raw = await SecureStore.getItemAsync(AUTH_KEY);
+    const raw = await getItem(AUTH_KEY);
     return raw ? (JSON.parse(raw) as StoredAuth) : null;
   } catch {
     return null;
@@ -34,23 +34,30 @@ async function readStoredAuth(): Promise<StoredAuth | null> {
 async function writeAccessToken(accessToken: string): Promise<void> {
   const current = await readStoredAuth();
   if (!current) return;
-  await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ ...current, accessToken }));
+  await setItem(AUTH_KEY, JSON.stringify({ ...current, accessToken }));
 }
 
 async function clearStoredAuth(): Promise<void> {
-  await SecureStore.deleteItemAsync(AUTH_KEY);
+  await deleteItem(AUTH_KEY);
 }
 
 export async function getDeviceId(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    return await getItem(DEVICE_ID_KEY);
   } catch {
     return null;
   }
 }
 
 export async function setDeviceId(deviceId: string): Promise<void> {
-  await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
+  // Mirrors getDeviceId's own guard just above — persisting the device id is a convenience
+  // (keeps the customer's device trusted across sessions) that must never take down the actual
+  // login/verification flow it's piggybacking on if storage itself has an issue.
+  try {
+    await setItem(DEVICE_ID_KEY, deviceId);
+  } catch {
+    // best-effort — see comment above
+  }
 }
 
 // Access tokens are short-lived (15 min, architecture §Authentication & Security) — without this,
@@ -107,8 +114,23 @@ async function buildHeaders(init: RequestInit | undefined, accessToken?: string)
   return headers;
 }
 
+// AuthController.resolveDevice() (apps/api) echoes the device id it resolved/minted back on this
+// response header (exposed via CORS's exposedHeaders — a custom header is otherwise invisible to
+// fetch() cross-origin). Without capturing it here, a customer's very first login from a new
+// device never learns the id the server just minted for it (that response is the
+// NEW_DEVICE_VERIFICATION_REQUIRED 401 itself, before any token/deviceId ever appears in a
+// response body) — the next request (verify-new-device) would then mint ANOTHER random id server-
+// side, the session lookup would find nothing, and a correct code would wrongly be rejected as
+// INVALID_OR_EXPIRED_CODE. Must run on every response, success or error, which is why it lives
+// here rather than in auth-context.tsx's login() (which only ever sees successful responses).
+async function captureDeviceId(res: Response): Promise<void> {
+  const deviceId = res.headers.get('x-device-id');
+  if (deviceId) await setDeviceId(deviceId);
+}
+
 async function fetchWithAuthRetry(path: string, init: RequestInit | undefined): Promise<Response> {
   const first = await fetch(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init) });
+  await captureDeviceId(first);
 
   if (first.status !== 401) return first;
 
@@ -118,7 +140,9 @@ async function fetchWithAuthRetry(path: string, init: RequestInit | undefined): 
   const newAccessToken = await refreshAccessToken();
   if (!newAccessToken) return first; // refresh failed — surface the original 401 as-is
 
-  return fetch(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init, newAccessToken) });
+  const retried = await fetch(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init, newAccessToken) });
+  await captureDeviceId(retried);
+  return retried;
 }
 
 export class ApiClientError extends Error {

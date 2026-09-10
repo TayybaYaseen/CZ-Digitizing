@@ -63,7 +63,7 @@ export function RegisterScreen({ navigation }: Props) {
         <View style={styles.container}>
           <Text style={styles.title}>Email verified</Text>
           <Text>Your account is ready — sign in to continue.</Text>
-          <Pressable style={styles.button} onPress={() => navigation.navigate('Login')}>
+          <Pressable style={styles.button} onPress={() => navigation.navigate('Login')} testID="register-verified-signin">
             <Text style={styles.buttonText}>Sign in</Text>
           </Pressable>
         </View>
@@ -80,9 +80,10 @@ export function RegisterScreen({ navigation }: Props) {
           maxLength={4}
           value={code}
           onChangeText={setCode}
+          testID="register-verify-code"
         />
         {codeError ? <Text style={styles.error}>{codeError}</Text> : null}
-        <Pressable style={styles.button} onPress={onVerifyCode} disabled={verifying}>
+        <Pressable style={styles.button} onPress={onVerifyCode} disabled={verifying} testID="register-verify-submit">
           {verifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
         </Pressable>
         <Pressable onPress={() => navigation.navigate('Login')}>

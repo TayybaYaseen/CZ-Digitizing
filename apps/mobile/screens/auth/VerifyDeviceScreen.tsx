@@ -37,9 +37,16 @@ export function VerifyDeviceScreen({ route }: Props) {
     <View style={styles.container}>
       <Text style={styles.title}>Verify this device</Text>
       <Text style={styles.subtitle}>We sent a code to {route.params.email}. Enter it below to continue.</Text>
-      <TextInput style={styles.input} placeholder="Verification code" keyboardType="number-pad" value={code} onChangeText={setCode} />
+      <TextInput
+        style={styles.input}
+        placeholder="Verification code"
+        keyboardType="number-pad"
+        value={code}
+        onChangeText={setCode}
+        testID="verify-device-code"
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
+      <Pressable style={styles.button} onPress={onSubmit} disabled={loading} testID="verify-device-submit">
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
       </Pressable>
     </View>

@@ -434,7 +434,49 @@ message) and a distinct "Email verified" success state once verified — same vi
 clean (265/265); end-to-end against the real running stack with Playwright — register → the emailed
 code (read from the dev `EmailService` console-log sink) → `POST /api/auth/verify-email-code`
 returns `200 {"verified":true}` → screen shows "Email verified," screenshot taken; a wrong code
-correctly shows "Invalid or expired code." on-screen. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
+correctly shows "Invalid or expired code." on-screen.
+
+**Fourth follow-up (same day):** the code-based email verification above surfaced a much bigger,
+previously-undetected bug while testing the very next step (login's own new-device verification,
+same AC-2/AC-3 mechanism) — a real customer hit it live during this pass, not just this file's own
+Playwright script. Root cause, found by direct reproduction: `expo-secure-store`'s own web platform
+module is a literal `export default {}` (verified in node_modules) — SecureStore has **no web
+implementation at all**, a documented Expo limitation (native-only: iOS Keychain / Android
+Keystore), not a bug in this app's code. Every `getItemAsync`/`setItemAsync` call was silently
+failing under `expo start --web` — meaning apps/mobile's session/device-id persistence has never
+actually worked in the *web preview specifically* (native iOS/Android builds are unaffected — a
+real SecureStore backs them). Concretely, this broke new-device verification: a customer's first
+login mints a fresh server-side device id (spec's own `resolveDevice()`), which apps/web gets "for
+free" via its httpOnly cookie but apps/mobile has no cookie jar for — it was meant to capture this
+id and resend it on the next request (`verify-new-device`), but with `setItemAsync` failing
+silently, the id was never actually stored; the next request sent no device id, the server minted a
+*second, different* one, and `AuthService.verifyNewDevice()`'s session lookup (keyed on device id)
+found nothing — the customer's correct code was rejected as `INVALID_OR_EXPIRED_CODE` no matter
+how many times they retried, only ever getting a fresh code that would fail the same way. Two-part
+fix: (1) new `apps/mobile/lib/storage.ts` — every caller (`api-client.ts`, `auth-context.tsx`,
+`locale-context.tsx`) now goes through this instead of importing `expo-secure-store` directly; it
+uses the real SecureStore on native and `localStorage` on web, so persistence actually works on
+both targets instead of silently no-op'ing on web. (2) closed a second, independent gap this
+surfaced: the very first `NEW_DEVICE_VERIFICATION_REQUIRED` response never carried the freshly-
+minted device id anywhere apps/mobile could read it from (only in the httpOnly cookie apps/web
+reads, invisible to `fetch()`), so even with working storage there was nothing to capture yet —
+`AuthController.resolveDevice()` (`apps/api`) now also echoes it via an `x-device-id` *response*
+header on every device-resolving route (register/login/verify-new-device/oauth-callback/magic-
+link), exposed cross-origin via `main.ts`'s CORS `exposedHeaders` (a custom header is otherwise
+invisible to browser JS cross-origin); `api-client.ts`'s `fetchWithAuthRetry()` reads it off every
+response (success or error) and persists it before the caller ever sees the error, so the very next
+request already carries the right id. Both fixes were additive/backward-compatible — apps/web is
+untouched (still cookie-only), and a stray defensive `try/catch` around `setDeviceId()` was also
+added so a storage failure can never again masquerade as a generic "Something went wrong" (it had
+been silently swallowing the real `NEW_DEVICE_VERIFICATION_REQUIRED` handling entirely during
+mid-fix testing — caught and fixed in the same pass, not shipped). Verified end-to-end against the
+real running stack with Playwright, this time all the way through: register → email-code verify →
+login → real new-device code (read from the dev `EmailService` log) → `verify-new-device` returns
+`200` with real access/refresh tokens → app lands on the Home tab bar (screenshot taken) — the first
+time this pass that a login has been proven to fully succeed in the web preview, not just reach the
+device-verification screen. Full `apps/api` suite re-run clean (265/265) and the `auth.spec.ts`
+integration suite re-run clean (18/18); `apps/mobile`'s own unit suite re-run clean (5/5);
+`pnpm turbo run typecheck` clean. **Deliberately deferred to a follow-up pass** (same "thin screen over existing
 API" pattern, not built this pass): Services listing, Design Bundles, Pricing, Get a Quote, Custom
 Request, Taebo, Account Activity/Members screens — spec §5's full route list names these but they
 were judged lower-priority than the core purchase/account/sync-critical flows above for this initial

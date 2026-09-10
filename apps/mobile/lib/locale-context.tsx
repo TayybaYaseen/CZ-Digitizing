@@ -1,13 +1,13 @@
-import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { NativeModules, Platform } from 'react-native';
 import type { LanguageDto, TranslationBundleDto } from '@czd/shared-types';
 import { apiFetch } from './api-client';
 import { useAuth } from './auth-context';
+import { getItem, setItem } from './storage';
 
 // Port of apps/web/lib/locale-context.tsx (docs/specs/2026-08-28-16-internationalization.md,
 // aspect A-021). Same resolution order and API surface (/api/languages, /api/translations/:locale)
-// — SecureStore replaces the web version's cookie for guest persistence.
+// — ./storage replaces the web version's cookie for guest persistence.
 const STORAGE_KEY = 'czd.locale';
 const DEFAULT_LOCALE = 'en';
 
@@ -45,7 +45,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!authReady) return;
     (async () => {
-      const stored = await SecureStore.getItemAsync(STORAGE_KEY).catch(() => null);
+      const stored = await getItem(STORAGE_KEY).catch(() => null);
       const resolved = user?.preferredLocale ?? stored ?? deviceLocale() ?? DEFAULT_LOCALE;
       setLocaleState(resolved);
     })();
@@ -78,7 +78,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   function setLocale(next: string) {
     setLocaleState(next);
-    void SecureStore.setItemAsync(STORAGE_KEY, next);
+    void setItem(STORAGE_KEY, next);
     if (user && accessToken) {
       apiFetch('/api/account/preferred-locale', {
         method: 'PUT',

@@ -21,6 +21,10 @@ async function bootstrap() {
   app.enableCors({
     origin: config.get('CORS_ORIGINS', { infer: true }).split(',').filter(Boolean),
     credentials: true,
+    // apps/mobile has no cookie jar — it reads the device id AuthController.resolveDevice() sets
+    // back off this response header instead of the httpOnly cookie apps/web relies on. A custom
+    // response header is invisible to browser JS cross-origin unless explicitly exposed here.
+    exposedHeaders: ['x-device-id'],
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
 

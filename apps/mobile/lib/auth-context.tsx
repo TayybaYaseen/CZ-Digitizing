@@ -1,10 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Role } from '@czd/shared-types';
 import { apiFetch, AUTH_KEY, clearStoredAuth, readStoredAuth, setDeviceId } from './api-client';
+import { setItem } from './storage';
 
-// Port of apps/web/lib/auth-context.tsx — same shape/contract, SecureStore-backed instead of
-// localStorage. Mirrors apps/api/src/auth/dto/user-profile.dto.ts's UserProfileDto.
+// Port of apps/web/lib/auth-context.tsx — same shape/contract, ./storage-backed instead of
+// localStorage directly (native: expo-secure-store; web: localStorage — see storage.ts).
+// Mirrors apps/api/src/auth/dto/user-profile.dto.ts's UserProfileDto.
 export interface AuthUser {
   id: string;
   email: string;
@@ -65,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const latest = await readStoredAuth(); // fetchWithAuthRetry may have silently written a refreshed access token
       const next: AuthState = { user: profile, accessToken: (latest as AuthState | null)?.accessToken ?? accessToken, refreshToken: (latest as AuthState | null)?.refreshToken ?? null };
       setState(next);
-      await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(next));
+      await setItem(AUTH_KEY, JSON.stringify(next));
     } catch {
       setState(EMPTY_STATE);
       await clearStoredAuth();
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(tokens: AuthTokens) {
     const next: AuthState = { user: tokens.user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
     setState(next);
-    await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(next));
+    await setItem(AUTH_KEY, JSON.stringify(next));
     if (tokens.deviceId) await setDeviceId(tokens.deviceId);
   }
 
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function updateUser(user: AuthUser) {
     setState((prev) => {
       const next = { ...prev, user };
-      void SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(next));
+      void setItem(AUTH_KEY, JSON.stringify(next));
       return next;
     });
   }

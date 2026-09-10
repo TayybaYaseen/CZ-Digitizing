@@ -49,6 +49,18 @@ export class AuthController {
   // A-023) has no cookie jar, so it sends its SecureStore-persisted device id via the `x-device-id`
   // header instead — checked here as a fallback so both clients share this one mechanism. The
   // cookie is still set on every response (harmless no-op for a client that ignores it).
+  //
+  // The `x-device-id` RESPONSE header (below, also exposed via CORS in main.ts) closes a gap the
+  // above alone leaves open: on a customer's very first login from a brand-new device, this method
+  // mints a fresh random deviceId server-side — apps/web gets it "for free" via the Set-Cookie the
+  // browser stores before the 401 NEW_DEVICE_VERIFICATION_REQUIRED even resolves, but apps/mobile
+  // has no cookie jar to catch that, and the error body itself never carried the deviceId. Without
+  // this, the mobile client's next call (verify-new-device) sends no x-device-id at all, this
+  // method mints a SECOND, different random id for it, and the session lookup in
+  // AuthService.verifyNewDevice() (keyed on deviceId) finds nothing — the emailed code is then
+  // rejected as INVALID_OR_EXPIRED_CODE even though it's correct. apps/mobile's api-client.ts reads
+  // this header off every response and persists it via setDeviceId() before the error is even
+  // thrown, so its next request already carries the same id this one just minted.
   private resolveDevice(req: Request, res: Response): DeviceContext {
     const headerDeviceId = req.headers['x-device-id'];
     const deviceId = req.cookies?.[DEVICE_ID_COOKIE] ?? (typeof headerDeviceId === 'string' ? headerDeviceId : undefined) ?? randomUUID();
@@ -58,6 +70,7 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       maxAge: DEVICE_ID_COOKIE_MAX_AGE_MS,
     });
+    res.setHeader('x-device-id', deviceId);
     return { deviceId, ipAddress: req.ip, userAgent: req.headers['user-agent'] };
   }
 
