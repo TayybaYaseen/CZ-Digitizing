@@ -42,7 +42,7 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { section: 'System' },
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },
-  { href: '/settings/freelancer-accounts', label: 'Accounts' },
+  { href: '/settings/freelancer-accounts', label: 'Admin Users & Sessions' }, // A-005f
   { href: '/settings/file-formats', label: 'File Formats' },
   { href: '/settings/languages', label: 'Languages' }, // A-021
   { href: '/settings/translations', label: 'Translations' }, // A-021
@@ -56,7 +56,7 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <nav className="flex w-[216px] flex-shrink-0 flex-col bg-navy-800 text-white">
+    <nav className="flex w-[216px] flex-shrink-0 flex-col overflow-y-auto bg-navy-800 text-white">
       <div className="border-b border-white/10 px-4 py-[18px]">
         <Logo variant="dark" />
       </div>

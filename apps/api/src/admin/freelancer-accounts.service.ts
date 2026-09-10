@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AdminAccessLevel, AdminModule, AdminPermission, User } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import { toUserProfileDto, type UserProfileDto } from '../auth/dto/user-profile.dto';
+import { toSessionInfoDto, type SessionInfoDto } from '../auth/dto/session-info.dto';
 import { SessionService } from '../auth/services/session.service';
 import { VerificationCodeService } from '../auth/services/verification-code.service';
 import type { AccessTokenPayload } from '../auth/token.types';
@@ -9,6 +10,7 @@ import { ApiException } from '../common/exceptions/api-exception';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateFreelancerAccountDto } from './dto/create-freelancer-account.dto';
+import type { UpdatePermissionsDto } from './dto/update-permissions.dto';
 
 export interface FreelancerAccountDto extends UserProfileDto {
   permissions: { module: string; accessLevel: string }[];
@@ -92,9 +94,12 @@ export class FreelancerAccountsService {
     return [...explicit, ...defaults];
   }
 
+  // A-005f — "Admin Users/Roles" also means seeing who holds the primary `admin` role, not just
+  // the scoped freelancer/moderator accounts this service can create/edit/revoke. Admin rows are
+  // included read-only (see updatePermissions/revoke's own role guards below).
   async list(): Promise<FreelancerAccountDto[]> {
     const users = await this.prisma.user.findMany({
-      where: { role: { in: ['freelancer', 'moderator'] } },
+      where: { role: { in: ['admin', 'freelancer', 'moderator'] } },
       include: { adminPermissions: { where: { revokedAt: null } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -104,15 +109,57 @@ export class FreelancerAccountsService {
     }));
   }
 
-  async revoke(id: string, admin: AccessTokenPayload): Promise<void> {
-    const userId = BigInt(id);
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || (user.role !== 'freelancer' && user.role !== 'moderator')) {
-      throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Freelancer/limited-admin account not found');
-    }
+  // A-005f — replace a freelancer/moderator account's module grants. Reuses resolvePermissions so
+  // a moderator's baseline permissions (AC-11) can't be silently dropped by omission, same as create.
+  async updatePermissions(id: string, dto: UpdatePermissionsDto, admin: AccessTokenPayload): Promise<FreelancerAccountDto> {
+    const user = await this.findScopedAccountOrThrow(id);
+    const permissions = this.resolvePermissions(user.role as 'freelancer' | 'moderator', dto.permissions);
 
-    await this.prisma.adminPermission.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-    await this.sessions.revokeAllForUser(userId); // AC-8 — "immediately invalidating its active sessions"
+    await this.prisma.$transaction([
+      this.prisma.adminPermission.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.adminPermission.createMany({
+        data: permissions.map((grant) => ({ userId: user.id, module: grant.module, accessLevel: grant.accessLevel })),
+      }),
+    ]);
+
+    await this.audit.record({
+      adminUserId: BigInt(admin.sub),
+      actionType: 'FREELANCER_ACCOUNT_PERMISSIONS_UPDATED',
+      resourceType: 'user',
+      resourceId: id,
+      changes: { permissions },
+    });
+
+    const grants = await this.prisma.adminPermission.findMany({ where: { userId: user.id, revokedAt: null } });
+    return { ...toUserProfileDto(user), permissions: grants.map((g) => ({ module: g.module, accessLevel: g.accessLevel })) };
+  }
+
+  // A-005f — Active Sessions: list a staff account's non-revoked, non-expired sessions. Any staff
+  // role (admin/freelancer/moderator) can be inspected here, unlike updatePermissions/revoke which
+  // are freelancer/moderator-only — viewing sessions isn't a scope-editing action.
+  async listSessions(id: string): Promise<SessionInfoDto[]> {
+    const user = await this.findOrThrow(id, ['admin', 'freelancer', 'moderator']);
+    const sessions = await this.sessions.listActiveForUser(user.id);
+    return sessions.map(toSessionInfoDto);
+  }
+
+  async revokeSession(id: string, sessionId: string, admin: AccessTokenPayload): Promise<void> {
+    const user = await this.findOrThrow(id, ['admin', 'freelancer', 'moderator']);
+    await this.sessions.revokeForUser(sessionId, user.id);
+    await this.audit.record({
+      adminUserId: BigInt(admin.sub),
+      actionType: 'ADMIN_SESSION_REVOKED',
+      resourceType: 'session',
+      resourceId: sessionId,
+      changes: { userId: id },
+    });
+  }
+
+  async revoke(id: string, admin: AccessTokenPayload): Promise<void> {
+    const user = await this.findScopedAccountOrThrow(id);
+
+    await this.prisma.adminPermission.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.sessions.revokeAllForUser(user.id); // AC-8 — "immediately invalidating its active sessions"
 
     await this.audit.record({
       adminUserId: BigInt(admin.sub),
@@ -120,5 +167,19 @@ export class FreelancerAccountsService {
       resourceType: 'user',
       resourceId: id,
     });
+  }
+
+  // Shared by revoke/updatePermissions — these are scope-editing actions, so the primary `admin`
+  // role (visible in list() but not manageable here) is deliberately excluded.
+  private async findScopedAccountOrThrow(id: string): Promise<User> {
+    return this.findOrThrow(id, ['freelancer', 'moderator'], 'Freelancer/limited-admin account not found');
+  }
+
+  private async findOrThrow(id: string, roles: string[], notFoundMessage = 'Account not found'): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { id: BigInt(id) } });
+    if (!user || !roles.includes(user.role)) {
+      throw new ApiException('RESOURCE_NOT_FOUND', 404, notFoundMessage);
+    }
+    return user;
   }
 }

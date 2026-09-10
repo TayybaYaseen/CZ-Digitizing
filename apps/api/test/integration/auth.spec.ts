@@ -320,6 +320,72 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(login.body.error.code).toBe('NEW_DEVICE_VERIFICATION_REQUIRED');
   });
 
+  // A-005f (Admin Users/Roles & Active Sessions — no dedicated spec file; built from the SRS's
+  // "Complete Admin Module Checklist", p.24: "Admin Users/Roles; Active Sessions").
+  it("lists admin-role accounts read-only and lets Admin edit an existing freelancer's permissions", async () => {
+    const admin = await prisma.user.create({
+      data: { email: 'admin4@example.com', passwordHash: await hashForTest('adminpass123'), role: 'admin', twoFactorEnabled: false },
+    });
+    const adminClient = agent();
+    const login = await adminClient.post('/api/auth/login').send({ email: admin.email, password: 'adminpass123' });
+    const pendingAuth = { Authorization: `Bearer ${login.body.data.pendingTwoFactorToken}` };
+    const setup = await adminClient.post('/api/auth/2fa/setup').set(pendingAuth).send();
+    const { authenticator } = await import('otplib');
+    const confirm = await adminClient.post('/api/auth/2fa/confirm').set(pendingAuth).send({ code: authenticator.generate(setup.body.data.secret) });
+    const adminAuth = { Authorization: `Bearer ${confirm.body.data.accessToken}` };
+
+    const created = await adminClient
+      .post('/api/admin/freelancer-accounts')
+      .set(adminAuth)
+      .send({ email: 'freelancer2@example.com', role: 'freelancer', permissions: [{ module: 'orders', accessLevel: 'read_only' }] });
+    expect(created.status).toBe(201);
+
+    const list = await adminClient.get('/api/admin/freelancer-accounts').set(adminAuth);
+    expect(list.status).toBe(200);
+    expect(list.body.data.map((u: { email: string }) => u.email)).toEqual(expect.arrayContaining([admin.email, 'freelancer2@example.com']));
+
+    // Can't edit the primary admin role's scope through this endpoint.
+    const editAdmin = await adminClient
+      .put(`/api/admin/freelancer-accounts/${admin.id}/permissions`)
+      .set(adminAuth)
+      .send({ permissions: [{ module: 'orders', accessLevel: 'crud' }] });
+    expect(editAdmin.status).toBe(404);
+
+    // Editing the freelancer replaces its grants (not a union with the old set).
+    const edit = await adminClient
+      .put(`/api/admin/freelancer-accounts/${created.body.data.id}/permissions`)
+      .set(adminAuth)
+      .send({ permissions: [{ module: 'quotes', accessLevel: 'crud' }] });
+    expect(edit.status).toBe(200);
+    expect(edit.body.data.permissions).toEqual([{ module: 'quotes', accessLevel: 'crud' }]);
+  });
+
+  // A-005f — Active Sessions: Admin can see and individually revoke a staff account's sessions.
+  it("lists and revokes a staff account's active sessions", async () => {
+    const admin = await prisma.user.create({
+      data: { email: 'admin5@example.com', passwordHash: await hashForTest('adminpass123'), role: 'admin', twoFactorEnabled: false },
+    });
+    const adminClient = agent();
+    const login = await adminClient.post('/api/auth/login').send({ email: admin.email, password: 'adminpass123' });
+    const pendingAuth = { Authorization: `Bearer ${login.body.data.pendingTwoFactorToken}` };
+    const setup = await adminClient.post('/api/auth/2fa/setup').set(pendingAuth).send();
+    const { authenticator } = await import('otplib');
+    const confirm = await adminClient.post('/api/auth/2fa/confirm').set(pendingAuth).send({ code: authenticator.generate(setup.body.data.secret) });
+    const auth = { Authorization: `Bearer ${confirm.body.data.accessToken}` };
+
+    // 2fa/confirm's own login already created this account's one active session.
+    const sessions = await adminClient.get(`/api/admin/freelancer-accounts/${admin.id}/sessions`).set(auth);
+    expect(sessions.status).toBe(200);
+    expect(sessions.body.data.length).toBe(1);
+
+    const target = sessions.body.data[0];
+    const revoke = await adminClient.delete(`/api/admin/freelancer-accounts/${admin.id}/sessions/${target.id}`).set(auth);
+    expect(revoke.status).toBe(204);
+
+    const revoked = await prisma.session.findUniqueOrThrow({ where: { id: target.id } });
+    expect(revoked.revokedAt).not.toBeNull();
+  });
+
   // AC-12
   it('logs in via magic link from an already-trusted device', async () => {
     const client = agent();
