@@ -17,7 +17,9 @@
     "prisma:migrate": "prisma migrate dev",
     "seed:admin": "ts-node -T scripts/seed-admin.ts",
     "seed:customer": "ts-node -T scripts/seed-customer.ts",
-    "gen:2fa-code": "ts-node -T scripts/gen-2fa-code.ts"
+    "gen:2fa-code": "ts-node -T scripts/gen-2fa-code.ts",
+    "gen:email-verify-code": "ts-node -T scripts/gen-email-verify-code.ts",
+    "gen:device-code": "ts-node -T scripts/gen-device-code.ts"
   },
   "dependencies": {
     "@czd/shared-types": "workspace:*",
