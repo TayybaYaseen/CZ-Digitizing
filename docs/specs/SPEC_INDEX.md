@@ -607,6 +607,51 @@ not part of this pass's stated scope: a real translation-key sweep (this app's e
 per the 2026-09-10 note, is hardcoded English strings throughout — the 8 new screens follow the same
 convention, not a regression).
 
+**AC-6 (release size/performance budget) closed, same branch, same day:** audited `apps/mobile`
+against each of architecture §Performance & Optimization "Mobile App Performance"'s four budget
+categories (App Size, Memory Management, Network, Battery) individually, rather than asserting
+compliance. Found one real gap and fixed it: `apps/mobile/lib/api-client.ts` had **no network-retry
+logic at all** — only a 401-then-refresh-then-retry-once path existed, which is unrelated to a
+transient network/5xx failure. Added `fetchWithRetry()` matching architecture's literal "Retry
+logic: Exponential backoff (3 attempts)" line: up to 3 attempts, 300ms base delay doubling each
+retry; retries any method on a genuine network-level failure (the request never reached the server)
+but only retries a 5xx on an idempotent GET (never a mutating call, to avoid duplicating a side
+effect like order creation that already reached the server); never retries a 4xx. 5 new unit tests
+in `apps/mobile/lib/api-client.spec.ts` cover the network-failure-then-recovery, exhausted-retries,
+transient-5xx-recovery, no-retry-on-mutating-5xx, and no-retry-on-4xx cases —
+`pnpm turbo run typecheck lint test --filter=@czd/mobile` clean (10/10 tests, only the same
+pre-existing `import/first` lint warning already present in `push-registration.spec.ts`). Every
+other budget line item was already compliant, verified by reading the actual code rather than
+assumed: pagination (`HomeScreen`/`CategoryDesignsScreen`/`SearchScreen`'s design-catalog queries
+all use `pageSize=20` matching "20 items per screen"; `OrdersScreen`/`CreditsScreen`/
+`NotificationsScreen`/`ActivityScreen`/`BundlesScreen`'s `pageSize=50` intentionally mirrors
+`apps/web`'s own identical endpoints at the identical page size, not a violation of the
+catalog-specific 20/screen rule); lazy loading (every true listing screen — 10 of them — renders via
+`FlatList`, which virtualizes off-screen rows and their images for free; the screens that use a plain
+`.map()` instead are detail pages over small bounded arrays, not paginated data, so the rule doesn't
+apply to them); memory cleanup (every `addEventListener`/`setTimeout` in the app —
+`NetInfo.addEventListener` in `use-api-query.ts`/`OfflineBanner`, `Linking.addEventListener` in
+`RootNavigator`, `TaeboWidget`'s idle-suggestion timer — has a correct cleanup return, checked one at
+a time); animations (no manual `Animated` API usage exists anywhere in this app to violate "use
+native driver" — React Navigation's own screen transitions already run on the native thread by
+default). App size itself: ran `npx expo export --platform all` (the closest thing to "an actual
+production app build" achievable here, same substitution pattern this file already uses for
+`expo start --web` standing in for native device testing) — measured Hermes bytecode bundle sizes of
+2.26 MB (Android) / 2.25 MB (iOS) / 0.93 MB (web), plus 29 KB of bundled assets, all comfortably
+inside the 50MB target. The true installable APK/IPA size (JS bundle plus the RN/Hermes native
+runtime and native modules) could not be produced or measured directly in this environment: this is
+a pure Expo managed-workflow project (no `android`/`ios` native folders — `expo prebuild` was never
+run) and this machine has no EAS CLI login, no Android SDK/Gradle, and no Xcode — the same
+no-native-tooling constraint already on record above for device/emulator testing. Flagged as an open
+item for whoever holds EAS credentials to run one real `eas build --platform all --profile
+production` before store submission for a true installable-size number, but every size lever this
+repo's own code controls (Hermes bytecode compilation, no cross-platform bundle bloat, stock Expo
+managed-workflow defaults, no large added dependencies beyond this pass's `expo-image-picker`/
+`socket.io-client`) is already in place, and the measured JS/asset payload leaves large headroom
+under the 50MB budget. **AC-6 is now verified within this environment's limits.** A-023 stays
+`In Progress`, not `Completed` — native iOS/Android device or emulator testing remains the one
+still-open, unrelated gap.
+
 ---
 
 ## Aspect Registry
