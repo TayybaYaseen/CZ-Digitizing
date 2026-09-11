@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../lib/auth-context';
+import { TaeboWidget } from '../components/TaeboWidget';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { CategoriesScreen } from '../screens/CategoriesScreen';
@@ -12,6 +13,14 @@ import { CartScreen } from '../screens/CartScreen';
 import { CheckoutScreen } from '../screens/CheckoutScreen';
 import { BankTransferScreen } from '../screens/BankTransferScreen';
 import { OrderConfirmationScreen } from '../screens/OrderConfirmationScreen';
+import { ServicesScreen } from '../screens/ServicesScreen';
+import { ServiceDetailScreen } from '../screens/ServiceDetailScreen';
+import { BundlesScreen } from '../screens/BundlesScreen';
+import { BundleDetailScreen } from '../screens/BundleDetailScreen';
+import { PricingScreen } from '../screens/PricingScreen';
+import { QuoteScreen } from '../screens/QuoteScreen';
+import { CustomRequestScreen } from '../screens/CustomRequestScreen';
+import { MoreScreen } from '../screens/more/MoreScreen';
 import { AccountScreen } from '../screens/account/AccountScreen';
 import { OrdersScreen } from '../screens/account/OrdersScreen';
 import { PurchasedDesignsScreen } from '../screens/account/PurchasedDesignsScreen';
@@ -19,6 +28,10 @@ import { CreditsScreen } from '../screens/account/CreditsScreen';
 import { SubscriptionScreen } from '../screens/account/SubscriptionScreen';
 import { NotificationsScreen } from '../screens/account/NotificationsScreen';
 import { LanguageSelectScreen } from '../screens/account/LanguageSelectScreen';
+import { ActivityScreen } from '../screens/account/ActivityScreen';
+import { MembersScreen } from '../screens/account/MembersScreen';
+import { CustomRequestsScreen } from '../screens/account/CustomRequestsScreen';
+import { CustomRequestDetailScreen } from '../screens/account/CustomRequestDetailScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
@@ -34,6 +47,7 @@ import type {
   CartStackParamList,
   CategoriesStackParamList,
   HomeStackParamList,
+  MoreStackParamList,
   SearchStackParamList,
 } from './types';
 
@@ -45,6 +59,7 @@ const CategoriesStack = createNativeStackNavigator<CategoriesStackParamList>();
 const SearchStack = createNativeStackNavigator<SearchStackParamList>();
 const CartStack = createNativeStackNavigator<CartStackParamList>();
 const AccountStack = createNativeStackNavigator<AccountStackParamList>();
+const MoreStack = createNativeStackNavigator<MoreStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AdminStack = createNativeStackNavigator<import('./types').AdminStackParamList>();
 const Tabs = createBottomTabNavigator();
@@ -99,19 +114,48 @@ function AccountStackNavigator() {
       <AccountStack.Screen name="Subscription" component={SubscriptionScreen} />
       <AccountStack.Screen name="Notifications" component={NotificationsScreen} />
       <AccountStack.Screen name="LanguageSelect" component={LanguageSelectScreen} options={{ title: 'Language' }} />
+      <AccountStack.Screen name="Activity" component={ActivityScreen} />
+      <AccountStack.Screen name="Members" component={MembersScreen} options={{ title: 'Shared Account Members' }} />
+      <AccountStack.Screen name="CustomRequests" component={CustomRequestsScreen} options={{ title: 'My Custom Requests' }} />
+      <AccountStack.Screen name="CustomRequestDetail" component={CustomRequestDetailScreen} options={{ title: 'Request' }} />
     </AccountStack.Navigator>
   );
 }
 
+// spec §5 Route(s): Services, Bundles, Pricing, Get a Quote, Custom Request — see navigation/
+// types.ts's own doc comment on MoreStackParamList for why these live behind a 6th tab.
+function MoreStackNavigator() {
+  return (
+    <MoreStack.Navigator>
+      <MoreStack.Screen name="More" component={MoreScreen} options={{ title: 'More' }} />
+      <MoreStack.Screen name="Services" component={ServicesScreen} />
+      <MoreStack.Screen name="ServiceDetail" component={ServiceDetailScreen} options={{ title: 'Service' }} />
+      <MoreStack.Screen name="Bundles" component={BundlesScreen} options={{ title: 'Design Bundles' }} />
+      <MoreStack.Screen name="BundleDetail" component={BundleDetailScreen} options={{ title: 'Bundle' }} />
+      <MoreStack.Screen name="Pricing" component={PricingScreen} />
+      <MoreStack.Screen name="Quote" component={QuoteScreen} options={{ title: 'Get a Quote' }} />
+      <MoreStack.Screen name="CustomRequestNew" component={CustomRequestScreen} options={{ title: 'Custom Request' }} />
+    </MoreStack.Navigator>
+  );
+}
+
+// AC-1/§5 — Taebo is a floating widget available from every customer screen (mirrors web's
+// once-in-layout.tsx mounting), not a tab of its own; it sits as a sibling over the tab navigator
+// so it stays visible across every tab, exactly like web's fixed bottom-right widget stays visible
+// across every page.
 function CustomerTabs() {
   return (
-    <Tabs.Navigator screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: 'Home' }} />
-      <Tabs.Screen name="CategoriesTab" component={CategoriesStackNavigator} options={{ title: 'Categories' }} />
-      <Tabs.Screen name="SearchTab" component={SearchStackNavigator} options={{ title: 'Search' }} />
-      <Tabs.Screen name="CartTab" component={CartStackNavigator} options={{ title: 'Cart' }} />
-      <Tabs.Screen name="AccountTab" component={AccountStackNavigator} options={{ title: 'Account' }} />
-    </Tabs.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tabs.Navigator screenOptions={{ headerShown: false }}>
+        <Tabs.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: 'Home' }} />
+        <Tabs.Screen name="CategoriesTab" component={CategoriesStackNavigator} options={{ title: 'Categories' }} />
+        <Tabs.Screen name="SearchTab" component={SearchStackNavigator} options={{ title: 'Search' }} />
+        <Tabs.Screen name="CartTab" component={CartStackNavigator} options={{ title: 'Cart' }} />
+        <Tabs.Screen name="MoreTab" component={MoreStackNavigator} options={{ title: 'More' }} />
+        <Tabs.Screen name="AccountTab" component={AccountStackNavigator} options={{ title: 'Account' }} />
+      </Tabs.Navigator>
+      <TaeboWidget />
+    </View>
   );
 }
 

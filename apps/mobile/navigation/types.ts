@@ -32,6 +32,24 @@ export type AccountStackParamList = {
   Subscription: undefined;
   Notifications: undefined;
   LanguageSelect: undefined;
+  Activity: undefined;
+  Members: undefined;
+  CustomRequests: undefined;
+  CustomRequestDetail: { requestId: string };
+};
+
+// spec §5 Route(s): Services, Bundles, Pricing, Get a Quote, Custom Request — none of these are
+// naturally "tabbed" content on web (top-level links, not persistent nav items), so mobile hosts
+// them behind a 6th "More" tab rather than inventing a web route that doesn't exist.
+export type MoreStackParamList = {
+  More: undefined;
+  Services: undefined;
+  ServiceDetail: { slug: string };
+  Bundles: undefined;
+  BundleDetail: { bundleId: string };
+  Pricing: undefined;
+  Quote: { serviceSlug?: string } | undefined;
+  CustomRequestNew: undefined;
 };
 
 export type AuthStackParamList = {
@@ -54,5 +72,6 @@ export type RootTabParamList = {
   CategoriesTab: undefined;
   SearchTab: undefined;
   CartTab: undefined;
+  MoreTab: undefined;
   AccountTab: undefined;
 };
