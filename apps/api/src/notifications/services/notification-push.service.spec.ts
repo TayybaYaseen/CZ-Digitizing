@@ -1,7 +1,7 @@
 import { NotificationPushService } from './notification-push.service';
 
 function createFakePushTokens(tokens: { token: string; platform: 'ios' | 'android' }[]) {
-  return { listTokensForUser: jest.fn(async () => tokens) };
+  return { listTokensForUser: jest.fn(async () => tokens), pruneStale: jest.fn(async () => undefined) };
 }
 
 describe('NotificationPushService (A-023 — real Expo send)', () => {
@@ -44,13 +44,48 @@ describe('NotificationPushService (A-023 — real Expo send)', () => {
     );
   });
 
-  it('throws when Expo reports a per-message error, so the caller\'s retry/backoff can handle it', async () => {
+  it('throws on a genuine Expo delivery error (not DeviceNotRegistered), so the caller\'s retry/backoff can handle it', async () => {
     const fetchMock = jest.fn(async () => ({
       ok: true,
-      json: async () => ({ data: [{ status: 'error', message: 'DeviceNotRegistered' }] }),
+      json: async () => ({ data: [{ status: 'error', message: 'Message too big', details: { error: 'MessageTooBig' } }] }),
     }));
     global.fetch = fetchMock as never;
     const service = new NotificationPushService(createFakePushTokens([{ token: 'ExponentPushToken[abc123]', platform: 'ios' }]) as never);
-    await expect(service.send({ userId: 10n, title: 'x', message: null })).rejects.toThrow(/DeviceNotRegistered/);
+    await expect(service.send({ userId: 10n, title: 'x', message: null })).rejects.toThrow(/Message too big/);
+  });
+
+  it('§8 risk #1 — prunes a token on DeviceNotRegistered and no-ops rather than throwing when it was the only device', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [{ status: 'error', message: 'not registered', details: { error: 'DeviceNotRegistered' } }] }),
+    }));
+    global.fetch = fetchMock as never;
+    const pushTokens = createFakePushTokens([{ token: 'ExponentPushToken[dead]', platform: 'ios' }]);
+    const service = new NotificationPushService(pushTokens as never);
+    const result = await service.send({ userId: 10n, title: 'x', message: null });
+    expect(result).toBeUndefined();
+    expect(pushTokens.pruneStale).toHaveBeenCalledWith('ExponentPushToken[dead]');
+  });
+
+  it('prunes a dead device but still reports success when another registered device received the push', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [
+          { status: 'error', message: 'not registered', details: { error: 'DeviceNotRegistered' } },
+          { status: 'ok', id: 'ticket-live' },
+        ],
+      }),
+    }));
+    global.fetch = fetchMock as never;
+    const pushTokens = createFakePushTokens([
+      { token: 'ExponentPushToken[dead]', platform: 'ios' },
+      { token: 'ExponentPushToken[live]', platform: 'android' },
+    ]);
+    const service = new NotificationPushService(pushTokens as never);
+    const result = await service.send({ userId: 10n, title: 'x', message: null });
+    expect(result).toBe('ticket-live');
+    expect(pushTokens.pruneStale).toHaveBeenCalledWith('ExponentPushToken[dead]');
+    expect(pushTokens.pruneStale).toHaveBeenCalledTimes(1);
   });
 });

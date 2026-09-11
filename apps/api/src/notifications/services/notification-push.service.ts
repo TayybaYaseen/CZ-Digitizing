@@ -49,14 +49,14 @@ export class NotificationPushService {
       return undefined;
     }
 
-    const messages = tokens
-      .filter(({ token }) => {
-        const valid = this.isExpoPushToken(token);
-        if (!valid) this.logger.warn(`Skipping malformed Expo push token for userId=${input.userId}`);
-        return valid;
-      })
-      .map(({ token }) => ({ to: token, title: input.title, body: input.message ?? undefined, sound: 'default' }));
-    if (messages.length === 0) return undefined;
+    const validTokens = tokens.filter(({ token }) => {
+      const valid = this.isExpoPushToken(token);
+      if (!valid) this.logger.warn(`Skipping malformed Expo push token for userId=${input.userId}`);
+      return valid;
+    });
+    if (validTokens.length === 0) return undefined;
+
+    const messages = validTokens.map(({ token }) => ({ to: token, title: input.title, body: input.message ?? undefined, sound: 'default' }));
 
     // Expo's HTTP push endpoint call; a rejected/failed request here is a transport failure,
     // propagated to the caller (NotificationDispatchService) so its existing retry/backoff handles
@@ -70,13 +70,40 @@ export class NotificationPushService {
       throw new Error(`Expo push send failed: HTTP ${res.status}`);
     }
     const body = (await res.json()) as { data?: ExpoPushTicket[]; errors?: unknown[] };
+    // Expo's contract: the response array is positionally aligned with the request array, one
+    // ticket per message sent — see https://docs.expo.dev/push-notifications/sending-notifications/.
     const tickets = body.data ?? [];
 
-    const firstError = tickets.find((t) => t.status === 'error');
-    if (firstError) {
-      throw new Error(`Expo push send failed: ${firstError.message ?? firstError.details?.error ?? 'unknown error'}`);
-    }
+    const succeeded: string[] = [];
+    const otherErrors: string[] = [];
+    await Promise.all(
+      tickets.map(async (ticket, i) => {
+        if (ticket.status === 'ok') {
+          succeeded.push(ticket.id ?? 'ok');
+          return;
+        }
+        // §8 risk #1 — DeviceNotRegistered is Expo's (and transitively FCM/APNs's) own signal that
+        // this token belongs to an uninstalled app or a revoked registration; nothing else in this
+        // system can detect that on its own, so this is the one reliable place to prune it.
+        if (ticket.details?.error === 'DeviceNotRegistered') {
+          const deadToken = validTokens[i]?.token;
+          if (deadToken) {
+            await this.pushTokens.pruneStale(deadToken);
+            this.logger.log(`Pruned stale push token for userId=${input.userId} (DeviceNotRegistered)`);
+          }
+          return;
+        }
+        otherErrors.push(ticket.message ?? ticket.details?.error ?? 'unknown error');
+      }),
+    );
 
-    return tickets.map((t) => t.id ?? 'error').join(',');
+    // A partial success (this user has multiple devices, only some failed/were pruned) still counts
+    // as delivered — the same "at least one channel worked" posture dispatchAll() already applies
+    // across channels, now applied across this one user's multiple registered devices.
+    if (succeeded.length > 0) return succeeded.join(',');
+    if (otherErrors.length > 0) throw new Error(`Expo push send failed: ${otherErrors[0]}`);
+    // Every ticket was DeviceNotRegistered (now pruned) and nothing else failed — equivalent to the
+    // "no registered device" no-op above, not a delivery failure to retry.
+    return undefined;
   }
 }

@@ -22,6 +22,12 @@ function createFakePrisma(rows: { id: bigint; userId: bigint; token: string; pla
         return removed;
       }),
       findMany: jest.fn(async ({ where }: { where: { userId: bigint } }) => rows.filter((r) => r.userId === where.userId)),
+      deleteMany: jest.fn(async ({ where }: { where: { token: string } }) => {
+        const before = rows.length;
+        const idx = rows.findIndex((r) => r.token === where.token);
+        if (idx !== -1) rows.splice(idx, 1);
+        return { count: before - rows.length };
+      }),
     },
   };
 }
@@ -73,5 +79,21 @@ describe('PushTokensService (A-023, AC-13 registration half)', () => {
     const prisma = createFakePrisma();
     const service = new PushTokensService(prisma as never);
     await expect(service.deregister(1n, 'ExponentPushToken[missing]')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('PushTokensService (A-023 §8 risk #1 — provider-driven staleness pruning)', () => {
+  it('removes a token the push provider reported as dead', async () => {
+    const prisma = createFakePrisma();
+    const service = new PushTokensService(prisma as never);
+    await service.register(1n, 'ExponentPushToken[dead]', 'ios' as never);
+    await service.pruneStale('ExponentPushToken[dead]');
+    expect(await service.listTokensForUser(1n)).toHaveLength(0);
+  });
+
+  it('is a silent no-op pruning a token that is already gone (e.g. two dead devices in one push batch)', async () => {
+    const prisma = createFakePrisma();
+    const service = new PushTokensService(prisma as never);
+    await expect(service.pruneStale('ExponentPushToken[never-registered]')).resolves.toBeUndefined();
   });
 });

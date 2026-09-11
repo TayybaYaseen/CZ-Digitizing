@@ -117,7 +117,7 @@ All applications communicate via a unified REST/GraphQL API backed by a secure d
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Framework** | React Native / Expo | Cross-platform mobile app |
+| **Framework** | React Native (Expo, **managed workflow**) | Cross-platform mobile app — no custom native modules have been needed; every native capability used (secure storage, image picking, push notifications) ships as a managed-workflow-compatible Expo SDK package, so no `expo prebuild`/native `android`/`ios` folders exist. Decided in practice during A-023's build and formally recorded here 2026-09-11 closing that spec's §8 risk #2 |
 | **State Management** | Redux Toolkit / Zustand | Global state management |
 | **Navigation** | React Navigation | App navigation stack |
 | **UI Components** | React Native Paper | Native-looking components |

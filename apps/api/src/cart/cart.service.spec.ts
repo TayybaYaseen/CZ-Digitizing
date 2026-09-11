@@ -126,9 +126,17 @@ function createFakePrisma() {
         cartItems.set(row.id.toString(), row);
         return row;
       }),
-      update: jest.fn(async ({ where, data }: { where: { id: bigint }; data: Partial<FakeCartItem> }) => {
+      update: jest.fn(async ({ where, data }: { where: { id: bigint }; data: Record<string, unknown> }) => {
         const row = cartItems.get(where.id.toString())!;
-        Object.assign(row, data);
+        // Mimics Prisma's atomic { increment } update operator (real Postgres does this in one
+        // UPDATE, immune to the read-then-write race a plain `existing.quantity + n` would have).
+        for (const [key, value] of Object.entries(data)) {
+          if (value !== null && typeof value === 'object' && 'increment' in value) {
+            (row as unknown as Record<string, number>)[key] += (value as { increment: number }).increment;
+          } else {
+            (row as unknown as Record<string, unknown>)[key] = value;
+          }
+        }
         return row;
       }),
       delete: jest.fn(async ({ where }: { where: { id: bigint } }) => {
@@ -376,6 +384,26 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
     const tokenActor = { sub: customerId.toString(), role: 'customer' } as never;
     await expect(service.checkout(tokenActor, 'bank_transfer' as never)).rejects.toMatchObject({ code: 'ITEM_NOT_PUBLISHED' });
+  });
+
+  it('AC-15 — concurrent adds of the same line increment atomically rather than losing an update', async () => {
+    const prisma = createFakePrisma();
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never, fakeActivity() as never);
+    const { design, sizeId } = seedDesign(prisma);
+    const actor = service.actorFrom(undefined, GUEST);
+
+    await service.addItem(actor, { designId: design.id.toString(), sizeId: sizeId.toString(), quantity: 1 });
+    // Two near-simultaneous adds (e.g. web + app) racing against the same starting quantity — a
+    // read-then-write `existing.quantity + n` would have both compute off the same stale read and
+    // lose one increment; the atomic { increment } update must not.
+    await Promise.all([
+      service.addItem(actor, { designId: design.id.toString(), sizeId: sizeId.toString(), quantity: 1 }),
+      service.addItem(actor, { designId: design.id.toString(), sizeId: sizeId.toString(), quantity: 2 }),
+    ]);
+    const cart = await service.getCart(actor);
+
+    expect(cart.items).toHaveLength(1);
+    expect(cart.items[0].quantity).toBe(4); // 1 + 1 + 2
   });
 
   it('checkout rejects an empty cart', async () => {

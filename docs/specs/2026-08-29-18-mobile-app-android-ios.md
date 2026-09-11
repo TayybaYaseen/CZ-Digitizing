@@ -235,9 +235,34 @@ and the cross-platform sync contract (§2); every rule below stays exactly where
 
 | # | Risk / question | Owner | Resolution |
 |---|---|---|---|
-| 1 | `push_tokens` staleness/pruning policy (when to remove a token for an uninstalled app that never explicitly logged out) is not specified | Engineering | Open |
-| 2 | Whether the mobile app is built with Expo managed workflow or bare React Native (affects push-notification and build-pipeline specifics) is an architecture decision not yet finalized (architecture lists "React Native / Expo" as the stack) | Engineering | Open |
-| 3 | AC-15's "standard optimistic-concurrency/last-write-wins behavior" assumes every owning feature's API already implements consistent concurrency handling; this spec surfaces the requirement but does not audit each feature spec's API for whether that's actually true yet — tracked as a cross-spec consistency follow-up | Engineering | Open |
+| 1 | `push_tokens` staleness/pruning policy (when to remove a token for an uninstalled app that never explicitly logged out) is not specified | Engineering | **Resolved 2026-09-11** — see note below |
+| 2 | Whether the mobile app is built with Expo managed workflow or bare React Native (affects push-notification and build-pipeline specifics) is an architecture decision not yet finalized (architecture lists "React Native / Expo" as the stack) | Engineering | **Resolved 2026-09-11** — see note below |
+| 3 | AC-15's "standard optimistic-concurrency/last-write-wins behavior" assumes every owning feature's API already implements consistent concurrency handling; this spec surfaces the requirement but does not audit each feature spec's API for whether that's actually true yet — tracked as a cross-spec consistency follow-up | Engineering | **Resolved 2026-09-11** — see note below |
+
+### Risk resolutions (2026-09-11 addendum)
+
+1. **`push_tokens` staleness/pruning policy.** Resolved as: prune a token only on the push
+   provider's own signal that it's dead, never on a guessed TTL — there is no other reliable way to
+   detect "app uninstalled without an explicit logout." `NotificationPushService.send()` now reads
+   each Expo push ticket individually (Expo's response array is positionally aligned with the
+   request array); a ticket whose `details.error === 'DeviceNotRegistered'` triggers
+   `PushTokensService.pruneStale()` for that one token, while other per-ticket errors (rate limits,
+   malformed payloads, etc.) are left alone and still count as a delivery failure for retry/backoff.
+   A user's push counts as delivered if *any* of their registered devices received it — pruning a
+   dead second device no longer fails the whole send the way a single bad ticket used to.
+2. **Expo managed workflow vs. bare React Native.** Resolved as: **managed workflow**, formally
+   recorded in `CZ_DIGITIZING_ARCHITECTURE.md`'s own Technology Stack table (the authoritative
+   Aspect File per `CLAUDE.md` §1) rather than left as this spec's own unilateral claim. No custom
+   native module has been needed anywhere in `apps/mobile` — `expo-secure-store`,
+   `expo-image-picker`, and `expo-notifications` (used for the Expo push token itself, not raw
+   FCM/APNs) are all managed-workflow-compatible Expo SDK packages, `app.json`'s `plugins` list is
+   just `expo-secure-store`, and no `android`/`ios` native folders or `expo prebuild` output exist.
+   If a genuine bare-workflow requirement ever emerges, that's a new decision to make then, not a
+   retroactive reopening of this one.
+3. **AC-15 last-write-wins audit.** Actually audited each owning feature's API for the concurrency
+   handling AC-15 assumes rather than left as a surfaced-but-unchecked requirement — see
+   `docs/specs/SPEC_INDEX.md`'s 2026-09-11 entry for the per-feature findings and any gaps flagged
+   for follow-up.
 
 ---
 
