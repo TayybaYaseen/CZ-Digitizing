@@ -14,6 +14,9 @@ const LINKS: { label: string; route: keyof AccountStackParamList }[] = [
   { label: 'Purchased Designs', route: 'PurchasedDesigns' },
   { label: 'Credits', route: 'Credits' },
   { label: 'Subscription', route: 'Subscription' },
+  { label: 'Custom Requests', route: 'CustomRequests' },
+  { label: 'Activity', route: 'Activity' },
+  { label: 'Shared Members', route: 'Members' },
   { label: 'Notifications', route: 'Notifications' },
   { label: 'Language', route: 'LanguageSelect' },
 ];

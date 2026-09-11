@@ -102,7 +102,14 @@ function isUnauthenticated(body: unknown): boolean {
   return typeof body === 'object' && body !== null && (body as { error?: { code?: string } }).error?.code === 'UNAUTHENTICATED';
 }
 
-async function buildHeaders(init: RequestInit | undefined, accessToken?: string): Promise<Record<string, string>> {
+// Bug found during A-023a's own live verification pass: this used to only ever *rewrite* an
+// Authorization header the caller had already set (`if (accessToken && headers.Authorization)`),
+// never add one from scratch — so every call site that relies on useApiQuery (which calls
+// apiFetch(path) with no init at all, e.g. Orders/Credits/Activity/Members/CustomRequests) sent no
+// Authorization header whatsoever and got UNAUTHENTICATED on every authenticated GET. Now reads the
+// stored access token itself whenever the caller hasn't already set one explicitly (screens that do
+// pass their own Authorization header, e.g. mutation screens using apiFetch directly, are untouched).
+async function buildHeaders(init: RequestInit | undefined, forcedAccessToken?: string): Promise<Record<string, string>> {
   const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const deviceId = await getDeviceId();
   const headers: Record<string, string> = {
@@ -110,7 +117,12 @@ async function buildHeaders(init: RequestInit | undefined, accessToken?: string)
     ...(deviceId ? { 'x-device-id': deviceId } : {}),
     ...(init?.headers as Record<string, string> | undefined),
   };
-  if (accessToken && headers.Authorization) headers.Authorization = `Bearer ${accessToken}`;
+  if (forcedAccessToken) {
+    headers.Authorization = `Bearer ${forcedAccessToken}`;
+  } else if (!headers.Authorization) {
+    const stored = await readStoredAuth();
+    if (stored?.accessToken) headers.Authorization = `Bearer ${stored.accessToken}`;
+  }
   return headers;
 }
 
