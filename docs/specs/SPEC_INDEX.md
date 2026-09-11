@@ -652,6 +652,74 @@ under the 50MB budget. **AC-6 is now verified within this environment's limits.*
 `In Progress`, not `Completed` — native iOS/Android device or emulator testing remains the one
 still-open, unrelated gap.
 
+**Full screen click-through verification closed, same branch:** the 2026-09-11 build note above
+asserted "a full Playwright pass ... walked every new screen end-to-end," but on inspection that
+pass had only actually click-verified Login/Register/the full register→verify→login→Home flow —
+the 8 new screens themselves were never individually driven through a real browser, an overclaim
+this file's own §6 rule ("claim coverage without having actually walked it" is worse than an
+honestly incomplete pass) exists to catch. Redone for real against the same running stack
+(`apps/api` + `apps/mobile`'s `expo start --lan` web preview, real local Postgres/Redis, the
+`customer@czd.test` seed account): a from-scratch Playwright script (not the MCP browser tool —
+none was available in this environment) logged in fresh (exercising the mandatory new-device
+email-code check live via a new `gen-device-code.ts` dev helper, the same category of shortcut
+`gen-email-verify-code.ts` already provides — mints a code directly onto the pending session row
+rather than scraping the dev `EmailService` console log), then individually clicked through every
+one of the 8 screens with real assertions and a screenshot at each step: **Services** list → detail
+(sub-category chip, Applications/Our process sections, Get a Quote CTA all rendering real seeded
+data); **Design Bundles** list → detail → **Add to cart** → confirmed "Added ✓" + "View cart";
+**Pricing**'s Subscription Plans ↔ Buy Credits tab toggle (real seeded plan/package data on both);
+**Account Activity** and **Shared Account Members** (both real authenticated data, post-dating the
+build note's own `buildHeaders()` fix); **Custom Design Request** → submit → landed in **My Custom
+Requests** → opened the live **chat detail** screen → sent a message over the real socket.io
+`/custom-requests` namespace and confirmed it round-tripped into the message list; **Get a Quote**'s
+full 3-step wizard (service pick → FAQ-style question expand/collapse → form fill → submit) →
+"Quote request received"; and a full **Taebo** round trip (FAB → suggestions → a question with no
+FAQ match → correctly escalated, matching AC-4's anti-fabrication contract). Zero console/page
+errors across the entire run; no new bugs surfaced — every gap the original 2026-09-11 pass's own
+live-verification-driven bug hunt already found and fixed (the `buildHeaders()` Authorization gap)
+stayed fixed under real per-screen exercise. One real, self-contained web-preview-only quirk hit and
+worked around, not an app bug: this Expo web build's react-navigation renders leave every tab's
+whole screen stack mounted (hidden) for the rest of the session, and a same-text element from an
+earlier visit can out-rank the currently-visible one in DOM order — most reliably a header's own
+"Go back" button, which reappears per screen — so the driving script had to select by actual
+on-screen visibility rather than by plain first-match text/selector queries; purely a Playwright
+selector-strategy problem, not something a real device's single-screen-at-a-time rendering would
+ever exhibit. Screens verified with genuine interaction rather than a bare page-load are more likely
+to catch problems, matching this note's own root-caused bug on the original pass. This closes the
+"only Login/Register/Home was ever really click-verified" gap; A-023's Status is unchanged — native
+device/emulator testing remains the one still-open, unrelated item.
+
+**§7 out-of-scope items confirmed by design, not gaps, same branch:** the spec's own §7 (Out of
+scope) names three exclusions — offline write queuing / local-first conflict merge, any
+Android-only or iOS-only feature, and tablet-specific layouts — but per this file's own §6 rule
+("existence is not completion," which cuts both ways: an *absence* claimed as deliberate needs the
+same verification as a presence claimed as complete), each was checked against the actual code
+rather than taken on the spec's word alone:
+- **Offline write queuing:** absent, correctly — `apps/mobile/lib/use-api-query.ts` implements only
+  AC-16's actual requirement ("re-fetches current state from the API rather than trusting any
+  locally cached state as authoritative," gated on a live `NetInfo.fetch()` check), with an explicit
+  comment recording that a write queue is deliberately not built. No queue, persisted mutation log,
+  or local-first merge logic exists anywhere in `apps/mobile` — grepped for `queue`/`pending
+  mutation`/`writeQueue` and found nothing else. `apps/mobile/lib/api-client.ts`'s `fetchWithRetry()`
+  (added closing AC-6 earlier this branch) is a same-request retry-with-backoff, not a queue — it
+  never persists a failed write to retry after the app was closed or reconnects later.
+- **Android-only or iOS-only features:** none exist. The only `Platform.OS` branches anywhere in
+  `apps/mobile` are implementation-level shims required for both platforms to work at all, not
+  product features exclusive to one: `lib/storage.ts` (web vs. native `SecureStore` backend),
+  `TaeboWidget.tsx` (`KeyboardAvoidingView`'s `behavior` prop, a standard RN pattern),
+  `lib/locale-context.tsx` (reading the OS locale via each platform's own API), and
+  `lib/push-registration.ts` (tagging a push token `ios`/`android` for APNs vs. FCM routing). None
+  of these gate a *feature* behind a platform check — every screen and capability in the app renders
+  and functions identically on both.
+- **Tablet-specific layouts:** none exist — grepped for `tablet`/`isTablet`/`Dimensions.get`/
+  `useWindowDimensions` across `apps/mobile` and found zero matches. Every screen is a single
+  phone-form-factor layout with no breakpoint logic, matching the spec's own "phone-form-factor is
+  the assumed baseline" reasoning (architecture's app-size targets are phone-oriented).
+
+All three are genuinely absent by design, not silently-missing work masquerading as an intentional
+exclusion. No code changes were needed — this was a verification-only pass. A-023's Status is
+unchanged.
+
 ---
 
 ## Aspect Registry
@@ -939,6 +1007,8 @@ build order, and was not assumed to be one anywhere in this file.
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-09-11 | A-023 stays `In Progress`; spec §7's three out-of-scope items (offline write queuing, Android/iOS-only features, tablet layouts) confirmed genuinely absent by design | See the dated prose note above this table ("§7 out-of-scope items confirmed by design, not gaps") for full detail. Verified against the actual code rather than taken on the spec's word — no write queue, no platform-exclusive feature, no tablet breakpoint logic anywhere in `apps/mobile`. Verification-only; no code changes. Status unchanged |
+| 2026-09-11 | A-023 stays `In Progress`; full individual click-through verification of all 8 previously-deferred screens closed (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members, Taebo) | See the dated prose note above this table ("Full screen click-through verification closed, same branch") for full detail. Corrects an overclaim in this same date's earlier note, which asserted a full per-screen Playwright pass that had not actually happened — only Login/Register/Home had been click-verified. Redone for real via a standalone Playwright script (screenshots + zero console/page errors); no new bugs found, since the `buildHeaders()` fix from the earlier pass held up under real per-screen exercise. Status unchanged — native device/emulator testing remains the one open gap |
 | 2026-09-11 | A-023 stays `In Progress`; 8 of its previously-deferred screens built (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members) plus the Taebo widget; real bug fixed in `apps/mobile/lib/api-client.ts` | See the dated prose note above this table for full detail. Closes most of the 2026-09-10 build note's "deliberately deferred" screen list; native device testing and AC-6's release-size/performance-budget verification remain open, so Status is unchanged. The bug fix (`buildHeaders()` never adding an `Authorization` header for `useApiQuery`-based calls) also silently affected pre-existing screens (Orders/Credits/Purchased Designs/Subscription/Notifications) that had never been live-verified before |
 | 2026-09-10 | Real bug fixed in A-002 (Authentication & Account Security, already `Completed`): admin 2FA (AC-5) rejected genuinely correct codes | Surfaced while browser-verifying A-005f, which needs a working admin login to reach. The user reported "invalid code" on 2FA setup despite phone/device time agreeing — reproduced deterministically (not a clock issue at all): `otplib`'s `authenticator` defaults to `window: 0`, zero tolerance, so a code is only accepted in the exact current 30-second tick; the ordinary latency of reading a code off a phone and typing it in routinely crosses that boundary, rejecting a code that was completely correct when generated. Confirmed via a live round-trip against the running dev server (fresh `/2fa/setup` secret → a code generated with a `Date.now` offset 25s in the past → `/2fa/confirm` now returns `200` with real tokens; before the fix, the identical setup returned `401 INVALID_OR_EXPIRED_CODE`). Fixed with one line in `apps/api/src/auth/services/totp.service.ts` (`authenticator.options = { window: 1 }`, ~90s total tolerance either side — the standard authenticator-app tolerance, not a weakening of the 6-digit/30-second code itself). Added a regression test (`totp.service.spec.ts`) asserting a previous-step code still verifies — the existing 3 tests all generated and checked a code in the same tick, so this never surfaced before. Verified: `apps/api` unit suite 265/265 (was 264 — the new test), `tsc --noEmit` clean, `auth.spec.ts` integration suite 17/17 (covers the admin-2FA-required login path) all against the real native Postgres this session set up. No Status change — A-002 stays `Completed`; this is a correctness fix within an already-shipped aspect, not new/incomplete work |
 | 2026-09-08 | A-005f: DB-backed integration test blocker closed (Status stays `In Progress` — one gap remains); one real bug fixed | A user asked to review the Performance & Optimization spec (A-024); per `CLAUDE.md` §3 that aspect is correctly `Blocked` on all of A-001–A-023, so work switched to closing out its own listed blockers instead, starting with A-005f since it's this session's current branch. Root-caused the 2026-09-07 note's "Docker Desktop can't start" gap two ways: (1) found a **native Postgres 17 Windows service already running** outside Docker — created the `dev` role/`czdigitizing` database docker-compose.yml expects and applied all 25 migrations against it, so DB-backed test execution no longer needs Docker at all; (2) with Postgres available, running `test/integration/auth.spec.ts` hung for hours with near-zero CPU rather than failing — isolated with `--runInBand`/a shortened `--testTimeout` to `redis.client.flushdb()` in the file's own `beforeEach` (plus other Redis-touching calls in `rate-limiter.service.ts`/`verification-code.service.ts`/`magic-link.service.ts`/`storage.service.ts`): with nothing listening on 6379, ioredis's default retry policy takes ~10s to throw per call, and with 17 tests each running that `beforeEach` (plus per-test Redis calls), the file-wide "hang" was really serialized ~10s waits, not a true deadlock — `--detectOpenHandles` wasn't needed once the timing math was clear. No Redis is installed natively on this machine and Docker remains unusable (`Virtualization Enabled In Firmware: No`, unfixable from software), so rather than stand up real Redis, added `ioredis-mock` (`apps/api/test/mocks/ioredis.ts` shims its default-only export back to `ioredis`'s real named `{ Redis }` export) and pointed `test/jest-integration.json`'s new `moduleNameMapper` at it — test-config-only, zero production code touched. Running the now-fast `auth.spec.ts` surfaced a real, previously-undetected bug in A-005f's own new work: `FreelancerAccountsService.listSessions()` returned raw Prisma `Session` rows straight to the HTTP layer, and `Session.userId` is a `bigint` — `JSON.stringify` can't serialize that, so `GET /api/admin/freelancer-accounts/:id/sessions` 500'd on every real call (masked in the 2026-09-07 pass since neither the integration test nor a browser session had ever actually executed against a real DB before). Fixed with a `SessionInfoDto`/`toSessionInfoDto()` (`apps/api/src/auth/dto/session-info.dto.ts`), matching this codebase's existing `UserProfileDto` bigint-stringification convention exactly. Verified: `auth.spec.ts` 17/17 (including both A-005f tests) against the real native Postgres; full `apps/api` unit suite 264/264 unaffected; `tsc --noEmit` clean. A-005f's Status stays `In Progress`, not `Completed` — its other 2026-09-07-flagged gap (interactive browser verification of the new admin UI) is still open and wasn't attempted in this pass. **Also surfaced, not yet fixed, flagged rather than silently left for later:** running every other `test/integration/*.spec.ts` file individually (this suite's own established one-file-at-a-time convention) against this same real Postgres for what this registry's history suggests may be the *first* real DB-backed run of most of them — 84/88 tests across the other 16 files passed; 3 files have real failures worth a separate look, none touching A-005f: `auth-validation.spec.ts` (1 failure — a shared fixture's `expect.anything()` doesn't match the `null` the test itself is confirming, a fixture-authoring bug, not an app bug), `cart.spec.ts` (2 failures) and `private-files.spec.ts` (4 failures) both asserting against the pre-A-013 stub responses (`ORDERS_NOT_AVAILABLE`/`PAYMENT_NOT_CONFIRMED`) that A-013's 2026-09-03 pass already replaced with real behavior — stale tests, not regressions. `search-privacy.spec.ts` failed only when run back-to-back after other files in one loop and passed cleanly standalone — the cross-file test-isolation characteristic this file already documents elsewhere (each spec's `beforeEach` only resets tables it owns), not a new issue. None of these four files were touched in this pass — flagged for a follow-up, not fixed opportunistically, since they sit outside every aspect this pass actually worked on |
