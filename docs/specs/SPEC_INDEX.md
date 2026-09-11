@@ -689,6 +689,37 @@ to catch problems, matching this note's own root-caused bug on the original pass
 "only Login/Register/Home was ever really click-verified" gap; A-023's Status is unchanged — native
 device/emulator testing remains the one still-open, unrelated item.
 
+**§7 out-of-scope items confirmed by design, not gaps, same branch:** the spec's own §7 (Out of
+scope) names three exclusions — offline write queuing / local-first conflict merge, any
+Android-only or iOS-only feature, and tablet-specific layouts — but per this file's own §6 rule
+("existence is not completion," which cuts both ways: an *absence* claimed as deliberate needs the
+same verification as a presence claimed as complete), each was checked against the actual code
+rather than taken on the spec's word alone:
+- **Offline write queuing:** absent, correctly — `apps/mobile/lib/use-api-query.ts` implements only
+  AC-16's actual requirement ("re-fetches current state from the API rather than trusting any
+  locally cached state as authoritative," gated on a live `NetInfo.fetch()` check), with an explicit
+  comment recording that a write queue is deliberately not built. No queue, persisted mutation log,
+  or local-first merge logic exists anywhere in `apps/mobile` — grepped for `queue`/`pending
+  mutation`/`writeQueue` and found nothing else. `apps/mobile/lib/api-client.ts`'s `fetchWithRetry()`
+  (added closing AC-6 earlier this branch) is a same-request retry-with-backoff, not a queue — it
+  never persists a failed write to retry after the app was closed or reconnects later.
+- **Android-only or iOS-only features:** none exist. The only `Platform.OS` branches anywhere in
+  `apps/mobile` are implementation-level shims required for both platforms to work at all, not
+  product features exclusive to one: `lib/storage.ts` (web vs. native `SecureStore` backend),
+  `TaeboWidget.tsx` (`KeyboardAvoidingView`'s `behavior` prop, a standard RN pattern),
+  `lib/locale-context.tsx` (reading the OS locale via each platform's own API), and
+  `lib/push-registration.ts` (tagging a push token `ios`/`android` for APNs vs. FCM routing). None
+  of these gate a *feature* behind a platform check — every screen and capability in the app renders
+  and functions identically on both.
+- **Tablet-specific layouts:** none exist — grepped for `tablet`/`isTablet`/`Dimensions.get`/
+  `useWindowDimensions` across `apps/mobile` and found zero matches. Every screen is a single
+  phone-form-factor layout with no breakpoint logic, matching the spec's own "phone-form-factor is
+  the assumed baseline" reasoning (architecture's app-size targets are phone-oriented).
+
+All three are genuinely absent by design, not silently-missing work masquerading as an intentional
+exclusion. No code changes were needed — this was a verification-only pass. A-023's Status is
+unchanged.
+
 ---
 
 ## Aspect Registry
@@ -976,6 +1007,7 @@ build order, and was not assumed to be one anywhere in this file.
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-09-11 | A-023 stays `In Progress`; spec §7's three out-of-scope items (offline write queuing, Android/iOS-only features, tablet layouts) confirmed genuinely absent by design | See the dated prose note above this table ("§7 out-of-scope items confirmed by design, not gaps") for full detail. Verified against the actual code rather than taken on the spec's word — no write queue, no platform-exclusive feature, no tablet breakpoint logic anywhere in `apps/mobile`. Verification-only; no code changes. Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; full individual click-through verification of all 8 previously-deferred screens closed (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members, Taebo) | See the dated prose note above this table ("Full screen click-through verification closed, same branch") for full detail. Corrects an overclaim in this same date's earlier note, which asserted a full per-screen Playwright pass that had not actually happened — only Login/Register/Home had been click-verified. Redone for real via a standalone Playwright script (screenshots + zero console/page errors); no new bugs found, since the `buildHeaders()` fix from the earlier pass held up under real per-screen exercise. Status unchanged — native device/emulator testing remains the one open gap |
 | 2026-09-11 | A-023 stays `In Progress`; 8 of its previously-deferred screens built (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members) plus the Taebo widget; real bug fixed in `apps/mobile/lib/api-client.ts` | See the dated prose note above this table for full detail. Closes most of the 2026-09-10 build note's "deliberately deferred" screen list; native device testing and AC-6's release-size/performance-budget verification remain open, so Status is unchanged. The bug fix (`buildHeaders()` never adding an `Authorization` header for `useApiQuery`-based calls) also silently affected pre-existing screens (Orders/Credits/Purchased Designs/Subscription/Notifications) that had never been live-verified before |
 | 2026-09-10 | Real bug fixed in A-002 (Authentication & Account Security, already `Completed`): admin 2FA (AC-5) rejected genuinely correct codes | Surfaced while browser-verifying A-005f, which needs a working admin login to reach. The user reported "invalid code" on 2FA setup despite phone/device time agreeing — reproduced deterministically (not a clock issue at all): `otplib`'s `authenticator` defaults to `window: 0`, zero tolerance, so a code is only accepted in the exact current 30-second tick; the ordinary latency of reading a code off a phone and typing it in routinely crosses that boundary, rejecting a code that was completely correct when generated. Confirmed via a live round-trip against the running dev server (fresh `/2fa/setup` secret → a code generated with a `Date.now` offset 25s in the past → `/2fa/confirm` now returns `200` with real tokens; before the fix, the identical setup returned `401 INVALID_OR_EXPIRED_CODE`). Fixed with one line in `apps/api/src/auth/services/totp.service.ts` (`authenticator.options = { window: 1 }`, ~90s total tolerance either side — the standard authenticator-app tolerance, not a weakening of the 6-digit/30-second code itself). Added a regression test (`totp.service.spec.ts`) asserting a previous-step code still verifies — the existing 3 tests all generated and checked a code in the same tick, so this never surfaced before. Verified: `apps/api` unit suite 265/265 (was 264 — the new test), `tsc --noEmit` clean, `auth.spec.ts` integration suite 17/17 (covers the admin-2FA-required login path) all against the real native Postgres this session set up. No Status change — A-002 stays `Completed`; this is a correctness fix within an already-shipped aspect, not new/incomplete work |
