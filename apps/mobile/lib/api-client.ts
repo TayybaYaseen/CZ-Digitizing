@@ -60,6 +60,39 @@ export async function setDeviceId(deviceId: string): Promise<void> {
   }
 }
 
+// architecture §Performance & Optimization "Mobile App Performance" -> Network: "Retry logic:
+// Exponential backoff (3 attempts)" (AC-6 of docs/specs/2026-08-29-18-mobile-app-android-ios.md
+// names "network retry" as one of the release performance budgets this app must target). Only
+// retries requests that are actually safe to repeat: a network-level failure (the request never
+// reached the server, so retrying any method is safe) or a transient 5xx on an idempotent GET
+// (never on a mutating call — retrying e.g. an order-creation POST that *did* reach the server
+// risks duplicating the side effect).
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 300;
+
+function isIdempotentMethod(init: RequestInit | undefined): boolean {
+  return (init?.method ?? 'GET').toUpperCase() === 'GET';
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: string, init: RequestInit | undefined): Promise<Response> {
+  for (let attempt = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      const isLastAttempt = attempt === RETRY_MAX_ATTEMPTS;
+      if (res.status < 500 || !isIdempotentMethod(init) || isLastAttempt) return res;
+    } catch (error) {
+      if (attempt === RETRY_MAX_ATTEMPTS) throw error;
+    }
+    await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+  }
+  /* istanbul ignore next -- unreachable: the loop above always returns or throws on its last attempt */
+  throw new Error('unreachable');
+}
+
 // Access tokens are short-lived (15 min, architecture §Authentication & Security) — without this,
 // every screen's API calls start failing with UNAUTHENTICATED the moment a session outlives that
 // window, even though the 7-day refresh token is still good. Concurrent 401s share one in-flight
@@ -74,7 +107,7 @@ async function refreshAccessToken(): Promise<string | null> {
     if (!stored?.refreshToken) return null;
     try {
       const deviceId = await getDeviceId();
-      const res = await fetch(`${API_URL}/api/auth/refresh-token`, {
+      const res = await fetchWithRetry(`${API_URL}/api/auth/refresh-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(deviceId ? { 'x-device-id': deviceId } : {}) },
         body: JSON.stringify({ refreshToken: stored.refreshToken }),
@@ -141,7 +174,7 @@ async function captureDeviceId(res: Response): Promise<void> {
 }
 
 async function fetchWithAuthRetry(path: string, init: RequestInit | undefined): Promise<Response> {
-  const first = await fetch(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init) });
+  const first = await fetchWithRetry(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init) });
   await captureDeviceId(first);
 
   if (first.status !== 401) return first;
@@ -152,7 +185,7 @@ async function fetchWithAuthRetry(path: string, init: RequestInit | undefined): 
   const newAccessToken = await refreshAccessToken();
   if (!newAccessToken) return first; // refresh failed — surface the original 401 as-is
 
-  const retried = await fetch(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init, newAccessToken) });
+  const retried = await fetchWithRetry(`${API_URL}${path}`, { ...init, headers: await buildHeaders(init, newAccessToken) });
   await captureDeviceId(retried);
   return retried;
 }
