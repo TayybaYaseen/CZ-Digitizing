@@ -32,4 +32,15 @@ export class PushTokensService {
   async listTokensForUser(userId: bigint): Promise<{ token: string; platform: PushPlatform }[]> {
     return this.prisma.pushToken.findMany({ where: { userId }, select: { token: true, platform: true } });
   }
+
+  // §8 risk #1 resolution — the staleness/pruning policy this spec left open: a token is only ever
+  // proven dead by the push provider itself (Expo/FCM/APNs returning DeviceNotRegistered on an
+  // actual send attempt, see NotificationPushService.send()), not by a guessed TTL — there is no
+  // reliable signal from an uninstall that never explicitly logged out otherwise. Unlike
+  // deregister(), this is a server-initiated cleanup with no owning caller to authorize against, so
+  // it silently no-ops on a token that's already gone (e.g. a second push in the same batch to a
+  // user with two now-dead devices) rather than throwing.
+  async pruneStale(token: string): Promise<void> {
+    await this.prisma.pushToken.deleteMany({ where: { token } });
+  }
 }

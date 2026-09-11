@@ -102,7 +102,12 @@ export class CartService {
         where: { cartId: cart.id, designId: design.id, sizeId: size.id, status: 'active' },
       });
       if (existing) {
-        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
+        // AC-15 — an atomic DB-level increment, not existing.quantity + dto.quantity computed in
+        // JS: two near-simultaneous adds of the same line (e.g. web and app within the same
+        // second) would otherwise both read the same pre-update quantity and one increment would
+        // be silently lost, which is a real lost-update bug, not the "standard last-write-wins"
+        // this spec's AC-15 actually claims.
+        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: { increment: dto.quantity } } });
       } else {
         resultItem = await this.prisma.cartItem.create({
           data: { cartId: cart.id, designId: design.id, sizeId: size.id, quantity: dto.quantity, priceAtAddPkr },
@@ -116,7 +121,8 @@ export class CartService {
 
       const existing = await this.prisma.cartItem.findFirst({ where: { cartId: cart.id, bundleId: bundle.id, status: 'active' } });
       if (existing) {
-        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + dto.quantity } });
+        // AC-15 — atomic increment, same reasoning as the design branch above.
+        resultItem = await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: { increment: dto.quantity } } });
       } else {
         resultItem = await this.prisma.cartItem.create({ data: { cartId: cart.id, bundleId: bundle.id, quantity: dto.quantity, priceAtAddPkr } });
       }
@@ -209,7 +215,7 @@ export class CartService {
           },
         });
         if (existing) {
-          await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + guestItem.quantity } });
+          await this.prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: { increment: guestItem.quantity } } });
         } else {
           await this.prisma.cartItem.update({ where: { id: guestItem.id }, data: { cartId: customerCart.id } });
         }

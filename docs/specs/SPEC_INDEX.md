@@ -720,6 +720,68 @@ All three are genuinely absent by design, not silently-missing work masquerading
 exclusion. No code changes were needed — this was a verification-only pass. A-023's Status is
 unchanged.
 
+**§8's three remaining open risks closed, same branch:**
+
+1. **`push_tokens` staleness/pruning policy.** `NotificationPushService.send()` now inspects each
+   Expo push ticket individually (Expo's response array is positionally aligned with the request
+   array) and calls a new `PushTokensService.pruneStale()` for any token Expo reports
+   `DeviceNotRegistered` — the provider's own dead-token signal, not a guessed TTL, since nothing
+   else can reliably tell "uninstalled without logout" apart from "temporarily unreachable." A
+   send now also correctly counts as delivered if *any* of a user's multiple registered devices
+   received it, rather than the old all-or-nothing behavior where one dead second device failed the
+   whole push. 4 new unit tests (2 `push-tokens.service.spec.ts`, 2
+   `notification-push.service.spec.ts` — prune-on-DeviceNotRegistered, partial-success-still-counts,
+   silent-no-op-pruning-an-already-gone-token, still-throws-on-a-genuine-non-DeviceNotRegistered
+   error) plus the existing test's fake response fixed to Expo's real `details.error` shape rather
+   than the ad hoc `message` field it had been asserting against.
+2. **Expo managed workflow vs. bare React Native.** Formally recorded as **managed workflow** in
+   `CZ_DIGITIZING_ARCHITECTURE.md`'s own Technology Stack table (the Aspect File, authoritative per
+   `CLAUDE.md` §1) rather than left as an implicit fact only this spec asserted. Confirmed against
+   the actual `apps/mobile` code before recording it, not assumed: every `Platform.OS` branch is an
+   implementation shim, not a feature; `app.json`'s `plugins` list is just `expo-secure-store`; no
+   `android`/`ios` native folders or `expo prebuild` output exist anywhere in the repo.
+3. **AC-15 last-write-wins audit.** Actually audited rather than left as a surfaced-but-unchecked
+   assumption — walked the owning API for AC-15's own worked example (cart) plus this spec's one
+   directly-owned concurrent-write surface (notification read-state, AC-13), and found one real bug
+   along the way:
+   - **Cart (AC-15's own example) — real bug found and fixed.** `CartService.addItem()`'s "increase
+     quantity on an existing line" path computed the new quantity in JS as `existing.quantity +
+     dto.quantity` from a value read moments earlier, then wrote it back — a classic lost-update
+     race, not the "standard last-write-wins" AC-15 actually claims: two near-simultaneous adds of
+     the *same* line (e.g. web and app within the same second) could both read the same
+     pre-update quantity and one increment would silently vanish, which is strictly worse than
+     last-write-wins (that would at least fully apply one write). Fixed at all three call sites
+     (`addItem()`'s design and bundle branches, `mergeGuestCartInto()`) by switching to Prisma's
+     atomic `{ increment }` update operator — a single `UPDATE ... SET quantity = quantity + $1` at
+     the database level, immune to the race regardless of read timing. `updateQuantity()` (the
+     absolute-set PATCH endpoint) was already a plain overwrite and needed no change — that one
+     really was already correct last-write-wins. New unit test asserts two concurrent adds of the
+     same line sum correctly (`1 + 1 + 2 = 4`) rather than losing an increment; existing fake-Prisma
+     test double updated to mimic Prisma's `{ increment }` operator semantics. Full `apps/api`
+     suite re-run clean (279/279) after the change.
+   - **Notification read-state (AC-13, this spec's own directly-owned area) — confirmed correct.**
+     `NotificationService.markRead()` does an unconditional `isRead: true` set, not a computed
+     value — naturally race-free regardless of which platform's request lands last.
+   - **Credits/checkout balance — a real gap found, flagged for the owning specs rather than fixed
+     here.** `CreditsService.applyToOrder()`/`gift()` check `availableCredits` and then deduct
+     inside one Postgres transaction, but a plain `SELECT` under Postgres's default READ COMMITTED
+     isolation does not lock the row — two concurrent credit-spending requests for the same account
+     (exactly AC-15's "two platforms, same account, near-simultaneous" scenario, e.g. checkout
+     started on web and app together) could each read the same pre-deduction balance, both pass the
+     `INSUFFICIENT_CREDITS` check, and both deduct, leaving `availableCredits` negative — a
+     TOCTOU race, not present in the increment-based grant/refund paths (those already use atomic
+     `{ increment }` via `adjustBalance()`), and no DB-level `CHECK (available_credits >= 0)`
+     constraint exists as a backstop either. This is a real, well-defined gap, but fixing it
+     properly (row-level locking or a serializable transaction, plus deciding how the losing
+     request should fail) is a design decision for the *owning* specs —
+     [Subscriptions & Credits](2026-08-28-09-subscriptions-credits.md) and
+     [Orders & Payment Processing](2026-08-28-08-orders-payment-processing.md) (both already
+     `Completed`) — not something this pass should redesign unilaterally while auditing a different
+     aspect's spec. Flagged here rather than silently left for later, per this file's own §6 rule.
+
+A-023's Status is unchanged — native device/emulator testing remains the one still-open item from
+the original build note.
+
 ---
 
 ## Aspect Registry
@@ -1007,6 +1069,7 @@ build order, and was not assumed to be one anywhere in this file.
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-09-11 | A-023 stays `In Progress`; spec §8's three remaining open risks closed (push-token staleness/pruning policy, Expo-managed-workflow decision formally recorded, AC-15 last-write-wins actually audited); one real bug fixed (`CartService` lost-update race), one real gap flagged for the owning specs (credits/checkout TOCTOU race) | See the dated prose note above this table ("§8's three remaining open risks closed") and `docs/specs/2026-08-29-18-mobile-app-android-ios.md`'s own §8 addendum for full detail. `NotificationPushService` now prunes dead tokens on Expo's `DeviceNotRegistered` signal; `CZ_DIGITIZING_ARCHITECTURE.md` now states Expo managed workflow explicitly; `CartService.addItem()`/`mergeGuestCartInto()` switched to atomic `{ increment }` updates, fixing a genuine lost-update race that was strictly worse than the "last-write-wins" AC-15 claims. 4 new push-token/push-service unit tests + 1 new cart concurrency test; full `apps/api` suite now 280/280 (was 275 before this pass). Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; spec §7's three out-of-scope items (offline write queuing, Android/iOS-only features, tablet layouts) confirmed genuinely absent by design | See the dated prose note above this table ("§7 out-of-scope items confirmed by design, not gaps") for full detail. Verified against the actual code rather than taken on the spec's word — no write queue, no platform-exclusive feature, no tablet breakpoint logic anywhere in `apps/mobile`. Verification-only; no code changes. Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; full individual click-through verification of all 8 previously-deferred screens closed (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members, Taebo) | See the dated prose note above this table ("Full screen click-through verification closed, same branch") for full detail. Corrects an overclaim in this same date's earlier note, which asserted a full per-screen Playwright pass that had not actually happened — only Login/Register/Home had been click-verified. Redone for real via a standalone Playwright script (screenshots + zero console/page errors); no new bugs found, since the `buildHeaders()` fix from the earlier pass held up under real per-screen exercise. Status unchanged — native device/emulator testing remains the one open gap |
 | 2026-09-11 | A-023 stays `In Progress`; 8 of its previously-deferred screens built (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members) plus the Taebo widget; real bug fixed in `apps/mobile/lib/api-client.ts` | See the dated prose note above this table for full detail. Closes most of the 2026-09-10 build note's "deliberately deferred" screen list; native device testing and AC-6's release-size/performance-budget verification remain open, so Status is unchanged. The bug fix (`buildHeaders()` never adding an `Authorization` header for `useApiQuery`-based calls) also silently affected pre-existing screens (Orders/Credits/Purchased Designs/Subscription/Notifications) that had never been live-verified before |
