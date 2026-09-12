@@ -96,8 +96,8 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.gray100 },
   center: { marginTop: 40 },
-  error: { color: '#c0392b', padding: 16, textAlign: 'center' },
-  empty: { padding: 24, textAlign: 'center', color: colors.gray600 },
+  error: { fontFamily: fonts.body, color: '#c0392b', padding: 16, textAlign: 'center' },
+  empty: { fontFamily: fonts.body, padding: 24, textAlign: 'center', color: colors.gray600 },
 
   hero: {
     margin: space[4],
@@ -106,21 +106,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy800,
     padding: space[5],
   },
-  heroEyebrow: { color: colors.gold400, fontSize: 11, fontWeight: '700', letterSpacing: 1.6 },
-  heroTitle: { color: colors.white, fontFamily: fonts.display, fontWeight: '700', fontSize: 24, marginTop: space[2], lineHeight: 30 },
-  heroBody: { color: 'rgba(250,250,250,.7)', fontSize: 13, lineHeight: 19, marginTop: space[2] },
+  heroEyebrow: { fontFamily: fonts.bodyMedium, color: colors.gold400, fontSize: 11, letterSpacing: 1.6 },
+  heroTitle: { fontFamily: fonts.display, color: colors.white, fontSize: 24, marginTop: space[2], lineHeight: 30 },
+  heroBody: { fontFamily: fonts.body, color: 'rgba(250,250,250,.7)', fontSize: 13, lineHeight: 19, marginTop: space[2] },
   heroCta: { alignSelf: 'flex-start', backgroundColor: colors.gold500, borderRadius: radius.button, paddingVertical: 10, paddingHorizontal: space[5], marginTop: space[4] },
-  heroCtaText: { color: colors.navy800, fontWeight: '700', fontSize: 13 },
+  heroCtaText: { fontFamily: fonts.bodyMedium, color: colors.navy800, fontSize: 13 },
 
-  sectionTitle: { fontFamily: fonts.display, fontWeight: '700', fontSize: 17, color: colors.navy800, marginHorizontal: space[4], marginBottom: space[2] },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 17, color: colors.navy800, marginHorizontal: space[4], marginBottom: space[2] },
 
   featuredRow: { marginBottom: space[5] },
   featuredCard: { width: 132, marginLeft: space[4] },
   featuredImage: { width: '100%', aspectRatio: 1, borderRadius: radius.card, backgroundColor: colors.gray300 },
-  featuredName: { marginTop: space[2], fontWeight: '600', fontSize: 12.5, color: colors.navy800 },
+  featuredName: { fontFamily: fonts.bodyMedium, marginTop: space[2], fontSize: 12.5, color: colors.navy800 },
 
   card: { flex: 1, margin: space[2], maxWidth: '46%' },
   image: { width: '100%', aspectRatio: 1, borderRadius: radius.card, backgroundColor: colors.gray300 },
-  name: { marginTop: space[2], fontWeight: '600', color: colors.navy800 },
-  price: { color: colors.gold700, fontFamily: fonts.display, fontWeight: '700', marginTop: 2 },
+  name: { fontFamily: fonts.bodyMedium, marginTop: space[2], color: colors.navy800 },
+  price: { fontFamily: fonts.display, color: colors.gold700, marginTop: 2 },
 });

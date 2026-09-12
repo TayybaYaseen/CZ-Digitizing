@@ -90,6 +90,53 @@ remains open, tracked under A-023 rather than here. Status unchanged — A-001 s
 is a correctness fix within an already-shipped aspect, same category as this file's other
 already-`Completed`-aspect bug-fix notes) and A-023 stays `In Progress`.
 
+As of the 2026-09-12 update: closed the `apps/mobile` gap the above note left open — the brand
+theme applied to `HomeScreen` was falling back to Georgia/System because no font-loading package
+was installed. Added `expo-font`, `expo-splash-screen`, `@expo-google-fonts/playfair-display`, and
+`@expo-google-fonts/montserrat` (pinned to the exact SDK 51-compatible versions from `expo`'s own
+`bundledNativeModules.json` — `~12.0.10`/`~0.27.7` — not the latest majors `pnpm add` resolves to by
+default, which are SDK 54-only and would have silently broken this Expo 51 project); `App.tsx` now
+loads `PlayfairDisplay_700Bold`/`Montserrat_400Regular`/`Montserrat_600SemiBold` via `useFonts()`,
+holding the splash screen (`preventAutoHideAsync`) until they resolve. `lib/theme.ts`'s `fonts`
+tokens now name these exact family strings instead of the old fallback stack, and `HomeScreen.tsx`
+was updated to reference them directly rather than pairing a generic family with a numeric
+`fontWeight` — RN can't synthesize a different weight for a custom static font registered under one
+family name, so that combination was a latent no-op/faux-bold risk, not a real style. Every hex value
+in `lib/theme.ts` was diffed against the imported `.claude/skills/cz-digitizing-design/guidelines/
+colors-{navy,gold,neutrals}.html` cards (the actual source of truth — no `design system.md` file
+exists in this repo) and matches exactly (`navy-900`…`navy-500`, `gold-700`…`gold-100`, the neutral
+ramp); typography now matches `type-display.html` (Playfair 700 for every heading/price) and
+`type-weights.html`/`type-eyebrow.html` (Montserrat 400 prose / 600 "anything functional").
+Also found and fixed while here: `apps/mobile/package.json` never pinned its own `eslint` version
+(unlike `apps/web`/`apps/admin`'s `^8.57.1`), so `pnpm --filter @czd/mobile lint` silently depended on
+whatever version the workspace root happened to hoist — installing the font packages shifted that
+hoist to `eslint@9.39.5` (a flat-config-only version incompatible with this app's legacy
+`.eslintrc.json`) and broke the lint script outright (`ESLint couldn't find an eslint.config.js`).
+Pinned `eslint: ^8.57.1` to match the other two apps; confirmed this didn't disturb `apps/web`'s or
+`apps/admin`'s own lint (both still resolve `8.57.1` and run clean). Verified, in order: `tsc --noEmit`
+clean; `eslint . --ext .ts,.tsx` clean (0 errors, the same 3 pre-existing `import/first` warnings as
+before, unrelated to this change); `jest` 10/10 unaffected; `expo export --platform android` and
+`--platform ios` both bundled all 989 modules with zero errors and correctly packaged every
+referenced font file into the production Hermes bundle (the closest thing to "does it build" this
+managed-workflow, no-EAS-login, no-Android-SDK/Xcode environment can produce — same substitution
+this file already uses elsewhere for app-size/device-testing checks). Beyond that: ran the real thing
+via this repo's own established `expo start --web` substitute for device testing — real local
+Postgres/Redis, `apps/api`'s `seed-customer.ts` (`customer@czd.test`), a from-scratch Playwright
+script that logged in fresh, resolved the mandatory new-device email-code check live via
+`gen-device-code.ts` (the same dev-helper category prior A-023 passes used), and landed on the real
+rendered Home tab: screenshot confirms the navy hero (`#0B132B`) with the gold eyebrow, "Your Vision,
+Our Stitches" rendering in the actual loaded `PlayfairDisplay_700Bold` face (confirmed via
+`getComputedStyle().fontFamily`, not just visual inspection), the gold "Get a Quote" CTA, and
+Montserrat-set product names/prices throughout — zero console errors traceable to this change (the
+one 401 logged is the expected pre-verification login attempt itself, not a bug). Product preview
+images render as solid placeholder-color blocks, a pre-existing seed-data gap unrelated to this
+change (same category as the analogous gap already flagged on `apps/web`'s own home page).
+**This closes the mobile-theme/typography verification gap in full.** It does **not** close A-023
+itself: native iOS/Android device or emulator testing remains the one still-open item this file has
+flagged consistently across every prior A-023 note (no EAS login, Android SDK, or Xcode in this
+environment), and this pass did not re-touch or re-verify any of A-023's other screens/ACs. A-023
+stays `In Progress`.
+
 As of the 2026-09-01 update: A-004 (Notifications System) is `Completed` — backend implementation
 of `docs/specs/2026-08-28-02-notifications-system.md` (AC-1–AC-10), per the approved plan's
 explicit backend-only scope (`apps/api` + `packages/shared-types`). As of the 2026-09-02 follow-up,
@@ -1107,6 +1154,7 @@ build order, and was not assumed to be one anywhere in this file.
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-09-12 | A-023 stays `In Progress`; `apps/mobile`'s brand-theme/typography gap (flagged 2026-09-11) fully closed; one real bug fixed (`apps/mobile` had no pinned `eslint`, silently depending on root-hoist luck) | See the dated prose note above this table ("closed the `apps/mobile` gap the above note left open") for full detail. Real Playfair Display/Montserrat fonts now load via `expo-font`/`@expo-google-fonts/*` (pinned to SDK 51-compatible versions, not the latest majors); `lib/theme.ts`/`HomeScreen.tsx` reference the exact loaded family names instead of a Georgia/System fallback paired with a no-op `fontWeight`. Every hex value re-diffed against the imported design-system guideline cards and confirmed exact. Verified via typecheck/lint/jest, `expo export` for both platforms (zero bundler errors, fonts correctly packaged), and a full live `expo start --web` login → new-device-verify → Home flow (Playwright, real Postgres/Redis/`apps/api`) with a screenshot and a `getComputedStyle` check confirming the real font/color render. Does **not** close A-023 itself — native device/emulator testing remains the one still-open item, unchanged by this pass |
 | 2026-09-11 | A-023 stays `In Progress`; spec §8's three remaining open risks closed (push-token staleness/pruning policy, Expo-managed-workflow decision formally recorded, AC-15 last-write-wins actually audited); one real bug fixed (`CartService` lost-update race), one real gap flagged for the owning specs (credits/checkout TOCTOU race) | See the dated prose note above this table ("§8's three remaining open risks closed") and `docs/specs/2026-08-29-18-mobile-app-android-ios.md`'s own §8 addendum for full detail. `NotificationPushService` now prunes dead tokens on Expo's `DeviceNotRegistered` signal; `CZ_DIGITIZING_ARCHITECTURE.md` now states Expo managed workflow explicitly; `CartService.addItem()`/`mergeGuestCartInto()` switched to atomic `{ increment }` updates, fixing a genuine lost-update race that was strictly worse than the "last-write-wins" AC-15 claims. 4 new push-token/push-service unit tests + 1 new cart concurrency test; full `apps/api` suite now 280/280 (was 275 before this pass). Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; spec §7's three out-of-scope items (offline write queuing, Android/iOS-only features, tablet layouts) confirmed genuinely absent by design | See the dated prose note above this table ("§7 out-of-scope items confirmed by design, not gaps") for full detail. Verified against the actual code rather than taken on the spec's word — no write queue, no platform-exclusive feature, no tablet breakpoint logic anywhere in `apps/mobile`. Verification-only; no code changes. Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; full individual click-through verification of all 8 previously-deferred screens closed (Services, Bundles, Pricing, Get a Quote, Custom Request + tracking/chat, Account Activity, Account Members, Taebo) | See the dated prose note above this table ("Full screen click-through verification closed, same branch") for full detail. Corrects an overclaim in this same date's earlier note, which asserted a full per-screen Playwright pass that had not actually happened — only Login/Register/Home had been click-verified. Redone for real via a standalone Playwright script (screenshots + zero console/page errors); no new bugs found, since the `buildHeaders()` fix from the earlier pass held up under real per-screen exercise. Status unchanged — native device/emulator testing remains the one open gap |

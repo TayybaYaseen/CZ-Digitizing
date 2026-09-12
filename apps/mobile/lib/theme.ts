@@ -1,11 +1,8 @@
-import { Platform } from 'react-native';
-
-// Brand-kit tokens (docs/specs/2026-09-02-01-brand-visual-identity.md), kept in exact parity with
-// apps/admin/tailwind.config.ts and apps/web/tailwind.config.ts's `brand`/`navy`/`gold` scales so
-// all three surfaces render the same identity. No expo-font/@expo-google-fonts package is installed
-// in this app yet, so `display` falls back to the same platform-serif stack the brand doc names as
-// Playfair Display's own fallback ("Georgia, Times New Roman, serif") rather than silently guessing
-// at a web font — swap this for a real Playfair Display face once that dependency is added.
+// Brand-kit tokens (docs/specs/2026-09-02-01-brand-visual-identity.md; the imported
+// .claude/skills/cz-digitizing-design guidelines are the source of truth for the exact hex/type
+// values below), kept in exact parity with apps/admin/tailwind.config.ts and
+// apps/web/tailwind.config.ts's `brand`/`navy`/`gold` scales so all three surfaces render the same
+// identity.
 export const colors = {
   navy900: '#060B1A',
   navy800: '#0B132B',
@@ -26,9 +23,19 @@ export const colors = {
   white: '#FAFAFA',
 } as const;
 
+// Exact family-name parity with the `useFonts()` call in App.tsx, which loads these three faces via
+// @expo-google-fonts — the weight is baked into which family you reference (there is no single
+// "Playfair Display" family with a variable weight here), so these are the only three text styles
+// this app should ever use: `display` for every heading/price/KPI figure (readme.md's own "Playfair
+// Display for every heading... set bold" — there is deliberately no non-bold display weight),
+// `body` for prose, and `bodyMedium` for "anything functional" (labels, buttons, nav) per the same
+// doc. Do not pair these with a `fontWeight` style — RN can't synthesize a different weight for a
+// custom static font registered under one family name, so `fontWeight` on these is a no-op at best
+// and a faux-bold/skew on some platforms at worst.
 export const fonts = {
-  display: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-  body: Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' }),
+  display: 'PlayfairDisplay_700Bold',
+  body: 'Montserrat_400Regular',
+  bodyMedium: 'Montserrat_600SemiBold',
 } as const;
 
 export const radius = { sm: 6, button: 8, card: 10, lg: 12, xl: 16, pill: 999 } as const;
