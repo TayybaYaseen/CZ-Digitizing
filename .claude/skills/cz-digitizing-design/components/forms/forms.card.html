@@ -1,0 +1,31 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Forms" subtitle="FormField, Input, SearchField, Select, Textarea, FileField, Checkbox, Radio" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:var(--surface-card);font-family:var(--font-body)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.col{display:grid;gap:12px}.lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);font-weight:600}</style></head><body><div id="root"></div>
+<script type="text/babel">
+const { FormField, Input, SearchField, Select, Textarea, FileField, Checkbox, Radio } = window.CZDigitizingDesignSystem_765273;
+function Demo(){
+  const [c1,setC1]=React.useState(true); const [c2,setC2]=React.useState(false); const [m,setM]=React.useState('bank');
+  return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
+    <FormField label="Full Name" required><Input placeholder="Full Name"/></FormField>
+    <FormField label="Email" required hint="We reply within 2 hours"><Input icon="mail" placeholder="you@company.com"/></FormField>
+    <FormField label="WhatsApp Number" error="Enter a valid number"><Input icon="phone" placeholder="+92 317 4604508" invalid/></FormField>
+    <FormField label="Select Service"><Select placeholder="Choose a service" options={['Embroidery Digitizing','Vector Art','3D Puff','Applique']}/></FormField>
+    <FormField label="Country"><Select placeholder="Select Country" options={['Pakistan','United States','Germany']} size="sm"/></FormField>
+    <FormField label="Design Upload" required><FileField fileName="eagle-logo.ai"/></FormField>
+    <FormField label="Search"><SearchField placeholder="Search by name, email or WhatsApp…" width="100%"/></FormField>
+    <FormField label="Special Instructions" style={{gridColumn:'span 2'}}><Textarea rows={3} placeholder="Any additional details…"/></FormField>
+    <div className="row" style={{gridColumn:'span 3',gap:24}}>
+      <Checkbox checked={c1} onChange={setC1} label="Custom Designs"/>
+      <Checkbox checked={c2} onChange={setC2} label="Premium Quality"/>
+      <Checkbox checked={false} disabled label="Disabled"/>
+      <Radio checked={m==='bank'} onChange={()=>setM('bank')} label="Bank Transfer"/>
+      <Radio checked={m==='card'} onChange={()=>setM('card')} label="Card"/>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>
