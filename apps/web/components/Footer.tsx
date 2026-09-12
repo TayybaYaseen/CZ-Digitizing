@@ -35,7 +35,7 @@ export function Footer() {
     <footer className="bg-brand-navy px-6 py-10 text-brand-silver">
       <div className="mx-auto grid max-w-6xl gap-8 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-3">
-          <Logo variant="dark" />
+          <Logo variant="dark" height={48} />
           <p className="text-xs text-brand-silver/70">Machine embroidery designs, digitizing, and vector art — trusted internationally.</p>
         </div>
 

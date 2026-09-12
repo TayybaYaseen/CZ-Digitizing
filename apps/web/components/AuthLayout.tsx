@@ -13,7 +13,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex max-w-4xl overflow-hidden rounded-2xl border border-brand-lightGray shadow-cz-navy">
       <div className="relative hidden w-[300px] shrink-0 flex-col justify-between overflow-hidden bg-brand-navy p-10 md:flex">
         <div className="z-10">
-          <Logo variant="dark" />
+          <Logo variant="dark" height={64} />
         </div>
 
         <div className="z-10">

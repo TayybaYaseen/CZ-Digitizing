@@ -176,7 +176,7 @@ export function Header() {
     <header className="bg-brand-navy px-4 py-3 sm:px-6">
       <div className="flex items-center justify-between gap-4">
         <Link href="/" className="flex-shrink-0">
-          <Logo variant="dark" />
+          <Logo variant="dark" layout="horizontal" height={32} />
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
