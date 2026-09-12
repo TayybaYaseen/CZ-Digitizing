@@ -4,6 +4,12 @@ const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // 400px step between Tailwind's default base and `sm` (640px) — used by the header's
+      // responsive search-field width so it can shrink gracefully on small phones instead of
+      // jumping straight from "full flex-1 width" to the 640px `sm` value.
+      screens: {
+        xs: '400px',
+      },
       // Exact brand-kit values from docs/CZ Digitizing Admin Panel.html (a Claude Design canvas
       // export) — kept in parity with apps/admin/tailwind.config.ts's own palette (that config's own
       // comment explains these supersede the placeholder hex values docs/specs/2026-09-02-01-brand-
