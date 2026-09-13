@@ -1,0 +1,35 @@
+<!-- @dsCard group="Brand" viewport="700x300" name="Taebo character system" subtitle="Realistic full-body panda — one fixed identity, mapped states, no cartoon substitute" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+body{margin:0;padding:14px 18px;background:var(--surface-card);font-family:var(--font-body);color:var(--text-body)}
+.rule{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--navy-800);background:var(--gold-100);border:1px solid var(--gold-300);border-radius:var(--radius-sm);padding:6px 10px;margin-bottom:10px}
+.row{display:flex;gap:16px;align-items:flex-start}
+.master{flex-shrink:0;background:var(--navy-800);border-radius:var(--radius-md);padding:8px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.master img{height:190px;width:auto;display:block}
+.states{display:flex;gap:8px;flex-wrap:wrap;align-content:flex-start}
+.chip{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px}
+.swatch{width:52px;height:52px;border-radius:var(--radius-sm);background:var(--navy-800);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid var(--gold-500)}
+.swatch img{height:100%;width:auto}
+.label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);text-align:center}
+.note{margin-top:10px;font-size:11px;color:var(--text-faint);line-height:1.5}
+</style></head><body>
+<div class="rule">TAEBO VISUAL IDENTITY IS FIXED UNLESS AN EXPLICIT DESIGN CHANGE IS APPROVED</div>
+<div class="row">
+<div class="master"><img src="../assets/taebo-full.png"><div class="label">Master (taebo-full.png)</div></div>
+<div class="states">
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Idle</div></div>
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Greeting</div></div>
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Thinking</div></div>
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Helping</div></div>
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Waiting</div></div>
+<div class="chip"><div class="swatch"><img src="../assets/taebo-full.png"></div><div class="label">Success</div></div>
+</div>
+</div>
+<p class="note">Realistic full-body panda only — navy vest, gold trim, small CZ badge. Never a
+cartoon/anime/chibi/emoji design. Every pose chip above is the same master photo (no distinct pose
+crops exist yet) — each falls back to it automatically per <code>TaeboPanda.tsx</code>'s resolution
+chain; see readme.md's TAEBO section and <code>docs/design/taebo-panda-prompts.md</code> for
+generating real per-pose crops later. Each pose maps to an existing chatbot state (readme.md
+table) — there is no separate Taebo state machine. The floating launcher on the live site renders
+this same full-body image directly (never cropped into a circle).</p>
+</body></html>

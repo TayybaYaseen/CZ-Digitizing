@@ -158,3 +158,113 @@ proactive/unsolicited messaging) has been folded into AC-7–AC-9 above.
 - **Observability:** track escalation rate (waiting ÷ total questions) as the primary product
   metric; hard-alert if AC-4's restricted-topic escalation rate drops unexpectedly (possible
   regression toward fabrication).
+
+---
+
+## 10. Character & interaction system (2026-09-13 addendum)
+
+Added after A-020 shipped (§ above, `Completed`) to correct the character's visual/interaction
+layer — no change to §1–9's API contract, data model, or anti-fabrication behaviour. See
+`.claude/skills/cz-digitizing-design/readme.md`'s TAEBO section for the design-system-facing summary
+and `docs/design/taebo-panda-prompts.md` for the approved asset generation prompts; this section is
+the specification of record.
+
+### 10.1 Character identity
+
+Taebo is a **realistic, full-body panda** — never a cartoon/anime/chibi/plush/emoji mascot. Approved
+appearance: standing, three-quarter/front pose, realistic black-and-white fur with visible texture,
+natural ears/paws/eyes, a professional-but-friendly expression, wearing a fitted deep-navy vest with
+a thin gold trim/zipper and a small CZ-badge lanyard (sometimes holding a tablet/notebook). **This
+identity is fixed unless an explicit design change is approved** — future UI work must not
+redesign Taebo differently per page or placement.
+
+### 10.2 Master asset and pose states
+
+One master, full-body image is the source for every placement:
+`apps/web/public/images/taebo-full.png` (existing convention — not a new folder; present and
+committed to the repo as of 2026-09-13, the reference Admin supplied — same as this app's other
+static image assets, e.g. `apps/web/public/brand/logo-*.png`).
+`TaeboPanda.tsx` (`apps/web/components/TaeboPanda.tsx`) accepts a `pose` prop and resolves, in
+order: `taebo-<pose>.png` → `taebo-full.png` → a 🐼 emoji — so the widget always renders something
+coherent regardless of which optional pose assets exist yet (currently: only the master).
+
+### 10.3 Pose mapping
+
+Reuses the existing chat state machine (§2–§5 above) — no second state machine:
+
+| Pose | Existing state |
+|---|---|
+| `idle` | default, no active conversation |
+| `greeting` | AC-1's one-time welcome message |
+| `thinking` | `/api/taebo/chat` request in flight (`loading`) |
+| `helping` | a matched, non-escalated reply |
+| `waiting` | an escalated reply (AC-3/AC-4) or a network/API error — Taebo must never look like it "knows" something it doesn't |
+| `success` | reserved for other pages' own request-submitted states (Get a Quote, Custom Request, File Format Request) — deliberately not wired inside the chat widget itself in this pass, to avoid touching those pages' unrelated business logic; the pose/asset is ready for them to adopt later |
+| `mobile` | optional cosmetic crop; functional mobile sizing is CSS, independent of whether this asset exists |
+
+### 10.4 Launcher position, drag, and persistence
+
+The **closed-state launcher is the full-body panda itself** — never cropped into a circular avatar
+or placed inside a generic round chatbot-icon background (the panel-header avatar is a separate,
+smaller circular crop of the same master image, used only inside the open 320px panel where a
+compact mark is appropriate). Sized ~90–130px tall on desktop, ~70–95px on mobile, via CSS
+breakpoints only. Default position: bottom-right (matches the original fixed anchor). The launcher
+is draggable — mouse and touch via Pointer Events, with a small movement threshold so a plain click
+still opens chat and a drag never accidentally triggers it. Position is clamped to the viewport at
+all times (never draggable fully off-screen) and stored client-side only
+(`localStorage['czd.taebo.position']` — a UI preference, not a new backend table). A "Reset Taebo
+position" control inside the open panel restores the default. The **chat panel itself is not
+draggable**; when opened it repositions (above/below, left/right of the launcher) only as needed to
+stay fully on-screen given wherever the launcher currently is.
+
+### 10.5 Accessibility
+
+The launcher is a real `<button>` with `aria-label="Open Taebo assistant"`; Enter/Space activates it
+identically to a click, with no drag involved, so keyboard users are never required to drag to open
+chat. Focus is visible (`focus-visible:ring`). Ambient motion (idle bob, hover/scroll transitions)
+respects `prefers-reduced-motion` (`apps/web/app/globals.css`); drag movement itself is user-driven
+and stays instant regardless.
+
+### 10.6 Responsive behaviour
+
+Preserves all existing responsive behaviour; the launcher/panel/proactive-bubble never render
+outside the viewport at any width tested (390–1920px), and dragging cannot move them there either
+(§10.4's clamp).
+
+### 10.7 Production-content restriction
+
+No hard-coded demo/test message anywhere in the UI (e.g. a fabricated "Do you deliver to a remote
+research station in Antarctica?"-style greeting). A full-repo search as part of this addendum found
+no such string in production UI — the only occurrence is a legitimate backend unit-test fixture
+(`apps/api/src/taebo/taebo.service.spec.ts`) asserting AC-3's escalation behaviour, which is correct
+test content, not a defect. If a real customer asks an out-of-scope question, the existing
+AC-3/AC-4 escalation is the correct, intended behaviour.
+
+### 10.8 Chatbot identity and panel theme (2026-09-13, second addendum)
+
+The assistant's name is **"TAEBO"**, subtitled "Your CZ Digitizing Assistant" — not "Taebo Helping
+Panda" (the panel header's previous UI text, corrected here; the aspect's own title in
+`SPEC_INDEX.md`/master-spec cross-references, "Taebo Helping Panda (Chatbot)", is a stable
+spec-numbering identifier, not rendered UI copy, and is deliberately left as-is). The open panel is
+a dark navy surface (navy-800 header with a small online-status dot, navy-900/700 body, white
+customer bubbles, navy-700 Taebo bubbles, gold-tinted escalated bubbles, gold Send button, a
+dot-based typing indicator) — a deliberate, scoped exception to the site's usual white-card chat
+surface, because the supplied reference specifically shows a dark chat UI.
+
+### 10.9 Quick actions
+
+Before the first message, the panel shows pill links to real existing pages — Browse Designs,
+Design Categories, Embroidery Digitizing, Vector Art, Get a Quote, Custom Request, Orders &
+Downloads, File Formats, Contact Support (`apps/web/components/TaeboWidget.tsx`'s `QUICK_ACTIONS`)
+— plain navigation `<Link>`s, not chatbot logic, each pointing at a route that already exists.
+Embroidery Digitizing/Vector Art both resolve to `/services` (the one real Services page covering
+both); File Formats resolves to `/faq` (no dedicated customer-facing file-format page exists to
+link instead).
+
+### 10.10 Expressions — documented, not implemented
+
+The supplied reference also depicts six expressions (Happy, Thinking, Excited, Winking, Surprised,
+Friendly) layered on top of the seven main states. No distinct expression assets exist, and a
+static photo cannot be convincingly re-expressed via CSS alone, so no `expression` prop was added —
+doing so would be inert, unobservable code. If individual expression crops are supplied later, they
+plug into the same `taebo-<pose>.png` fallback chain `TaeboPanda.tsx` already implements.

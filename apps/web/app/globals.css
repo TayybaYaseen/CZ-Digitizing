@@ -18,3 +18,40 @@
 .taebo-idle-bob {
   animation: taebo-idle-bob 3.2s ease-in-out infinite;
 }
+
+/* Chat "typing" indicator (§27) — three dots pulsing in sequence, replacing a plain text line. */
+@keyframes taebo-typing-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.taebo-typing-dot {
+  animation: taebo-typing-dot 1s ease-in-out infinite;
+}
+
+/* Taebo character system (docs/specs/2026-08-28-15-taebo-chatbot.md §10) — Part 18's animation
+   rule: idle/greeting motion and drag repositioning are non-essential and must yield to the
+   customer's OS-level motion preference. Drag itself stays instant (it's user-driven, not ambient),
+   this only silences the ambient bob and the widget's own hover/open transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .taebo-idle-bob {
+    animation: none;
+  }
+
+  .taebo-motion-safe {
+    transition: none !important;
+  }
+
+  .taebo-typing-dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}
