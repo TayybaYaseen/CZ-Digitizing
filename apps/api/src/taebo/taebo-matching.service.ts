@@ -55,6 +55,34 @@ function overlapScore(a: Set<string>, b: Set<string>): number {
   return matched / Math.min(a.size, b.size);
 }
 
+// How many candidate FAQs contain each token, across their question+topic+answer text. Used only
+// to rank *ties* between FAQs that already clear MIN_CONFIDENCE/ANSWER_MIN_CONFIDENCE below — never
+// to change whether a match passes. A short query (e.g. "tips for embroidery") often shares just
+// one word with several FAQs; on a 2-token query, matching a single word already yields exactly
+// MIN_CONFIDENCE (1/2), so plain overlap-ratio scoring can't distinguish a match on a word that
+// appears in nearly every FAQ (e.g. "embroidery") from a match on one that appears in exactly the
+// relevant FAQ (e.g. "tip", "whatsapp") — letting a merely-generic FAQ tie or beat the truly
+// relevant one. Weighting by inverse document frequency (rarer token = more weight) fixes that.
+function buildDocFrequency(candidates: FaqDto[]): Map<string, number> {
+  const df = new Map<string, number>();
+  for (const faq of candidates) {
+    const tokens = new Set([...tokenize(`${faq.question} ${faq.topic}`), ...tokenize(faq.answer)]);
+    for (const token of tokens) df.set(token, (df.get(token) ?? 0) + 1);
+  }
+  return df;
+}
+
+// Sum of 1/documentFrequency for each question token that matches something in the FAQ's combined
+// text — higher means the match leaned on rarer, more distinctive words rather than common ones.
+function specificityScore(questionTokens: Set<string>, faqTokens: Set<string>, docFrequency: Map<string, number>): number {
+  const faqArr = [...faqTokens];
+  let total = 0;
+  for (const qt of questionTokens) {
+    if (faqArr.some((ft) => tokensMatch(qt, ft))) total += 1 / (docFrequency.get(qt) ?? 1);
+  }
+  return total;
+}
+
 export interface MatchResult {
   faq: FaqDto;
   score: number;
@@ -104,16 +132,28 @@ export class TaeboMatchingService {
     const questionTokens = tokenize(question);
     if (questionTokens.size === 0) return null;
 
+    const docFrequency = buildDocFrequency(candidates);
+
     let best: MatchResult | null = null;
+    let bestSpecificity = -Infinity;
     for (const faq of candidates) {
-      const questionScore = overlapScore(questionTokens, tokenize(`${faq.question} ${faq.topic}`));
-      const answerScore = overlapScore(questionTokens, tokenize(faq.answer));
+      const faqQuestionTokens = tokenize(`${faq.question} ${faq.topic}`);
+      const faqAnswerTokens = tokenize(faq.answer);
+      const questionScore = overlapScore(questionTokens, faqQuestionTokens);
+      const answerScore = overlapScore(questionTokens, faqAnswerTokens);
       const passesQuestion = questionScore >= TaeboMatchingService.MIN_CONFIDENCE;
       const passesAnswer = answerScore >= TaeboMatchingService.ANSWER_MIN_CONFIDENCE;
       if (!passesQuestion && !passesAnswer) continue;
 
       const score = Math.max(questionScore, passesAnswer ? answerScore : 0);
-      if (!best || score > best.score) best = { faq, score };
+      // Break ties (common on short queries) by how distinctive the matched words are across the
+      // whole candidate set, not just raw overlap ratio — see specificityScore/buildDocFrequency.
+      const combinedFaqTokens = new Set([...faqQuestionTokens, ...faqAnswerTokens]);
+      const specificity = specificityScore(questionTokens, combinedFaqTokens, docFrequency);
+      if (!best || specificity > bestSpecificity || (specificity === bestSpecificity && score > best.score)) {
+        best = { faq, score };
+        bestSpecificity = specificity;
+      }
     }
     return best;
   }
