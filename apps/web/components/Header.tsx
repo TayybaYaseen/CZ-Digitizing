@@ -205,6 +205,83 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+// UI-only visual correction (2026-09-12 gap analysis): the header's fix for the laptop/desktop nav
+// overflow (incident 2026-09-12-header-navigation-overflow) folded all 8 primary links into the
+// hamburger drawer at every breakpoint, which left desktop/laptop screens with no visible nav at
+// all next to the logo — reading as "generic and cramped" rather than a premium site header. This
+// restores a visible nav row at `lg:` and above (MAIN_LINKS inline, everything else grouped under a
+// "More" dropdown, mirroring the drawer's own Requests/Company grouping) while leaving the drawer
+// as the sole nav entry point below `lg:` exactly as the overflow fix set up. No link, destination,
+// or route changes — only where each one renders at wide viewports.
+function DesktopNavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`whitespace-nowrap rounded-field px-3 py-2 text-[13px] font-medium tracking-wide transition-colors ${
+        active ? 'text-brand-gold' : 'text-brand-silver hover:text-white'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const groups: { title: string; links: { href: string; label: string }[] }[] = [
+    { title: 'Requests', links: REQUEST_LINKS },
+    { title: 'Company', links: [CONTACT_LINK, ...MORE_LINKS] },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex items-center gap-1 whitespace-nowrap rounded-field px-3 py-2 text-[13px] font-medium tracking-wide transition-colors ${
+          open ? 'text-brand-gold' : 'text-brand-silver hover:text-white'
+        }`}
+      >
+        More
+        <ChevronIcon open={open} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-card border border-white/10 bg-brand-navy py-2 shadow-cz-navy">
+          {groups.map((group) => (
+            <div key={group.title} className="px-2 py-1.5">
+              <p className="px-2 pb-1 font-sans text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold/70">{group.title}</p>
+              {group.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className={`block rounded-field px-2 py-1.5 text-[13px] ${
+                    pathname === link.href ? 'font-semibold text-brand-gold' : 'text-brand-silver hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DrawerGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="px-4 py-3">
@@ -272,15 +349,19 @@ export function Header() {
     <header className="relative bg-brand-navy px-3 py-3 sm:px-6">
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         <Link href="/" className="flex min-w-0 flex-shrink-0 items-center">
-          {/* Same logo asset at two sizes, toggled by breakpoint — smaller on phones so it doesn't
-              eat the width budget the search field / language / login / register controls need,
-              full size everywhere else. Never stretched: `layout="horizontal"` keeps its aspect
-              ratio at both heights. */}
+          {/* Same logo asset at three sizes, toggled by breakpoint — smaller on phones so it
+              doesn't eat the width budget the search field / language / login / register controls
+              need, and largest at `lg:`+ now that the nav row below no longer competes with the
+              logo for the same line. Never stretched: `layout="horizontal"` keeps its aspect ratio
+              at every height. */}
           <span className="xs:hidden">
             <Logo variant="dark" layout="horizontal" height={26} />
           </span>
-          <span className="hidden xs:inline">
+          <span className="hidden xs:inline lg:hidden">
             <Logo variant="dark" layout="horizontal" height={32} />
+          </span>
+          <span className="hidden lg:inline">
+            <Logo variant="dark" layout="horizontal" height={44} />
           </span>
         </Link>
 
@@ -313,22 +394,30 @@ export function Header() {
             </>
           )}
 
-          {/* Primary navigation control — SRS §3's "compact hamburger/mobile menu" is now the
-              header's only navigation entry point at every breakpoint, not just small screens, so
-              the logo + search + language + login/register row never has to compete with an
-              8-item nav for horizontal space. */}
+          {/* Mobile/tablet navigation entry point only — at `lg:`+ the nav row below takes over,
+              so the hamburger (and the drawer it opens) is no longer needed at those widths. */}
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
             aria-expanded={menuOpen}
             aria-controls="cz-nav-drawer"
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9"
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9 lg:hidden"
           >
             <HamburgerIcon open={menuOpen} />
           </button>
         </div>
       </div>
+
+      {/* Visible desktop/laptop nav row (`lg:`+ only) — the premium "clean navigation" hierarchy
+          the drawer-only fix removed from these widths. MAIN_LINKS render inline with a gold
+          active-state; everything else groups under "More" rather than competing for the row. */}
+      <nav className="mt-3 hidden items-center gap-1 border-t border-white/10 pt-3 lg:flex">
+        {MAIN_LINKS.map((link) => (
+          <DesktopNavLink key={link.href} href={link.href} label={linkLabel(link)} active={pathname === link.href} />
+        ))}
+        <DesktopMoreMenu pathname={pathname} />
+      </nav>
 
       {menuOpen && (
         <>

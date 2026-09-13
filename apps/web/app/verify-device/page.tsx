@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 
@@ -68,13 +69,13 @@ function VerifyDeviceForm() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Verify this device</h1>
-      <p className="text-sm text-gray-600">
+    <AuthLayout>
+      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Verify this device</h1>
+      <p className="mt-2 text-[14.5px] text-gray-500">
         We emailed a 4-digit code to confirm it&apos;s really you logging in from a new device.
       </p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
         <input type="hidden" {...register('email')} />
@@ -94,6 +95,6 @@ function VerifyDeviceForm() {
           {isSubmitting ? 'Verifying…' : 'Verify'}
         </button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

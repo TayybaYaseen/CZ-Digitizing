@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 
@@ -66,14 +67,16 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Reset password</h1>
+    <AuthLayout>
+      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Reset password</h1>
 
       {searchParams.get('requested') && (
-        <SuccessBanner message="If that email is registered, a reset code was sent — it expires in 10 minutes." />
+        <div className="mt-4">
+          <SuccessBanner message="If that email is registered, a reset code was sent — it expires in 10 minutes." />
+        </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
         <input type="hidden" {...register('email')} />
@@ -90,6 +93,6 @@ function ResetPasswordForm() {
           {isSubmitting ? 'Resetting…' : 'Reset password'}
         </button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
