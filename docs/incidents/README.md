@@ -43,3 +43,5 @@ Each incident file must cover:
 | Date | Incident | Root cause category |
 |---|---|---|
 | 2026-09-07 | [Bank transfer details not showing](2026-09-07-bank-transfer-details-not-showing.md) | Audit logging not fault-isolated from the write path |
+| 2026-09-12 | [Header navigation overflow at laptop/desktop widths](2026-09-12-header-navigation-overflow.md) | No responsive width budget on the header's nav row |
+| 2026-09-13 | [Taebo had no approved character asset and no interaction system](2026-09-13-taebo-character-interaction-system.md) | Master brand asset never supplied (silent emoji fallback); internal design doc encoded an unapproved character concept |

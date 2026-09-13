@@ -1,0 +1,15 @@
+<!-- @dsCard group="Colors" viewport="700x170" name="Status pills" subtitle="Paid, Pending, Rejected, In Progress, Draft — as used in admin tables" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;padding:14px 18px;background:var(--surface-card);font-family:var(--font-body);color:var(--text-body)}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--radius-pill);font-size:12px;font-weight:600}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}.mono{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);margin-top:10px;line-height:1.7}</style></head><body>
+<div class="row">
+<span class="pill" style="background:var(--status-paid-bg);color:var(--status-paid-fg)"><i class="dot"></i>Paid</span>
+<span class="pill" style="background:var(--status-paid-bg);color:var(--status-paid-fg)">Completed</span>
+<span class="pill" style="background:var(--status-pending-bg);color:var(--status-pending-fg)">Pending</span>
+<span class="pill" style="background:var(--status-progress-bg);color:var(--status-progress-fg)">In Progress</span>
+<span class="pill" style="background:var(--status-failed-bg);color:var(--status-failed-fg)">Rejected</span>
+<span class="pill" style="background:var(--status-failed-bg);color:var(--status-failed-fg)">Cancelled</span>
+<span class="pill" style="background:var(--status-draft-bg);color:var(--status-draft-fg)">Draft</span>
+<span class="pill" style="background:var(--gold-500);color:var(--navy-800)">Most Popular</span>
+</div>
+<div class="mono">--status-paid-fg / --status-paid-bg &nbsp; --status-pending-* &nbsp; --status-progress-* &nbsp; --status-failed-* &nbsp; --status-draft-*</div>
+</body></html>

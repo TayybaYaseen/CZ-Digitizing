@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" viewport="700x430" name="Data" subtitle="StatCard, DataTable, ActivityRow, DonutStat, BarChart, LineChart" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:var(--surface-card);font-family:var(--font-body)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.col{display:grid;gap:12px}.lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);font-weight:600}</style></head><body><div id="root"></div>
+<script type="text/babel">
+const { StatCard, DataTable, ActivityRow, DonutStat, BarChart, LineChart, Badge, Button } = window.CZDigitizingDesignSystem_765273;
+const rows=[{i:1,id:'CZ-10025',cust:'Ahmed Khan',amt:'$45.00',pay:'Paid',tone:'success'},{i:2,id:'CZ-10024',cust:'Sara Ahmed',amt:'$68.00',pay:'Pending',tone:'warning'},{i:3,id:'CZ-10023',cust:'Ali Raza',amt:'$120.00',pay:'Rejected',tone:'danger'}];
+function Demo(){
+  return <div className="col">
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+      <StatCard label="Total Customers" value="1,248" delta="+12% this month" icon="users" tint="green"/>
+      <StatCard label="Total Orders" value="892" delta="+18% this month" icon="package" tint="blue"/>
+      <StatCard label="Total Revenue" value="$48,750" delta="+22% this month" icon="dollar-sign" tint="gold"/>
+      <StatCard label="Pending Payments" value="23" note="Needs attention" icon="clock" tint="red"/>
+    </div>
+    <DataTable rows={rows} columns={[
+      {header:'#',key:'i',width:40},{header:'Order ID',key:'id',strong:true},{header:'Customer',key:'cust'},{header:'Amount',key:'amt'},
+      {header:'Payment',cell:r=><Badge tone={r.tone} size="sm">{r.pay}</Badge>},
+      {header:'Action',align:'right',cell:()=><Button size="sm" variant="outlineNavy">View</Button>}
+    ]}/>
+    <div style={{display:'grid',gridTemplateColumns:'1.1fr 1fr 1fr',gap:20,alignItems:'start'}}>
+      <div>
+        <ActivityRow icon="file-plus" tint="green" title="New Quote Request" meta="David Wilson submitted a request" time="2 min ago"/>
+        <ActivityRow icon="package" tint="blue" title="New Order Placed" meta="Order #10024 from John Smith" time="12 min ago"/>
+        <ActivityRow icon="user-plus" tint="violet" title="New User Registration" meta="Maria Garcia" time="25 min ago" divider={false}/>
+      </div>
+      <DonutStat size={104} segments={[{label:'Logos',value:42,color:'var(--gold-500)'},{label:'Animals',value:18,color:'var(--blue-600)'},{label:'Flowers',value:15,color:'var(--green-600)'},{label:'Other',value:25,color:'var(--gray-400)'}]}/>
+      <div><BarChart height={104} data={[{label:'Aug 1',value:12},{label:'Aug 8',value:19},{label:'Aug 15',value:14},{label:'Aug 22',value:24},{label:'Aug 29',value:20}]}/>
+        <LineChart height={104} gridLines={3} valueFormat={v=>'$'+Math.round(v/1000)+'k'} data={[{label:'May',value:29400},{label:'Jun',value:37200},{label:'Jul',value:42800},{label:'Aug',value:48750}]}/></div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

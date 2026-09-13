@@ -88,8 +88,8 @@ function LoginForm() {
   return (
     <AuthLayout>
       <div className="space-y-1">
-        <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">Welcome back</h1>
-        <p className="text-[14.5px] text-slate-500">Sign in to your CZ Digitizing account</p>
+        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Welcome back</h1>
+        <p className="text-[14.5px] text-gray-500">Sign in to your CZ Digitizing account</p>
       </div>
 
       {searchParams.get('registered') && (

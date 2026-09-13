@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { AdminAuthLayout } from '@/components/AdminAuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 import { PENDING_2FA_STORAGE_KEY } from '@/lib/pending-2fa';
@@ -68,10 +69,13 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Admin login</h1>
+    <AdminAuthLayout>
+      <div className="space-y-1">
+        <h1 className="font-display text-[26px] font-bold tracking-tight text-navy-800">Admin login</h1>
+        <p className="text-[14.5px] text-gray-500">Sign in to the CZ Digitizing operations console</p>
+      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
         <FormField label="Email" htmlFor="email" error={errors.email}>
@@ -86,6 +90,6 @@ export default function AdminLoginPage() {
           {isSubmitting ? 'Continuing…' : 'Continue'}
         </button>
       </form>
-    </div>
+    </AdminAuthLayout>
   );
 }

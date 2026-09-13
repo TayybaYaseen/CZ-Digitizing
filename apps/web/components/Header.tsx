@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
@@ -23,6 +23,12 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 // SRS §4 "Header & Global Navigation" main nav, in source order. Design Categories/All Designs
 // (A-006), Design Bundles (A-008), and Services (A-014) all have real pages now.
+//
+// UI-only header layout correction (incident 2026-09-12-header-navigation-overflow): these 8 links
+// used to render as a horizontal row beside the logo, which overflowed at laptop/desktop widths.
+// They now live inside the hamburger drawer, grouped as MAIN (first 5) / REQUESTS (next 2) /
+// COMPANY (Contact Us, below). No route, label, or destination changed — only where each link is
+// rendered.
 const PRIMARY_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/services', label: 'Services' },
@@ -33,6 +39,9 @@ const PRIMARY_LINKS = [
   { href: '/custom-request', label: 'Custom Request' },
   { href: '/contact', label: 'Contact Us' },
 ];
+const MAIN_LINKS = PRIMARY_LINKS.slice(0, 5);
+const REQUEST_LINKS = PRIMARY_LINKS.slice(5, 7);
+const CONTACT_LINK = { href: '/contact', label: 'Contact Us' };
 
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
 // page break, without specifying what "More" itself contains — read here as a secondary-items
@@ -41,6 +50,8 @@ const PRIMARY_LINKS = [
 // (A-015, docs/specs/2026-08-28-09-subscriptions-credits.md §5) rather than the old TODO stub.
 // SRS §16's own More Menu list (FAQ/Tips/Testimonials/Blog/About Us/Portfolio) is folded in here
 // too — those pages are all real now (A-012, docs/specs/2026-08-28-10-content-knowledge-base.md).
+// Its own sub-items and behavior (a nested list under a "More" trigger) are unchanged by the
+// header layout correction — only the trigger now lives inside the drawer instead of the header row.
 const MORE_LINKS = [
   { href: '/faq', label: 'FAQ' },
   { href: '/tips', label: 'Tips for Embroiderers' },
@@ -112,13 +123,13 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.trim() && setOpen(true)}
-          placeholder="Search designs, services…"
+          placeholder="Search…"
           aria-label="Search"
-          className="w-full rounded-md border border-brand-silver/20 bg-brand-navy px-3 py-1.5 text-sm text-brand-silver placeholder:text-brand-silver/40 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40"
+          className="w-full min-w-0 rounded-field border border-brand-silver/20 bg-brand-navy px-1.5 py-1.5 text-xs text-brand-silver placeholder:text-brand-silver/40 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40 xs:px-2.5 xs:text-sm"
         />
       </form>
       {open && suggestions && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm text-gray-800 shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 w-[min(20rem,90vw)] overflow-y-auto rounded-field border border-gray-200 bg-white py-1 text-sm text-gray-800 shadow-cz-md">
           {!hasResults ? (
             <p className="px-3 py-2 text-gray-400">No matches.</p>
           ) : (
@@ -165,73 +176,202 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function HamburgerIcon({ open }: { open: boolean }) {
+  return (
+    <span aria-hidden="true" className="flex h-4 w-4 flex-col items-center justify-center gap-[5px]">
+      <span
+        className={`block h-[1.5px] w-4 rounded-full bg-current transition-transform duration-200 ${open ? 'translate-y-[6.5px] rotate-45' : ''}`}
+      />
+      <span className={`block h-[1.5px] w-4 rounded-full bg-current transition-opacity duration-200 ${open ? 'opacity-0' : ''}`} />
+      <span
+        className={`block h-[1.5px] w-4 rounded-full bg-current transition-transform duration-200 ${open ? '-translate-y-[6.5px] -rotate-45' : ''}`}
+      />
+    </span>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+    >
+      <path d="M5 7.5l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// UI-only visual correction (2026-09-12 gap analysis): the header's fix for the laptop/desktop nav
+// overflow (incident 2026-09-12-header-navigation-overflow) folded all 8 primary links into the
+// hamburger drawer at every breakpoint, which left desktop/laptop screens with no visible nav at
+// all next to the logo — reading as "generic and cramped" rather than a premium site header. This
+// restores a visible nav row at `lg:` and above (MAIN_LINKS inline, everything else grouped under a
+// "More" dropdown, mirroring the drawer's own Requests/Company grouping) while leaving the drawer
+// as the sole nav entry point below `lg:` exactly as the overflow fix set up. No link, destination,
+// or route changes — only where each one renders at wide viewports.
+function DesktopNavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`whitespace-nowrap rounded-field px-3 py-2 text-[13px] font-medium tracking-wide transition-colors ${
+        active ? 'text-brand-gold' : 'text-brand-silver hover:text-white'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const groups: { title: string; links: { href: string; label: string }[] }[] = [
+    { title: 'Requests', links: REQUEST_LINKS },
+    { title: 'Company', links: [CONTACT_LINK, ...MORE_LINKS] },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex items-center gap-1 whitespace-nowrap rounded-field px-3 py-2 text-[13px] font-medium tracking-wide transition-colors ${
+          open ? 'text-brand-gold' : 'text-brand-silver hover:text-white'
+        }`}
+      >
+        More
+        <ChevronIcon open={open} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-card border border-white/10 bg-brand-navy py-2 shadow-cz-navy">
+          {groups.map((group) => (
+            <div key={group.title} className="px-2 py-1.5">
+              <p className="px-2 pb-1 font-sans text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold/70">{group.title}</p>
+              {group.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className={`block rounded-field px-2 py-1.5 text-[13px] ${
+                    pathname === link.href ? 'font-semibold text-brand-gold' : 'text-brand-silver hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DrawerGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="px-4 py-3">
+      <p className="px-1 pb-2 font-sans text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-gold/80">{title}</p>
+      <div className="flex flex-col">{children}</div>
+    </div>
+  );
+}
+
+function DrawerLink({
+  href,
+  label,
+  active,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`rounded-field px-3 py-2.5 text-sm transition-colors ${
+        active ? 'bg-white/5 font-semibold text-brand-gold' : 'text-brand-silver hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function Header() {
   const { user } = useAuth();
   const { itemCount } = useCart();
   const { t } = useLocale();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [moreExpanded, setMoreExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
+
+  // Reset the More accordion each time the drawer is closed so it doesn't reopen already-expanded.
+  useEffect(() => {
+    if (!menuOpen) setMoreExpanded(false);
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
+  function linkLabel(link: { href: string; label: string }) {
+    return link.href === '/' ? t('nav.home') : link.href === '/services' ? t('nav.services') : link.label;
+  }
 
   return (
-    <header className="bg-brand-navy px-4 py-3 sm:px-6">
-      <div className="flex items-center justify-between gap-4">
-        <Link href="/" className="flex-shrink-0">
-          <Logo variant="dark" />
+    <header className="relative bg-brand-navy px-3 py-3 sm:px-6">
+      <div className="flex items-center justify-between gap-2 sm:gap-4">
+        <Link href="/" className="flex min-w-0 flex-shrink-0 items-center">
+          {/* Same logo asset at three sizes, toggled by breakpoint — smaller on phones so it
+              doesn't eat the width budget the search field / language / login / register controls
+              need, and largest at `lg:`+ now that the nav row below no longer competes with the
+              logo for the same line. Never stretched: `layout="horizontal"` keeps its aspect ratio
+              at every height. */}
+          <span className="xs:hidden">
+            <Logo variant="dark" layout="horizontal" height={26} />
+          </span>
+          <span className="hidden xs:inline lg:hidden">
+            <Logo variant="dark" layout="horizontal" height={32} />
+          </span>
+          <span className="hidden lg:inline">
+            <Logo variant="dark" layout="horizontal" height={44} />
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {PRIMARY_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="rounded-md px-3 py-2 text-sm text-brand-silver hover:bg-white/5">
-              {link.href === '/' ? t('nav.home') : link.href === '/services' ? t('nav.services') : link.label}
-            </Link>
-          ))}
-          <div className="relative">
-            <button
-              onClick={() => setMoreOpen((v) => !v)}
-              aria-expanded={moreOpen}
-              className="rounded-md px-3 py-2 text-sm text-brand-silver hover:bg-white/5"
-            >
-              More
-            </button>
-            {moreOpen && (
-              <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-md border border-brand-silver/20 bg-brand-navyLight py-1 shadow-lg">
-                {MORE_LINKS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMoreOpen(false)}
-                    className="block px-3 py-2 text-sm text-brand-silver hover:bg-white/5"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </nav>
-
-        <div className="hidden items-center gap-3 lg:flex">
-          <div className="w-56">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 xs:gap-1.5 sm:gap-2.5 lg:gap-3">
+          <div className="w-full min-w-[34px] max-w-[90px] flex-1 xs:min-w-[56px] xs:max-w-[140px] sm:max-w-[180px] md:max-w-[220px] lg:max-w-xs">
             <SearchBox />
           </div>
 
           <LanguageSwitcher />
 
-          <Link
-            href="/cart"
-            aria-label="Cart"
-            className="relative inline-flex items-center rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5"
-          >
-            {t('nav.cart')}
-            {itemCount > 0 && (
-              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-xs font-semibold text-brand-navy">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-
-          {/* AC-1/AC-2/AC-3 (Landing Page Experience spec) — signed-out shows Log in + Register,
-              signed-in replaces both with the notification bell and an account menu. */}
           {user ? (
             <>
               <NotificationBell />
@@ -239,66 +379,129 @@ export function Header() {
             </>
           ) : (
             <>
-              <Link href="/login" className="rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5">
+              <Link
+                href="/login"
+                className="flex-shrink-0 whitespace-nowrap rounded-field border border-brand-silver/20 px-1.5 py-1.5 text-[11px] text-brand-silver hover:bg-white/5 xs:px-2 xs:text-xs sm:px-3 sm:text-sm"
+              >
                 {t('nav.login')}
               </Link>
-              <Link href="/register" className="rounded-md bg-brand-gold px-3 py-1.5 text-sm font-semibold text-brand-navy hover:brightness-110">
+              <Link
+                href="/register"
+                className="flex-shrink-0 whitespace-nowrap rounded-field bg-brand-gold px-1.5 py-1.5 text-[11px] font-semibold text-brand-navy hover:brightness-110 xs:px-2 xs:text-xs sm:px-3 sm:text-sm"
+              >
                 Register
               </Link>
             </>
           )}
-        </div>
 
-        {/* SRS §3 — "Navigation becomes a compact hamburger/mobile menu on small screens." */}
-        <button
-          onClick={() => setMobileOpen((v) => !v)}
-          aria-expanded={mobileOpen}
-          aria-label="Toggle menu"
-          className="inline-flex items-center rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver lg:hidden"
-        >
-          {mobileOpen ? 'Close' : 'Menu'}
-        </button>
+          {/* Mobile/tablet navigation entry point only — at `lg:`+ the nav row below takes over,
+              so the hamburger (and the drawer it opens) is no longer needed at those widths. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls="cz-nav-drawer"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9 lg:hidden"
+          >
+            <HamburgerIcon open={menuOpen} />
+          </button>
+        </div>
       </div>
 
-      {mobileOpen && (
-        <div className="mt-3 space-y-3 border-t border-brand-silver/10 pt-3 lg:hidden">
-          <SearchBox onNavigate={() => setMobileOpen(false)} />
-          <LanguageSwitcher />
+      {/* Visible desktop/laptop nav row (`lg:`+ only) — the premium "clean navigation" hierarchy
+          the drawer-only fix removed from these widths. MAIN_LINKS render inline with a gold
+          active-state; everything else groups under "More" rather than competing for the row. */}
+      <nav className="mt-3 hidden items-center gap-1 border-t border-white/10 pt-3 lg:flex">
+        {MAIN_LINKS.map((link) => (
+          <DesktopNavLink key={link.href} href={link.href} label={linkLabel(link)} active={pathname === link.href} />
+        ))}
+        <DesktopMoreMenu pathname={pathname} />
+      </nav>
 
-          <nav className="flex flex-col gap-1">
-            {[...PRIMARY_LINKS, ...MORE_LINKS].map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="rounded-md px-3 py-2 text-sm text-brand-silver hover:bg-white/5"
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-brand-navy/70" onClick={closeMenu} aria-hidden="true" />
+          <div
+            id="cz-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site navigation"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xs flex-col overflow-y-auto border-l border-brand-silver/10 bg-brand-navy shadow-cz-navy sm:max-w-sm"
+          >
+            <div className="flex items-center justify-between border-b border-brand-silver/10 px-4 py-4">
+              <span className="font-display text-lg tracking-wide text-white">CZ Digitizing</span>
+              <button
+                type="button"
+                onClick={closeMenu}
+                aria-label="Close menu"
+                className="flex h-8 w-8 items-center justify-center rounded-field text-brand-silver hover:bg-white/5 hover:text-brand-gold"
               >
-                {link.label}
-              </Link>
-            ))}
-            <Link href="/cart" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm text-brand-silver hover:bg-white/5">
-              Cart{itemCount > 0 ? ` (${itemCount})` : ''}
-            </Link>
-            {!user && (
-              <>
-                <Link
-                  href="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-md px-3 py-2 text-sm font-semibold text-brand-silver hover:bg-white/5"
+                <HamburgerIcon open={true} />
+              </button>
+            </div>
+
+            <nav className="flex flex-1 flex-col divide-y divide-brand-gold/15">
+              <DrawerGroup title="Main">
+                {MAIN_LINKS.map((link) => (
+                  <DrawerLink
+                    key={link.href}
+                    href={link.href}
+                    label={linkLabel(link)}
+                    active={pathname === link.href}
+                    onClick={closeMenu}
+                  />
+                ))}
+              </DrawerGroup>
+
+              <DrawerGroup title="Requests">
+                {REQUEST_LINKS.map((link) => (
+                  <DrawerLink key={link.href} href={link.href} label={link.label} active={pathname === link.href} onClick={closeMenu} />
+                ))}
+              </DrawerGroup>
+
+              <DrawerGroup title="Company">
+                <DrawerLink
+                  href={CONTACT_LINK.href}
+                  label={CONTACT_LINK.label}
+                  active={pathname === CONTACT_LINK.href}
+                  onClick={closeMenu}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMoreExpanded((v) => !v)}
+                  aria-expanded={moreExpanded}
+                  className="flex items-center justify-between rounded-field px-3 py-2.5 text-sm text-brand-silver hover:bg-white/5 hover:text-white"
                 >
-                  Log in
-                </Link>
+                  More
+                  <ChevronIcon open={moreExpanded} />
+                </button>
+                {moreExpanded && (
+                  <div className="ml-3 flex flex-col gap-0.5 border-l border-brand-gold/20 py-1 pl-3">
+                    {MORE_LINKS.map((link) => (
+                      <DrawerLink key={link.href} href={link.href} label={link.label} active={pathname === link.href} onClick={closeMenu} />
+                    ))}
+                  </div>
+                )}
+              </DrawerGroup>
+
+              <DrawerGroup title="Account">
                 <Link
-                  href="/register"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-md px-3 py-2 text-sm font-semibold text-brand-gold hover:bg-white/5"
+                  href="/cart"
+                  onClick={closeMenu}
+                  className="flex items-center justify-between rounded-field px-3 py-2.5 text-sm text-brand-silver hover:bg-white/5 hover:text-white"
                 >
-                  Register
+                  {t('nav.cart')}
+                  {itemCount > 0 && (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-xs font-semibold text-brand-navy">
+                      {itemCount}
+                    </span>
+                  )}
                 </Link>
-              </>
-            )}
-          </nav>
-        </div>
+              </DrawerGroup>
+            </nav>
+          </div>
+        </>
       )}
     </header>
   );

@@ -58,7 +58,7 @@ export function Sidebar() {
   return (
     <nav className="flex w-[216px] flex-shrink-0 flex-col overflow-y-auto bg-navy-800 text-white">
       <div className="border-b border-white/10 px-4 py-[18px]">
-        <Logo variant="dark" />
+        <Logo variant="dark" height={40} />
       </div>
 
       <div className="grid flex-1 content-start gap-0.5 px-3 py-4">

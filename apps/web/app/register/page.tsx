@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 
@@ -57,10 +58,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Create an account</h1>
+    <AuthLayout>
+      <div className="space-y-1">
+        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Create an account</h1>
+        <p className="text-[14.5px] text-gray-500">Join CZ Digitizing to order, track, and download your designs</p>
+      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
         <FormField label="Email" htmlFor="email" error={errors.email}>
@@ -80,12 +84,12 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <p className="text-sm text-gray-600">
+      <p className="mt-8 text-center text-[13.5px] text-slate-600">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-gray-900 underline">
+        <Link href="/login" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
           Log in
         </Link>
       </p>
-    </div>
+    </AuthLayout>
   );
 }

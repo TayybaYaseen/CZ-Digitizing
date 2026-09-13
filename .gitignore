@@ -34,3 +34,6 @@ Thumbs.db
 
 # Testing/coverage
 coverage/
+
+# Claude Code runtime state (process lock for the local session, not project content)
+.claude/scheduled_tasks.lock

@@ -183,7 +183,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
         style={{ transform: flipped ? 'rotateY(180deg)' : undefined }}
       >
         {/* Front (AC-3) */}
-        <div className="absolute inset-0 flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white [backface-visibility:hidden]">
+        <div className="absolute inset-0 flex flex-col overflow-hidden rounded-card border border-gray-200 bg-white shadow-cz-sm transition-all duration-200 [backface-visibility:hidden] group-hover:-translate-y-0.5 group-hover:border-gold-500 group-hover:shadow-cz-md">
           {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-supplied URL, no next/image domain config for a catalog whose media host isn't fixed yet */}
           <img src={frontImage} alt={design.name} className="h-40 w-full object-cover" />
           <div className="flex flex-1 flex-col gap-1 p-3">
@@ -225,7 +225,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                   e.stopPropagation();
                   if (!flipped) onFlip();
                 }}
-                className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy"
+                className="rounded-field bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy transition hover:brightness-105"
               >
                 Add to Cart
               </button>
@@ -235,7 +235,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
 
         {/* Back (AC-4) */}
         <div
-          className="absolute inset-0 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-700 [backface-visibility:hidden]"
+          className="absolute inset-0 overflow-y-auto rounded-card border border-gray-200 bg-white p-3 text-xs text-gray-700 shadow-cz-sm [backface-visibility:hidden]"
           style={{ transform: 'rotateY(180deg)' }}
         >
           {!backDetail ? (
@@ -264,7 +264,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                   value={selectedSizeId}
                   onChange={(e) => setSelectedSizeId(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  className="w-full rounded-field border border-gray-300 px-2 py-1 text-xs focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500/40"
                 >
                   {backDetail.sizes.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -282,7 +282,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                 <button
                   onClick={onAddToCart}
                   disabled={adding || !selectedSizeId}
-                  className="rounded-md bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy disabled:opacity-50"
+                  className="rounded-field bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy transition hover:brightness-105 disabled:opacity-50"
                 >
                   {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
                 </button>

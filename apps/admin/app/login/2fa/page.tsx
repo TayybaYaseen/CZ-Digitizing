@@ -10,6 +10,7 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
 import { clearPendingTwoFactor, readPendingTwoFactor, type PendingTwoFactor } from '@/lib/pending-2fa';
+import { AdminAuthLayout } from '@/components/AdminAuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 
@@ -75,19 +76,19 @@ export default function TwoFactorPage() {
   if (!pending) return null; // already redirecting to /login
 
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Two-factor authentication</h1>
+    <AdminAuthLayout>
+      <h1 className="font-display text-[26px] font-bold tracking-tight text-navy-800">Two-factor authentication</h1>
 
       {pending.setupRequired && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-300">
+        <div className="mt-4 space-y-3">
+          <p className="text-[14.5px] text-gray-500">
             Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password),
             then enter the 6-digit code it generates.
           </p>
           {setupData ? (
-            <div className="flex flex-col items-center gap-3 rounded-md border border-gray-700 bg-white p-4">
+            <div className="flex flex-col items-center gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-cz-sm">
               <QRCodeSVG value={setupData.otpauthUrl} size={192} />
-              <p className="break-all text-center text-xs text-gray-600">Can&apos;t scan? Enter manually: {setupData.secret}</p>
+              <p className="break-all text-center text-xs text-gray-500">Can&apos;t scan? Enter manually: {setupData.secret}</p>
             </div>
           ) : (
             <ErrorBanner error={loadError} />
@@ -95,7 +96,7 @@ export default function TwoFactorPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
         <FormField label="6-digit code" htmlFor="code" error={errors.code}>
@@ -106,6 +107,6 @@ export default function TwoFactorPage() {
           {isSubmitting ? 'Verifying…' : 'Verify'}
         </button>
       </form>
-    </div>
+    </AdminAuthLayout>
   );
 }

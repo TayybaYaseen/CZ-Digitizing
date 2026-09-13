@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { Montserrat, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
-import { NotificationBell } from '@/components/NotificationBell';
-import { Sidebar } from '@/components/Sidebar';
+import { AppShell } from '@/components/AppShell';
 
 // Brand kit fonts per docs/CZ Digitizing Admin Panel.html's design tokens (Playfair Display for
 // headings, Montserrat for body) — supersedes the interim Inter-only choice used before this
@@ -21,15 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${playfair.variable} ${montserrat.variable}`}>
       <body className="h-screen overflow-hidden bg-gray-100 font-sans text-gray-700 antialiased">
         <AuthProvider>
-          <div className="flex h-screen">
-            <Sidebar />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center justify-end gap-3 border-b border-gray-200 bg-white px-6 py-3">
-                <NotificationBell />
-              </div>
-              <main className="flex-1 overflow-y-auto p-6">{children}</main>
-            </div>
-          </div>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

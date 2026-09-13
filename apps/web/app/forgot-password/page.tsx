@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
     <AuthLayout>
       <Link
         href="/login"
-        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-700"
+        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 hover:text-brand-gold"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
           <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -60,8 +60,8 @@ export default function ForgotPasswordPage() {
         Back to sign in
       </Link>
 
-      <h1 className="mt-5 text-[24px] font-semibold tracking-tight text-slate-900">Reset your password</h1>
-      <p className="mt-2 text-[14.5px] leading-relaxed text-slate-500">
+      <h1 className="mt-5 font-display text-[26px] font-bold tracking-tight text-brand-navy">Reset your password</h1>
+      <p className="mt-2 text-[14.5px] leading-relaxed text-gray-500">
         Enter your account email and, if it&apos;s registered, we&apos;ll send a 4-digit code to reset your
         password.
       </p>

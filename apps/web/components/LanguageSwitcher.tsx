@@ -35,9 +35,13 @@ export function LanguageSwitcher() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Select language"
-        className="rounded-md border border-brand-silver/20 px-3 py-1.5 text-sm text-brand-silver hover:bg-white/5"
+        className="flex-shrink-0 whitespace-nowrap rounded-field border border-brand-silver/20 px-1.5 py-1.5 text-[11px] text-brand-silver hover:bg-white/5 xs:px-2 xs:text-xs sm:px-3 sm:text-sm"
       >
-        {current?.nativeName ?? locale.toUpperCase()}
+        {/* Full native name from `sm` up; the 2-letter code alone below that so the header's
+            right-hand cluster stays inside the viewport on small phones — same button, same
+            click-to-open behavior, just a narrower label at small widths. */}
+        <span className="sm:hidden">{locale.toUpperCase()}</span>
+        <span className="hidden sm:inline">{current?.nativeName ?? locale.toUpperCase()}</span>
       </button>
       {open && (
         <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-md border border-brand-silver/20 bg-brand-navyLight py-1 shadow-lg">

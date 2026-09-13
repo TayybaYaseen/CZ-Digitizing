@@ -14,7 +14,11 @@ export function ServicesSummary() {
       <h2 className="text-center font-display text-xl font-bold text-brand-navy">Our Services</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         {SERVICES.map((s) => (
-          <Link key={s.title} href="/services" className="rounded-lg border border-gray-200 bg-white p-6 text-center hover:border-brand-gold">
+          <Link
+            key={s.title}
+            href="/services"
+            className="rounded-card border border-gray-200 bg-white p-6 text-center shadow-cz-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gold-500 hover:shadow-cz-md"
+          >
             <h3 className="font-display text-lg font-semibold text-brand-navy">{s.title}</h3>
             <p className="mt-2 text-sm text-gray-600">{s.description}</p>
           </Link>
