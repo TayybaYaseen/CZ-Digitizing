@@ -1,5 +1,23 @@
-import type { CustomRequestDto, CustomRequestFileDto, CustomRequestMessageDto, CustomRequestReferenceDto, CustomRequestSummaryDto } from '@czd/shared-types';
-import type { CustomRequest, CustomRequestFile, CustomRequestMessage, CustomRequestReference, User } from '../../generated/prisma';
+import type {
+  CustomRequestDto,
+  CustomRequestFileDto,
+  CustomRequestMessageDto,
+  CustomRequestProductionFileDto,
+  CustomRequestReferenceDto,
+  CustomRequestSummaryDto,
+  CustomRequestTaskDto,
+  CustomRequestTimeEntryDto,
+} from '@czd/shared-types';
+import type {
+  CustomRequest,
+  CustomRequestFile,
+  CustomRequestMessage,
+  CustomRequestProductionFile,
+  CustomRequestReference,
+  CustomRequestTask,
+  CustomRequestTimeEntry,
+  User,
+} from '../../generated/prisma';
 
 export type CustomRequestWithRelations = CustomRequest & {
   customer: User;
@@ -63,6 +81,44 @@ export function toCustomRequestFileDto(row: CustomRequestFile): CustomRequestFil
     fileFormat: row.fileFormat,
     fileSizeBytes: row.fileSizeBytes.toString(),
     downloadCount: row.downloadCount,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+// AC-9 — designer production tooling DTOs.
+export function toCustomRequestTaskDto(row: CustomRequestTask & { createdBy: User }): CustomRequestTaskDto {
+  return {
+    id: row.id.toString(),
+    title: row.title,
+    done: row.done,
+    sortOrder: row.sortOrder,
+    createdByUserId: row.createdByUserId.toString(),
+    createdByName: row.createdBy.displayName ?? row.createdBy.email,
+    createdAt: row.createdAt.toISOString(),
+    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+  };
+}
+
+export function toCustomRequestTimeEntryDto(row: CustomRequestTimeEntry & { designer: User }): CustomRequestTimeEntryDto {
+  return {
+    id: row.id.toString(),
+    designerId: row.designerId.toString(),
+    designerName: row.designer.displayName ?? row.designer.email,
+    minutes: row.minutes,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toCustomRequestProductionFileDto(row: CustomRequestProductionFile & { uploadedBy: User }): CustomRequestProductionFileDto {
+  return {
+    id: row.id.toString(),
+    version: row.version,
+    fileFormat: row.fileFormat,
+    fileSizeBytes: row.fileSizeBytes.toString(),
+    note: row.note,
+    uploadedByUserId: row.uploadedByUserId.toString(),
+    uploadedByName: row.uploadedBy.displayName ?? row.uploadedBy.email,
     createdAt: row.createdAt.toISOString(),
   };
 }

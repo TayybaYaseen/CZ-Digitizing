@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
@@ -25,7 +25,17 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next');
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -41,7 +51,9 @@ export default function RegisterPage() {
         method: 'POST',
         body: JSON.stringify({ ...values, displayName: values.displayName || undefined }),
       });
-      router.push('/login?registered=1');
+      const params = new URLSearchParams({ registered: '1' });
+      if (next) params.set('next', next);
+      router.push(`/login?${params.toString()}`);
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.error.code === 'VALIDATION_ERROR' && err.error.errors) {
@@ -86,7 +98,7 @@ export default function RegisterPage() {
 
       <p className="mt-8 text-center text-[13.5px] text-slate-600">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
+        <Link href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
           Log in
         </Link>
       </p>

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 const REQUEST_TYPES = ['embroidery_custom', 'vector_custom'] as const;
 const STATUSES = [
@@ -76,6 +76,44 @@ export class CreateCustomRequestMessageDto {
   @IsString()
   @MinLength(1)
   message!: string;
+}
+
+// AC-9 — POST /api/custom-requests/:id/tasks.
+export class CreateCustomRequestTaskDto {
+  @IsString()
+  @MinLength(1)
+  title!: string;
+}
+
+// AC-9 — PUT /api/custom-requests/:id/tasks/:taskId. `done` toggles completion; `title` renames.
+export class UpdateCustomRequestTaskDto {
+  @IsOptional()
+  @IsBoolean()
+  done?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  title?: string;
+}
+
+// AC-9 — POST /api/custom-requests/:id/time-entries. Manual duration entry — see
+// CustomRequestTimeEntry's schema comment for why this isn't a live start/stop timer.
+export class CreateCustomRequestTimeEntryDto {
+  @IsInt()
+  @Min(1)
+  minutes!: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+// AC-9 — POST /api/custom-requests/:id/production-files (multipart, `note` alongside the file).
+export class CreateCustomRequestProductionFileDto {
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 // GET /api/custom-requests — admin filterable list.

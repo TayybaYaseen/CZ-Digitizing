@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
+import { safeNextPath } from '@/lib/safe-redirect';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
@@ -51,7 +52,7 @@ function VerifyDeviceForm() {
         body: JSON.stringify(values),
       });
       login(tokens);
-      router.push('/');
+      router.push(safeNextPath(searchParams.get('next')));
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.error.code === 'VALIDATION_ERROR' && err.error.errors) {

@@ -867,6 +867,81 @@ unchanged.
 A-023's Status is unchanged — native device/emulator testing remains the one still-open item from
 the original build note.
 
+As of the 2026-09-14 update (branch `feature/17a-custom-request-production-tooling`): a real,
+previously-undetected gap in A-017 (`Completed`) was found and fixed. A code-verified audit of
+`docs/specs/2026-08-28-12-custom-design-requests.md` against the running system found AC-9
+("designer assigned to a custom request has dedicated production tooling — task checklist, time
+tracking, and file-versioning during production — beyond simple status-field updates") was only
+ever partially met: `pickLeastLoadedDesigner()` auto-assignment plus generic status/notes/file
+controls existed, but a repo-wide grep for checklist/time-tracking/versioning came back genuinely
+empty — directly contradicting this spec's own §7 ("Out of scope: None"), not a documented
+trade-off. Built the missing pieces as three new Prisma models — `CustomRequestTask` (freeform
+checklist, `sortOrder` + `completedAt`), `CustomRequestTimeEntry` (manual duration entries rather
+than a live start/stop timer — deliberately avoids server-side timer state that would need to
+survive closed tabs/crashed browsers, a design choice documented in the model's own schema
+comment), and `CustomRequestProductionFile` (auto-incrementing per-request `version`, distinct from
+AC-5's customer-facing `CustomRequestFile`) — migration
+`20260914124227_add_custom_request_production_tooling`. New service
+`CustomRequestProductionService` plus 9 new staff-only routes on the existing
+`CustomRequestsController` (`/tasks`, `/time-entries`, `/production-files` — list/create/update/
+delete, `Roles('admin','freelancer','moderator')` + `RequiresPermission('custom_requests', …)`,
+matching this controller's existing gating pattern). The production-file download route
+(`GET :id/production-files/:fileId/download`) is the **first route in this codebase that actually
+streams file bytes** rather than issuing a signed token — a deliberate, narrow exception to the
+platform-wide A-007 byte-streaming gap this file has flagged since 2026-09-07: since this route is
+staff-only and already role/permission-gated (no customer ever reaches it), AC-5's customer-facing
+signed-token indirection would be pure overhead here, not a security requirement, so it uses bare
+`@Res()` to opt out of the app's global `ResponseInterceptor` envelope and send raw bytes directly.
+This does **not** close the general A-007 gap for customer-facing downloads (`CustomRequestFile`/
+`DesignFile` signed tokens still have no byte-serving route anywhere) — flagged here explicitly, not
+silently implied as fixed. Admin UI: `apps/admin/app/custom-requests/page.tsx`'s existing
+inline-expand panel gained three new sections (checklist with add/toggle/delete, time log with a
+running total and add/delete, production-file version list with upload/download) inside the same
+expanded-request view as the pre-existing quote/deliver/messages controls — no new route, consistent
+with this page's own "list with inline expand" convention. Verified: 3 new integration tests
+(task CRUD, time-entry CRUD, versioned upload + real byte-for-byte download + a 403 confirming no
+`@Roles('customer')` exists on any `/production-files` route) — full
+`test/integration/custom-requests.spec.ts` re-run clean (8/8); full `apps/api` unit suite re-run
+clean (280/280, no regressions); `apps/api`/`apps/admin` both typecheck and lint clean. Live-verified
+against a real running instance: logged in as a real seeded admin (`admin@czd.test`, through the
+actual mandatory-2FA gate, not bypassed) via Playwright, added a task, toggled it, logged time,
+uploaded a production-file version, and downloaded it back — confirmed byte-identical to the
+uploaded content, not just a 200 status. This is a correctness fix within an already-`Completed`
+aspect (same category as this file's other already-`Completed`-aspect bug-fix notes, e.g. A-001's
+2026-09-11 note) — A-017 stays `Completed`.
+
+As of the 2026-09-14 update (same-day follow-up, branch `feature/17a-custom-request-production-tooling`):
+a real UX gap in A-017 (`Completed`) was found and fixed, reported directly by Admin. `/custom-request`
+redirected every guest straight to `/login` before they could see the form at all — the controller's
+own comment (`customer_id` is `NOT NULL` in the architecture DDL, unlike Get a Quote's guest posture)
+had been read by an earlier pass as "gate the whole page," when the DDL only actually requires an
+account at *submission*, not at *viewing the form*. Asked Admin to confirm scope rather than guessing
+between "guest can fill the form, account needed only to submit" (no schema change) and "fully
+guest-submittable like Get a Quote" (a `Quote`-style migration — nullable `customerId`, guest
+name/email/whatsapp fields, an access token, register-time account linking); Admin chose the former.
+`apps/web/app/custom-request/page.tsx` now always renders the form; clicking Submit while logged out
+saves the typed text fields (not the file inputs — browsers cannot persist `File` objects across a
+navigation) to `sessionStorage` and sends the guest to `/login?next=/custom-request`, restoring those
+fields (with a "please reselect your logo/artwork" notice) once they're back. Fixing this properly
+surfaced a real, separate, previously-unnoticed bug: `/login`, `/register`, and `/verify-device` all
+accepted a `?next=` parameter in exactly one place (`custom-request/page.tsx`'s own redirect) but
+**never once read or acted on it** — every successful login/verify-device unconditionally sent the
+user to `/`, silently discarding wherever they'd actually come from. This wasn't unique to Custom
+Requests; it would have broken this same "finish signing in, land back where you were" pattern for
+any future caller. Fixed generally: a new `apps/web/lib/safe-redirect.ts` (`safeNextPath`) rejects
+anything but a same-origin relative path — `next` is an attacker-controllable query param, so
+accepting it unvalidated would be an open-redirect hole — and `/login`, `/register`, and
+`/verify-device` now all read, validate, and forward `next` through the full
+login → (new-device-verify) → landing chain, and through login ↔ register's own cross-links, so a
+guest who registers instead of logging in still ends up back where they started too. Verified:
+`apps/web`/`apps/api` typecheck and lint clean (same pre-existing 2 `TaeboPanda.tsx` `<img>` warnings
+as every prior pass, unrelated); live Playwright pass against the running dev stack — a guest visits
+`/custom-request`, sees the form immediately (no redirect), fills it in, clicks "Continue to Sign In",
+authenticates through the real login + mandatory new-device-verification gate (not bypassed), and
+lands back on `/custom-request` with every typed field restored and a real `Submit Request` button in
+place of the guest CTA — confirmed via a fresh field value read-back, not just a screenshot. A-017's
+own Status is unaffected — this is a UI/auth-flow correctness fix, not a new acceptance criterion.
+
 ---
 
 ## Aspect Registry
@@ -1194,3 +1269,5 @@ build order, and was not assumed to be one anywhere in this file.
 | 2026-09-13 | A-020 character/UI correction (no Status/Order/Dependency values changed, A-020 remains `Completed`); new §10 addendum added to `docs/specs/2026-08-28-15-taebo-chatbot.md` | Incident: [`docs/incidents/2026-09-13-taebo-character-interaction-system.md`](../incidents/2026-09-13-taebo-character-interaction-system.md). Admin supplied an official Taebo reference image (standing, realistic panda in a navy vest/gold trim/CZ badge) and required a full character + interaction system — the production widget was silently rendering a 🐼 emoji fallback (master asset never supplied) and the only internal design doc describing Taebo's look (`docs/design/taebo-panda-prompts.md`) described a different, unapproved concept (a sitting baby cub). `apps/web/components/TaeboPanda.tsx` now resolves a `pose` prop through a `taebo-<pose>.png` → `taebo-full.png` → 🐼 fallback chain instead of one fixed source; `apps/web/components/TaeboWidget.tsx` derives that pose from the *existing* chat state machine (`loading`→thinking, an escalated reply or fetch error→waiting, a matched reply→helping, the one-time greeting→greeting, else idle) — no second state machine. New `apps/web/lib/use-taebo-position.ts` adds click-vs-drag (6px threshold, Pointer Events for mouse+touch), viewport-clamped dragging of the closed-state launcher only, `localStorage`-only position persistence (`czd.taebo.position`), and a "Reset Taebo position" control in the open panel; the panel itself reflows above/below and left/right of the launcher to stay fully on-screen rather than being draggable itself. `apps/web/app/globals.css` gained a `prefers-reduced-motion` guard for the idle-bob animation and widget transitions. Docs: `.claude/skills/cz-digitizing-design/readme.md` (new TAEBO section) and a new `guidelines/brand-taebo.html` specimen card, `docs/design/taebo-panda-prompts.md` rewritten (old cub prompts marked superseded, new prompts + required-file table added), this spec's new §10. **The supplied reference image itself is still not in the repository** — no mechanism exists in this environment to save an inline chat-pasted image to disk; `apps/web/public/images/taebo-full.png` and the optional per-pose files remain to be added by whoever has the exported file, per the design doc's own required-files table. `success` pose plumbing is implemented but deliberately not invoked anywhere yet (reserved for other pages' own request-submitted flows — Get a Quote/Custom Request/File Format Request — left untouched per the design-only scope boundary). Verified: `tsc --noEmit` clean on `apps/web`; a full-repo search for hardcoded demo/test chat content found none in production UI (the one "Antarctica" occurrence is a legitimate `taebo.service.spec.ts` unit-test fixture for the existing AC-3 escalation contract); live Playwright pass against the running dev server — drag moves the launcher without opening chat, a real click still opens it, the panel reflows correctly when dragged near the top edge, "Reset Taebo position" restores the default, and the dragged position round-trips through `localStorage` and survives a page reload exactly — zero console/page errors throughout. `apps/mobile`'s own `TaeboWidget.tsx` was left untouched — out of scope for this pass, not evaluated |
 | 2026-09-13 | A-020 same-day follow-up (still no Status/Order/Dependency change) | Incident update: see [`docs/incidents/2026-09-13-taebo-character-interaction-system.md`](../incidents/2026-09-13-taebo-character-interaction-system.md)'s "Update" section. Two corrections to the row above: (1) a follow-up instruction incorrectly assumed no Taebo component existed and asked to build one "from scratch" — verified false via `git status`/`ls` first, so the existing `TaeboWidget.tsx`/`TaeboPanda.tsx`/`use-taebo-position.ts` were extended, not duplicated; (2) the master asset, previously reported missing, was found saved locally (Admin's Downloads folder) and copied to `apps/web/public/images/taebo-full.png` (mirrored to the design skill's `assets/taebo-full.png`) — the 🐼 emoji fallback is no longer what renders in production. A real additional bug was found and fixed alongside this: the launcher rendered the panda cropped into a circular avatar button, contradicting the design system's own "never a generic round chatbot icon" rule — `TaeboWidget.tsx`'s launcher now renders `<TaeboPanda variant="full">` directly with no circular/boxed background (~90-130px desktop, ~70-95px mobile via CSS), and `use-taebo-position.ts`'s clamp math was generalized from one square size to a `{width, height}` pair to match the panda's portrait aspect ratio. Re-verified live (Playwright, desktop 1440px + real mobile touch events at 390px): the real photo renders, drag/click/reset/persistence all still work exactly as before, no horizontal overflow, zero console/page errors |
 | 2026-09-13 | A-020 third same-day follow-up (still no Status/Order/Dependency change); new §10.8-§10.10 added to `docs/specs/2026-08-28-15-taebo-chatbot.md` | Incident update: see [`docs/incidents/2026-09-13-taebo-character-interaction-system.md`](../incidents/2026-09-13-taebo-character-interaction-system.md)'s "Update 2" section. Completed the chatbot UI/identity layer against the same reference: the panel header read "Taebo Helping Panda" (now "TAEBO" / "Your CZ Digitizing Assistant," plus an online-status dot — the aspect's own stable title in this index is deliberately left unchanged, it's spec metadata, not UI copy); the panel was a white card, now a dark navy surface (navy-800 header, navy-900/700 body, white customer bubbles, navy-700 Taebo bubbles, gold-tinted escalated bubbles, dot-based typing indicator, updated error copy with a real `/contact` link) matching the reference's own dark chat mockup; added a `QUICK_ACTIONS` pill row (`apps/web/components/TaeboWidget.tsx`) linking to 9 real existing routes, no fake destinations; the fixed 320×384 panel size is now clamped to the viewport to guarantee no overflow down to the narrowest phones in the test sweep. The reference's six "Expression" states (Happy/Thinking/Excited/Winking/Surprised/Friendly) were deliberately **not** coded — no distinct assets exist and a static photo can't be meaningfully re-expressed via CSS, so an inert `expression` prop was not added; documented as a ready extension point instead (design skill §11, spec §10.10). Verified live (Playwright, 1440px desktop + real touch at 375px): "TAEBO"/subtitle render and the old string is gone, quick actions render and a direct click-through confirmed real navigation to `/get-a-quote`, dark theme/typing/error states render as designed, no horizontal overflow at 375px, zero console/page errors |
+| 2026-09-14 | A-017 AC-9 completeness fix (no Status/Order/Dependency change, A-017 remains `Completed`) | A code-verified audit of `docs/specs/2026-08-28-12-custom-design-requests.md` found AC-9's "dedicated production tooling (task checklist, time tracking, file-versioning)" was only ever auto-assignment + generic status/notes/file controls — contradicting the spec's own §7 ("Out of scope: None"). Built three new Prisma models (`CustomRequestTask`, `CustomRequestTimeEntry`, `CustomRequestProductionFile`; migration `20260914124227_add_custom_request_production_tooling`), a new `CustomRequestProductionService`, 9 new staff-only routes on `CustomRequestsController`, and three new panels on `apps/admin/app/custom-requests/page.tsx`'s existing inline-expand view. The production-file download route is this codebase's first to stream real bytes rather than issue a signed token — a deliberate staff-only exception, not a fix to the platform-wide A-007 byte-streaming gap (still open for customer-facing downloads). Verified: 3 new integration tests, full `apps/api` suite re-run clean (280/280), `apps/api`/`apps/admin` typecheck+lint clean, live Playwright pass as a real seeded admin through the mandatory-2FA gate exercising all three panels end-to-end including a byte-identical file round-trip |
+| 2026-09-14 | A-017 guest-access UX fix; A-002 `next`-redirect fix (no Status/Order/Dependency change) | `/custom-request` redirected every guest to `/login` before showing the form at all. Per Admin's explicit choice, changed to: form always renders; Submit while logged out saves typed text fields to `sessionStorage` and sends the guest to `/login?next=/custom-request`, restoring them on return (files can't survive the round trip, flagged to the user in-page). Found and fixed a separate, general bug while doing this: `/login`/`/register`/`/verify-device` accepted `?next=` but never read it — every login unconditionally landed on `/`, not wherever the user came from. Added `apps/web/lib/safe-redirect.ts` (`safeNextPath`, rejects anything but a same-origin relative path — an unvalidated `next` is an open-redirect vector) and wired `next` through login → new-device-verify → landing and through login/register's cross-links. Verified live via Playwright: guest fills the form, signs in through the real login + mandatory device-verification gate, lands back on `/custom-request` with fields restored |
