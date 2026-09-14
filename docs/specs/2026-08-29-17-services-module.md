@@ -112,7 +112,7 @@ See [master spec §3](2026-08-28-cz-digitizing-platform.md#3-api-contract) for s
 | `GET` | `/api/services` | Public | `200` `ServiceSummaryDto[]` | the two main services, each with nested sub-categories — AC-1 |
 | `GET` | `/api/services/:slug` | Public | `200` `ServiceDetailDto` | AC-2/AC-3/AC-5/AC-6 |
 | `POST` / `PUT` / `DELETE` | `/api/services` `/:id` | `role=admin` | `201` / `200` / `204` | AC-8 |
-| `PUT` | `/api/admin/services/:id/reorder` | `role=admin` | `200` | |
+| `PUT` | `/api/services/:id/reorder` | `role=admin` | `200` | actual implemented path — namespaced under `/api/services/` alongside the other CRUD routes above rather than under a separate `/api/admin/` prefix, corrected 2026-09-14 to match the real API (same guards either way) |
 
 ### DTOs
 
@@ -222,8 +222,8 @@ below), no boundary AC is invented, since there is no observable behavior of thi
 
 | # | Risk / question | Owner | Resolution |
 |---|---|---|---|
-| 1 | The shared `service_type`/`service_category` vocabulary between this spec and the Smart Get a Quote spec's `quote_questions`/`quotes` tables is a naming convention, not a foreign key — a rename in one place could silently break matching in the other; needs a shared constant/enum source before implementation | Engineering | Open |
-| 2 | Whether every sub-category must link to a Design Catalog category (AC-10), or linking is optional per sub-category, is not specified | Admin | Open |
+| 1 | The shared `service_type`/`service_category` vocabulary between this spec and the Smart Get a Quote spec's `quote_questions`/`quotes` tables is a naming convention, not a foreign key — a rename in one place could silently break matching in the other; needs a shared constant/enum source before implementation | Engineering | **Resolved** (2026-09-14 gap-audit note) — `Quote.serviceId`/`QuoteQuestion.serviceId` were built as real Postgres foreign keys to `services.id` (Smart Get a Quote spec's own implementation), stronger than the "shared vocabulary" minimum this risk asked for. There is no drift risk between the two specs' service identifiers. (The FAQ↔Service link in AC-6 is unaffected — that remains a deliberate value-match by slug/name, never meant to be an FK, per this spec's own §4.) |
+| 2 | Whether every sub-category must link to a Design Catalog category (AC-10), or linking is optional per sub-category, is not specified | Admin | Open — the field is nullable and the Admin UI now lets Admin set or clear it per sub-category at will (2026-09-14), so "optional, Admin's choice per row" is the de facto behavior today; whether it should ever be made mandatory for specific sub-categories remains an open product decision, not an engineering one. |
 
 ---
 

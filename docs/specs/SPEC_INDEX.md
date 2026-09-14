@@ -942,6 +942,87 @@ lands back on `/custom-request` with every typed field restored and a real `Subm
 place of the guest CTA — confirmed via a fresh field value read-back, not just a screenshot. A-017's
 own Status is unaffected — this is a UI/auth-flow correctness fix, not a new acceptance criterion.
 
+As of the 2026-09-14 update (branch `feature/14a-services-admin-completeness`): a code-verified audit
+of `docs/specs/2026-08-29-17-services-module.md` against the running system (A-014/A-014a/A-014b,
+all `Completed`) found three real, concrete gaps behind an otherwise-accurate "Completed" status, all
+now closed:
+1. **AC-8 (admin management) was API-complete but admin-UI-incomplete.** The backend already
+   supported edit and reorder; `apps/admin/app/services/page.tsx` only exposed create/publish/delete.
+   Added an inline Edit panel (pre-filled by fetching the same public detail route the customer page
+   itself uses, since the list endpoint's summary shape never carried `applications`/`process`/
+   `relatedDesignCategoryId`) and up/down reorder controls (swap-with-neighbor via two sequential
+   calls to the existing `PUT /api/services/:id/reorder`) for both main services and sub-services.
+2. **AC-10 (Design Catalog linkage) had no admin UI path to set it at all.** Added a
+   `relatedDesignCategoryId` `<select>` (populated from the existing public `GET /api/categories`)
+   to the create form, the sub-service creation form, and the new edit panel. Building this surfaced
+   a real, previously-latent bug: `ServicesService.update()` (`services.service.ts:93,98`) computed
+   `parentServiceId`/`relatedDesignCategoryId` as `dto.field !== undefined ? BigInt(dto.field) :
+   undefined` — correct for "leave unchanged" vs. "set to X", but a caller explicitly clearing the
+   link (`relatedDesignCategoryId: null`, distinct from omitting the field) hit `BigInt(null)`, which
+   throws. Nothing before this admin panel ever sent an explicit `null` for either field, so this had
+   never fired in production or in any existing test. Fixed to map `null` to Prisma's own `null`
+   rather than attempting `BigInt(null)`; added a regression test
+   (`test/integration/services.spec.ts`) covering the explicit-clear path.
+3. **AC-4 (realistic, service-specific visuals) was worse than "generic" — it was broken.** Every
+   Embroidery Digitizing/Vector Art visualImageUrl pointed at `/images/services/<slug>.jpg`, but
+   `apps/web/public/images/services/` never existed — every service/sub-service card and detail page
+   was rendering a 404 image, not merely a placeholder. `apps/api/scripts/seed-services.ts` now points
+   Embroidery Digitizing's main service + 9 sub-services at 5 real, brand-approved CZ Digitizing
+   product photos (copied from `.claude/skills/cz-digitizing-design/assets/` into
+   `apps/web/public/images/services/`, the same "must live in the app's own public/ folder" posture
+   `Logo.tsx` already established) — `jacket-back-digitizing` and `left-chest-digitizing` get an exact
+   1:1 photo match (a real embroidered jacket back and a real left-chest-placement polo respectively),
+   the other 8 rows share the remaining 3 photos since no more distinct embroidery photography exists
+   in this repo. **Vector Art remains a genuine, flagged AC-4 gap**: no vector-art-specific photography
+   exists anywhere in this repo or its design-skill asset set, so all 10 Vector Art rows use the real
+   CZ Digitizing horizontal logo mark as an honest, on-brand stand-in (documented in the seed script's
+   own header comment) rather than misrepresenting the service with embroidery/garment photos — this
+   is not "each sub-category has its own unique photo" and should not be read as AC-4 fully satisfied
+   for Vector Art. Also added the spec's own missing e2e test-plan row (`e2e/services.e2e.spec.ts` —
+   this repo's e2e/ convention is an API-level Jest+supertest walk of the full flow, same as the only
+   other file there, `cross-platform-sync.e2e.spec.ts`, not a browser-driven Playwright suite; none is
+   wired into this repo's test scripts) covering browse → sub-category detail (visuals/applications/
+   process/FAQs) → Get a Quote draft creation with the exact pre-selected service id, proving AC-7/
+   AC-9/AC-11 end to end via a real `Quote` row rather than isolated unit reasoning. Also corrected two
+   spec-document inaccuracies while auditing: the API contract table named
+   `PUT /api/admin/services/:id/reorder`, but the real (and only ever built) route is
+   `PUT /api/services/:id/reorder`; and §8 risk #1 (shared service-identity vocabulary) was already
+   resolved by the Smart Get a Quote spec's real FK weeks ago, but this spec's own risk table was
+   never updated to say so. Verified: full `apps/api` unit suite re-run clean (280/280); full
+   `test/integration/services.spec.ts` re-run clean (5/5, including the new regression test); new
+   `e2e/services.e2e.spec.ts` passing standalone (the repo's only other e2e file,
+   `cross-platform-sync.e2e.spec.ts`, independently fails on both main and this branch from unrelated
+   leftover dev-DB `orders` rows blocking its own blanket `user.deleteMany()` cleanup — pre-existing
+   environment state, not a regression this pass introduced, left untouched rather than silently
+   "fixed" by deleting rows this session doesn't own); `apps/api`/`apps/admin` both typecheck and lint
+   clean; live Playwright pass as a real seeded admin (through the mandatory-2FA gate) confirmed the
+   edit panel loads real data, Save persists (verified via a direct API read-back, not just the UI's
+   own success toast), and reorder persists across a page reload. **Separately found, not touched**:
+   a pre-existing, unrelated leftover test row (`embroidery-digitizing-verify`, created 2026-09-11,
+   using `picsum.photos` — itself a real AC-4 violation) turned out to have 14 real `Quote` rows and a
+   sub-service depending on it, so it was left in place rather than deleted, per this file's own
+   "investigate before deleting" posture — flagged here for whoever owns that data next. A-014/
+   A-014a/A-014b Status is unaffected — every fix here is a correctness/completeness fix within an
+   already-`Completed` aspect, same category as this file's other such notes.
+
+As of the 2026-09-14 update (same-day follow-up): Admin supplied two real, purpose-made hero images
+(one per main service) that close most of the AC-4 gap the note above flagged as open. Saved to
+`apps/web/public/images/services/embroidery-digitizing.png` and `vector-art.png`, replacing the
+Embroidery Digitizing main service's reused sub-category photo and — more significantly — Vector
+Art's CZ-logo-mark stand-in with an actual vector-art-themed hero (a designer's screen mid-vectorize,
+format icons, embroidery-machine tie-in) for both the main Vector Art service card/detail page and
+(reused, since only one image exists) all 9 Vector Art sub-category pages. This is a genuine content
+upgrade, not merely a broken-link fix like the earlier note in this same aspect — AC-4's "realistic,
+service-specific" bar is now met for both main service cards specifically. **What's still open,
+unchanged from the note above:** the 9 Vector Art sub-categories still share one image rather than
+each having its own, so "service-specific" remains unmet at the sub-category level for Vector Art
+(and, separately, for 8 of Embroidery Digitizing's 9 sub-categories, which still share 3 photos
+between them). Re-ran `seed-services.ts` against the live dev database and confirmed via Playwright
+against the running `apps/web` dev server that both `/services` cards and both main detail pages
+(`/services/embroidery-digitizing`, `/services/vector-art`) render the new images with no 404s; full
+`apps/api` unit suite re-run clean (280/280, unaffected — no code changed, only seed data and static
+assets). A-014/A-014a/A-014b Status remains `Completed`, unaffected by this content update.
+
 ---
 
 ## Aspect Registry
@@ -1271,3 +1352,5 @@ build order, and was not assumed to be one anywhere in this file.
 | 2026-09-13 | A-020 third same-day follow-up (still no Status/Order/Dependency change); new §10.8-§10.10 added to `docs/specs/2026-08-28-15-taebo-chatbot.md` | Incident update: see [`docs/incidents/2026-09-13-taebo-character-interaction-system.md`](../incidents/2026-09-13-taebo-character-interaction-system.md)'s "Update 2" section. Completed the chatbot UI/identity layer against the same reference: the panel header read "Taebo Helping Panda" (now "TAEBO" / "Your CZ Digitizing Assistant," plus an online-status dot — the aspect's own stable title in this index is deliberately left unchanged, it's spec metadata, not UI copy); the panel was a white card, now a dark navy surface (navy-800 header, navy-900/700 body, white customer bubbles, navy-700 Taebo bubbles, gold-tinted escalated bubbles, dot-based typing indicator, updated error copy with a real `/contact` link) matching the reference's own dark chat mockup; added a `QUICK_ACTIONS` pill row (`apps/web/components/TaeboWidget.tsx`) linking to 9 real existing routes, no fake destinations; the fixed 320×384 panel size is now clamped to the viewport to guarantee no overflow down to the narrowest phones in the test sweep. The reference's six "Expression" states (Happy/Thinking/Excited/Winking/Surprised/Friendly) were deliberately **not** coded — no distinct assets exist and a static photo can't be meaningfully re-expressed via CSS, so an inert `expression` prop was not added; documented as a ready extension point instead (design skill §11, spec §10.10). Verified live (Playwright, 1440px desktop + real touch at 375px): "TAEBO"/subtitle render and the old string is gone, quick actions render and a direct click-through confirmed real navigation to `/get-a-quote`, dark theme/typing/error states render as designed, no horizontal overflow at 375px, zero console/page errors |
 | 2026-09-14 | A-017 AC-9 completeness fix (no Status/Order/Dependency change, A-017 remains `Completed`) | A code-verified audit of `docs/specs/2026-08-28-12-custom-design-requests.md` found AC-9's "dedicated production tooling (task checklist, time tracking, file-versioning)" was only ever auto-assignment + generic status/notes/file controls — contradicting the spec's own §7 ("Out of scope: None"). Built three new Prisma models (`CustomRequestTask`, `CustomRequestTimeEntry`, `CustomRequestProductionFile`; migration `20260914124227_add_custom_request_production_tooling`), a new `CustomRequestProductionService`, 9 new staff-only routes on `CustomRequestsController`, and three new panels on `apps/admin/app/custom-requests/page.tsx`'s existing inline-expand view. The production-file download route is this codebase's first to stream real bytes rather than issue a signed token — a deliberate staff-only exception, not a fix to the platform-wide A-007 byte-streaming gap (still open for customer-facing downloads). Verified: 3 new integration tests, full `apps/api` suite re-run clean (280/280), `apps/api`/`apps/admin` typecheck+lint clean, live Playwright pass as a real seeded admin through the mandatory-2FA gate exercising all three panels end-to-end including a byte-identical file round-trip |
 | 2026-09-14 | A-017 guest-access UX fix; A-002 `next`-redirect fix (no Status/Order/Dependency change) | `/custom-request` redirected every guest to `/login` before showing the form at all. Per Admin's explicit choice, changed to: form always renders; Submit while logged out saves typed text fields to `sessionStorage` and sends the guest to `/login?next=/custom-request`, restoring them on return (files can't survive the round trip, flagged to the user in-page). Found and fixed a separate, general bug while doing this: `/login`/`/register`/`/verify-device` accepted `?next=` but never read it — every login unconditionally landed on `/`, not wherever the user came from. Added `apps/web/lib/safe-redirect.ts` (`safeNextPath`, rejects anything but a same-origin relative path — an unvalidated `next` is an open-redirect vector) and wired `next` through login → new-device-verify → landing and through login/register's cross-links. Verified live via Playwright: guest fills the form, signs in through the real login + mandatory device-verification gate, lands back on `/custom-request` with fields restored |
+| 2026-09-14 | A-014/A-014a/A-014b completeness fixes (no Status/Order/Dependency change, all remain `Completed`); reorder route + §8 risk #1 corrected in `docs/specs/2026-08-29-17-services-module.md` | A code-verified audit found AC-8's admin panel was create/publish/delete-only (edit and reorder existed only in the API), AC-10's Design Catalog link had no admin UI path to set it at all, and AC-4's service images were fully broken (404s, not just "unrealistic" placeholders — `apps/web/public/images/services/` never existed). Added an edit panel, up/down reorder, and a `relatedDesignCategoryId` picker to `apps/admin/app/services/page.tsx`; fixed a real bug this surfaced (`ServicesService.update()` crashed on `BigInt(null)` when a caller explicitly cleared `relatedDesignCategoryId`/`parentServiceId` — added a regression test); pointed the seed data at 5 real brand-approved photos for Embroidery Digitizing (Vector Art still has zero real vector-art photography available anywhere in this repo, so it uses the CZ logo mark as an honest stand-in — flagged as a genuine, unresolved AC-4 gap, not silently closed); added the spec's missing e2e test (`e2e/services.e2e.spec.ts`). Verified: `apps/api` unit suite 280/280, `services.spec.ts` 5/5 (incl. the new regression test), new e2e test passing standalone, both apps typecheck/lint clean, live Playwright pass as a real admin confirming edit/reorder actually persist (API read-back, not just the UI's own toast) |
+| 2026-09-14 | A-014 AC-4 content upgrade (same-day follow-up, no Status/Order/Dependency change) | Admin supplied real, purpose-made hero images for both main services (`apps/web/public/images/services/embroidery-digitizing.png`, `vector-art.png`), replacing Vector Art's CZ-logo-mark stand-in from the note above with an actual vector-art-themed image — AC-4 is now genuinely met for both main service cards/detail pages. Sub-category-level "each has its own unique photo" remains unmet for Vector Art (all 9 share the one main-service image) and partially for Embroidery Digitizing (8 of 9 share 3 photos) — unchanged, flagged gaps, not newly introduced. Verified live via Playwright against the running dev server: both cards and both main detail pages render the new images, zero 404s; `apps/api` suite re-run clean (280/280, no code changed) |
