@@ -149,6 +149,13 @@ describe('Services Module (docs/specs/2026-08-29-17-services-module.md)', () => 
     const detail = await request(app.getHttpServer()).get(`/api/services/cap-hat-svc-test`).expect(200);
     expect(detail.body.data.relatedDesignCategoryId).toBe(category.id.toString());
     expect(detail.body.data.id).toBe(created.body.data.id);
+
+    // Regression: PUT explicitly clearing the link (relatedDesignCategoryId: null, distinct from
+    // simply not sending the field) used to crash with "Cannot convert null to a BigInt" — the
+    // admin edit panel is the first caller to ever send this.
+    await request(app.getHttpServer()).put(`/api/services/${created.body.data.id}`).set(authHeader(admin)).send({ relatedDesignCategoryId: null }).expect(200);
+    const cleared = await request(app.getHttpServer()).get(`/api/services/cap-hat-svc-test`).expect(200);
+    expect(cleared.body.data.relatedDesignCategoryId).toBeNull();
   });
 
   it('AC-8: reorder immediately reflects in the public list order', async () => {

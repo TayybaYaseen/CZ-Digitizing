@@ -90,12 +90,16 @@ export class ServicesService {
         name: dto.name,
         slug: dto.slug,
         type: dto.type,
-        parentServiceId: dto.parentServiceId !== undefined ? BigInt(dto.parentServiceId) : undefined,
+        // dto.<field> !== undefined (rather than truthy) preserves "explicitly clear this to
+        // null" as distinct from "field not sent, leave unchanged" — but that means a caller can
+        // legitimately send `null` here (AC-10: admin clears a service's Design Catalog link) and
+        // it must map to Prisma's own `null`, not BigInt(null), which throws.
+        parentServiceId: dto.parentServiceId !== undefined ? (dto.parentServiceId ? BigInt(dto.parentServiceId) : null) : undefined,
         description: dto.description,
         visualImageUrl: dto.visualImageUrl,
         applications: dto.applications,
         process: dto.process,
-        relatedDesignCategoryId: dto.relatedDesignCategoryId !== undefined ? BigInt(dto.relatedDesignCategoryId) : undefined,
+        relatedDesignCategoryId: dto.relatedDesignCategoryId !== undefined ? (dto.relatedDesignCategoryId ? BigInt(dto.relatedDesignCategoryId) : null) : undefined,
         sortOrder: dto.sortOrder,
         isPublished: dto.isPublished,
       },
