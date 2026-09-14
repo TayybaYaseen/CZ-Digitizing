@@ -7,30 +7,53 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
+type FormState = { requestType: string; sizeValue: string; machineFormat: string; fabricType: string; specialInstructions: string };
+
+const DRAFT_KEY = 'czd.customRequest.draft';
+
 // docs/specs/2026-08-28-12-custom-design-requests.md AC-1 — customer_id is NOT NULL in the
-// architecture DDL (unlike Get a Quote's guest posture), so this route requires a logged-in
-// customer, same as /account pages.
+// architecture DDL, so submission itself still requires an account. Rather than gate the whole
+// page behind a login redirect (the customize form used to be invisible to a guest until they'd
+// already logged in — the exact UX gap Admin asked to fix), the form is always shown; login is
+// only required at the Submit step, matching a "guest checkout, account needed to pay" pattern.
+// Text fields (not the file inputs — browsers refuse to persist File objects across a navigation)
+// survive the login/register round trip via sessionStorage, restored on the way back so a guest
+// doesn't have to retype everything after authenticating.
 export default function CustomRequestPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
 
-  const [form, setForm] = useState({ requestType: 'embroidery_custom', sizeValue: '', machineFormat: '', fabricType: '', specialInstructions: '' });
+  const [form, setForm] = useState<FormState>({ requestType: 'embroidery_custom', sizeValue: '', machineFormat: '', fabricType: '', specialInstructions: '' });
   const [image, setImage] = useState<File | null>(null);
   const [references, setReferences] = useState<File[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<CustomRequestDto | null>(null);
+  const [restoredNotice, setRestoredNotice] = useState(false);
 
+  // Runs once: if a guest was bounced to login/register from here, restore what they'd typed.
   useEffect(() => {
-    if (isReady && !user) router.replace('/login?next=/custom-request');
-  }, [isReady, user, router]);
-
-  if (!isReady || !user) return null;
+    const saved = window.sessionStorage.getItem(DRAFT_KEY);
+    if (!saved) return;
+    window.sessionStorage.removeItem(DRAFT_KEY);
+    try {
+      setForm(JSON.parse(saved) as FormState);
+      setRestoredNotice(true);
+    } catch {
+      // Ignore a corrupted/unexpected draft rather than blocking the page over it.
+    }
+  }, []);
 
   async function onSubmit() {
     setError(null);
     if (!form.machineFormat.trim()) {
       setError({ code: 'VALIDATION_ERROR', message: 'Machine format is required.', traceId: '' });
+      return;
+    }
+    if (!isReady) return;
+    if (!user) {
+      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+      router.push('/login?next=/custom-request');
       return;
     }
     setSubmitting(true);
@@ -74,6 +97,17 @@ export default function CustomRequestPage() {
         <p className="mt-1 text-sm text-gray-600">Upload your logo/artwork and tell us the details — we&apos;ll digitize or vectorize it and send you a quote.</p>
       </div>
 
+      {restoredNotice && (
+        <p className="rounded-md bg-brand-lightGray px-3 py-2 text-sm text-gray-700">
+          Welcome back — we restored the details you entered. Please reselect your logo/artwork below (files can&apos;t be carried across sign-in).
+        </p>
+      )}
+      {!user && isReady && (
+        <p className="text-sm text-gray-500">
+          You can fill this out as a guest — we&apos;ll ask you to sign in or create an account when you submit.
+        </p>
+      )}
+
       <ErrorBanner error={error} />
 
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
@@ -114,7 +148,7 @@ export default function CustomRequestPage() {
         />
 
         <button onClick={onSubmit} disabled={submitting} className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110 disabled:opacity-50">
-          {submitting ? 'Submitting…' : 'Submit Request'}
+          {submitting ? 'Submitting…' : user ? 'Submit Request' : 'Continue to Sign In'}
         </button>
       </form>
     </div>

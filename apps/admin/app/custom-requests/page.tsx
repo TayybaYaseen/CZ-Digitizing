@@ -3,7 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ApiError, CustomRequestDto, CustomRequestMessageDto, CustomRequestStatus } from '@czd/shared-types';
+import type {
+  ApiError,
+  CustomRequestDto,
+  CustomRequestMessageDto,
+  CustomRequestProductionFileDto,
+  CustomRequestStatus,
+  CustomRequestTaskDto,
+  CustomRequestTimeEntryDto,
+} from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
@@ -61,6 +69,17 @@ export default function CustomRequestsAdminPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
+  // AC-9 — designer production tooling: task checklist, time tracking, versioned production files.
+  const [tasks, setTasks] = useState<CustomRequestTaskDto[]>([]);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [timeEntries, setTimeEntries] = useState<CustomRequestTimeEntryDto[]>([]);
+  const [totalMinutes, setTotalMinutes] = useState(0);
+  const [timeMinutes, setTimeMinutes] = useState('');
+  const [timeNote, setTimeNote] = useState('');
+  const [productionFiles, setProductionFiles] = useState<CustomRequestProductionFileDto[]>([]);
+  const [productionFile, setProductionFile] = useState<File | null>(null);
+  const [productionNote, setProductionNote] = useState('');
+
   const load = useCallback(async () => {
     if (!accessToken) return;
     setListError(null);
@@ -98,6 +117,7 @@ export default function CustomRequestsAdminPage() {
     } catch {
       setMessages([]);
     }
+    await loadProductionExtras(req.id);
     socketRef.current?.disconnect();
     const socket = io(`${API_URL}/custom-requests`, { auth: { token: accessToken } });
     socket.on('connect', () => socket.emit('join', { customRequestId: req.id }));
@@ -110,6 +130,142 @@ export default function CustomRequestsAdminPage() {
       socketRef.current?.disconnect();
     };
   }, []);
+
+  // AC-9 — loads the three production-tooling panels together whenever a request is expanded.
+  async function loadProductionExtras(requestId: string) {
+    try {
+      const [taskList, timeList, fileList] = await Promise.all([
+        apiFetch<CustomRequestTaskDto[]>(`/api/custom-requests/${requestId}/tasks`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+        apiFetch<{ entries: CustomRequestTimeEntryDto[]; totalMinutes: number }>(`/api/custom-requests/${requestId}/time-entries`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        apiFetch<CustomRequestProductionFileDto[]>(`/api/custom-requests/${requestId}/production-files`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+      ]);
+      setTasks(taskList);
+      setTimeEntries(timeList.entries);
+      setTotalMinutes(timeList.totalMinutes);
+      setProductionFiles(fileList);
+    } catch {
+      setTasks([]);
+      setTimeEntries([]);
+      setTotalMinutes(0);
+      setProductionFiles([]);
+    }
+  }
+
+  async function onAddTask() {
+    if (!expanded || !newTaskTitle.trim()) return;
+    setActionError(null);
+    try {
+      const task = await apiFetch<CustomRequestTaskDto>(`/api/custom-requests/${expanded.id}/tasks`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ title: newTaskTitle }),
+      });
+      setTasks((prev) => [...prev, task]);
+      setNewTaskTitle('');
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to add task.', traceId: '' });
+    }
+  }
+
+  async function onToggleTask(task: CustomRequestTaskDto) {
+    if (!expanded) return;
+    setActionError(null);
+    try {
+      const updated = await apiFetch<CustomRequestTaskDto>(`/api/custom-requests/${expanded.id}/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ done: !task.done }),
+      });
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to update task.', traceId: '' });
+    }
+  }
+
+  async function onDeleteTask(taskId: string) {
+    if (!expanded) return;
+    setActionError(null);
+    try {
+      await apiFetch(`/api/custom-requests/${expanded.id}/tasks/${taskId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to delete task.', traceId: '' });
+    }
+  }
+
+  async function onLogTime() {
+    if (!expanded || !timeMinutes) return;
+    setActionError(null);
+    try {
+      const entry = await apiFetch<CustomRequestTimeEntryDto>(`/api/custom-requests/${expanded.id}/time-entries`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ minutes: Number(timeMinutes), note: timeNote || undefined }),
+      });
+      setTimeEntries((prev) => [entry, ...prev]);
+      setTotalMinutes((prev) => prev + entry.minutes);
+      setTimeMinutes('');
+      setTimeNote('');
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to log time.', traceId: '' });
+    }
+  }
+
+  async function onDeleteTimeEntry(entry: CustomRequestTimeEntryDto) {
+    if (!expanded) return;
+    setActionError(null);
+    try {
+      await apiFetch(`/api/custom-requests/${expanded.id}/time-entries/${entry.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+      setTimeEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      setTotalMinutes((prev) => prev - entry.minutes);
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to delete time entry.', traceId: '' });
+    }
+  }
+
+  async function onUploadProductionFile() {
+    if (!expanded || !productionFile) return;
+    setActionError(null);
+    try {
+      const body = new FormData();
+      body.append('file', productionFile);
+      if (productionNote) body.append('note', productionNote);
+      const file = await apiFetch<CustomRequestProductionFileDto>(`/api/custom-requests/${expanded.id}/production-files`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body,
+      });
+      setProductionFiles((prev) => [file, ...prev]);
+      setProductionFile(null);
+      setProductionNote('');
+    } catch (err) {
+      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to upload production file.', traceId: '' });
+    }
+  }
+
+  // Staff-only direct byte stream (see CustomRequestProductionService) — apiFetch always parses
+  // JSON, so this one download uses a plain authenticated fetch + Blob instead.
+  async function onDownloadProductionFile(file: CustomRequestProductionFileDto) {
+    if (!expanded) return;
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/custom-requests/${expanded.id}/production-files/${file.id}/download`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `custom-request-${expanded.id}-v${file.version}.${file.fileFormat}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setActionError({ code: 'INTERNAL_ERROR', message: 'Failed to download production file.', traceId: '' });
+    }
+  }
 
   function sendMessage() {
     if (!expanded || !chatInput.trim()) return;
@@ -271,6 +427,90 @@ export default function CustomRequestsAdminPage() {
                         </Button>
                       </div>
                     )}
+
+                    <div className="rounded-lg border border-gray-200 p-3">
+                      <p className="font-semibold">Production checklist</p>
+                      <div className="mt-2 space-y-1">
+                        {tasks.map((task) => (
+                          <div key={task.id} className="flex items-center gap-2">
+                            <input type="checkbox" checked={task.done} onChange={() => onToggleTask(task)} className="h-3.5 w-3.5" />
+                            <span className={task.done ? 'flex-1 text-gray-400 line-through' : 'flex-1'}>{task.title}</span>
+                            <button onClick={() => onDeleteTask(task.id)} className="text-gray-400 hover:text-red-500" aria-label="Delete task">
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        {tasks.length === 0 && <p className="text-gray-400">No tasks yet.</p>}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={newTaskTitle}
+                          onChange={(e) => setNewTaskTitle(e.target.value)}
+                          placeholder="Add a task…"
+                          className={`${inputClass} text-xs`}
+                          onKeyDown={(e) => e.key === 'Enter' && onAddTask()}
+                        />
+                        <Button size="sm" variant="outlineNavy" onClick={onAddTask} disabled={!newTaskTitle.trim()}>
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 p-3">
+                      <p className="font-semibold">
+                        Time tracking <span className="font-normal text-gray-500">— {totalMinutes} min logged</span>
+                      </p>
+                      <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+                        {timeEntries.map((entry) => (
+                          <div key={entry.id} className="flex items-center justify-between">
+                            <span>
+                              {entry.designerName} — {entry.minutes} min{entry.note ? `: ${entry.note}` : ''}
+                            </span>
+                            <button onClick={() => onDeleteTimeEntry(entry)} className="text-gray-400 hover:text-red-500" aria-label="Delete time entry">
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        {timeEntries.length === 0 && <p className="text-gray-400">No time logged yet.</p>}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={timeMinutes}
+                          onChange={(e) => setTimeMinutes(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder="Minutes"
+                          className={`${inputClass} w-20 text-xs`}
+                        />
+                        <input value={timeNote} onChange={(e) => setTimeNote(e.target.value)} placeholder="Note (optional)" className={`${inputClass} text-xs`} />
+                        <Button size="sm" variant="outlineNavy" onClick={onLogTime} disabled={!timeMinutes}>
+                          Log
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 p-3">
+                      <p className="font-semibold">Production files (versions)</p>
+                      <div className="mt-2 space-y-1">
+                        {productionFiles.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between">
+                            <span>
+                              v{file.version} — {file.uploadedByName}
+                              {file.note ? `: ${file.note}` : ''} ({new Date(file.createdAt).toLocaleString()})
+                            </span>
+                            <button onClick={() => onDownloadProductionFile(file)} className="font-medium text-navy-700 underline">
+                              Download
+                            </button>
+                          </div>
+                        ))}
+                        {productionFiles.length === 0 && <p className="text-gray-400">No production files uploaded yet.</p>}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input type="file" onChange={(e) => setProductionFile(e.target.files?.[0] ?? null)} className="text-xs" />
+                        <input value={productionNote} onChange={(e) => setProductionNote(e.target.value)} placeholder="Note (optional)" className={`${inputClass} text-xs`} />
+                        <Button size="sm" variant="outlineNavy" onClick={onUploadProductionFile} disabled={!productionFile}>
+                          Upload version
+                        </Button>
+                      </div>
+                    </div>
 
                     <div className="rounded-lg border border-gray-200 p-3">
                       <p className="font-semibold">Messages</p>

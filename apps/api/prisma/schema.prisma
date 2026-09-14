@@ -97,35 +97,41 @@ model User {
   // a user who never picks a language simply falls through to the AC-2 default (English).
   preferredLocale String? @map("preferred_locale")
 
-  sessions                Session[]
-  adminPermissions        AdminPermission[]
-  auditLogs               AuditLog[]
-  notifications           Notification[]
-  notificationPreferences NotificationPreference[]
-  pushTokens              PushToken[]
-  favorites               Favorite[]
-  authorizedFiles         CustomerAuthorizedFile[]
-  cart                    Cart?
+  sessions                  Session[]
+  adminPermissions          AdminPermission[]
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  notificationPreferences   NotificationPreference[]
+  pushTokens                PushToken[]
+  favorites                 Favorite[]
+  authorizedFiles           CustomerAuthorizedFile[]
+  cart                      Cart?
   // AC-7 — every past/future order accumulates against this one persistent identity.
-  orders                  Order[]
-  reviewedReceipts        PaymentReceipt[]         @relation("ReceiptReviewedByAdmin")
-  subscription            CustomerSubscription?
-  credits                 CustomerCredits?
-  creditTransactions      CreditTransaction[]      @relation("CreditTransactionOwner")
-  sentGifts               CreditTransaction[]      @relation("CreditTransactionGiftCounterparty")
-  submittedTestimonials   Testimonial[]            @relation("TestimonialSubmittedBy")
-  quotes                  Quote[]
-  customRequests          CustomRequest[]          @relation("CustomRequestOwner")
-  assignedCustomRequests  CustomRequest[]          @relation("CustomRequestDesigner")
-  customRequestMessages   CustomRequestMessage[]
-  fileFormatRequests      FileFormatRequest[]
-  activityEvents          ActivityEvent[]
+  orders                    Order[]
+  reviewedReceipts          PaymentReceipt[]              @relation("ReceiptReviewedByAdmin")
+  subscription              CustomerSubscription?
+  credits                   CustomerCredits?
+  creditTransactions        CreditTransaction[]           @relation("CreditTransactionOwner")
+  sentGifts                 CreditTransaction[]           @relation("CreditTransactionGiftCounterparty")
+  submittedTestimonials     Testimonial[]                 @relation("TestimonialSubmittedBy")
+  quotes                    Quote[]
+  customRequests            CustomRequest[]               @relation("CustomRequestOwner")
+  assignedCustomRequests    CustomRequest[]               @relation("CustomRequestDesigner")
+  customRequestMessages     CustomRequestMessage[]
+  fileFormatRequests        FileFormatRequest[]
+  // AC-9 (aspect A-017) — designer production tooling: tasks/time entries this user created or
+  // logged, production files this user uploaded, on any custom request (not just ones they're the
+  // assigned designer for — admins/moderators can log these too).
+  createdCustomRequestTasks CustomRequestTask[]
+  customRequestTimeEntries  CustomRequestTimeEntry[]
+  uploadedProductionFiles   CustomRequestProductionFile[]
+  activityEvents            ActivityEvent[]
   // AC-7 (Customer Account & Purchase History, aspect A-019) — memberships where this user is the
   // primary account owner (people they've invited in) vs. where they are the invited member.
-  accountMembersInvited   AccountMember[]          @relation("AccountMemberPrimary")
-  accountMembershipsHeld  AccountMember[]          @relation("AccountMemberUser")
-  taeboConversations      TaeboConversation[]
-  answeredTaeboQuestions  TaeboWaitingQuestion[]   @relation("TaeboQuestionAnsweredByAdmin")
+  accountMembersInvited     AccountMember[]               @relation("AccountMemberPrimary")
+  accountMembershipsHeld    AccountMember[]               @relation("AccountMemberUser")
+  taeboConversations        TaeboConversation[]
+  answeredTaeboQuestions    TaeboWaitingQuestion[]        @relation("TaeboQuestionAnsweredByAdmin")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -432,13 +438,13 @@ enum PushPlatform {
 // `token` is globally unique (a device/Expo push token identifies one installation, not one user —
 // re-registering the same token from a different account moves it, matching Expo's own semantics).
 model PushToken {
-  id       BigInt       @id @default(autoincrement())
-  userId   BigInt       @map("user_id")
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token    String       @unique
-  platform PushPlatform
-  createdAt   DateTime  @default(now()) @map("created_at")
-  lastSeenAt  DateTime  @default(now()) @updatedAt @map("last_seen_at")
+  id         BigInt       @id @default(autoincrement())
+  userId     BigInt       @map("user_id")
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String       @unique
+  platform   PushPlatform
+  createdAt  DateTime     @default(now()) @map("created_at")
+  lastSeenAt DateTime     @default(now()) @updatedAt @map("last_seen_at")
 
   @@map("push_tokens")
 }
@@ -1595,11 +1601,14 @@ model CustomRequest {
   orderId BigInt? @unique @map("order_id")
   order   Order?  @relation(fields: [orderId], references: [id])
 
-  references    CustomRequestReference[]
-  messages      CustomRequestMessage[]
-  notifications Notification[]
-  files         CustomRequestFile[]
-  orderItems    OrderItem[]
+  references      CustomRequestReference[]
+  messages        CustomRequestMessage[]
+  notifications   Notification[]
+  files           CustomRequestFile[]
+  orderItems      OrderItem[]
+  tasks           CustomRequestTask[]
+  timeEntries     CustomRequestTimeEntry[]
+  productionFiles CustomRequestProductionFile[]
 
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -1673,6 +1682,81 @@ model CustomRequestFile {
 
   @@index([customRequestId], map: "idx_custom_request_files_request")
   @@map("custom_request_files")
+}
+
+// AC-9 — designer production tooling, distinct from the plain status/notes fields `update()`
+// already covers. A lightweight freeform checklist (no fixed template exists in the SRS) a
+// designer/admin builds per request to track sub-steps of production.
+model CustomRequestTask {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  title     String
+  done      Boolean @default(false)
+  sortOrder Int     @map("sort_order")
+
+  createdByUserId BigInt @map("created_by_user_id")
+  createdBy       User   @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([customRequestId], map: "idx_custom_request_tasks_request")
+  @@map("custom_request_tasks")
+}
+
+// AC-9 — time tracking as manual duration entries logged after the fact, not a live start/stop
+// timer: a running timer needs server-side session state that survives closed tabs, crashed
+// browsers, and multiple devices, none of which this feature needs to solve to satisfy "time
+// tracking beyond status-field updates".
+model CustomRequestTimeEntry {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  designerId BigInt @map("designer_id")
+  designer   User   @relation(fields: [designerId], references: [id], onDelete: Cascade)
+
+  minutes Int
+  note    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([customRequestId], map: "idx_custom_request_time_entries_request")
+  @@map("custom_request_time_entries")
+}
+
+// AC-9 — file-versioning during production. Distinct from CustomRequestFile (AC-5's final,
+// customer-facing deliverable, gated on payment being confirmed) — these are internal
+// work-in-progress uploads a designer/admin can review across versions before anything is marked
+// ready to deliver. Never exposed to the customer, and downloaded directly by staff rather than
+// through AC-5's customer-facing signed-token path (see CustomRequestProductionService) — this is
+// an internal-only file, so it doesn't need that mechanism's expiry/single-use/customer-auth
+// posture, and reusing it here would be scope creep onto a customer-facing flow.
+model CustomRequestProductionFile {
+  id BigInt @id @default(autoincrement())
+
+  customRequestId BigInt        @map("custom_request_id")
+  customRequest   CustomRequest @relation(fields: [customRequestId], references: [id], onDelete: Cascade)
+
+  version       Int
+  fileFormat    String  @map("file_format")
+  storagePath   String  @map("storage_path")
+  fileSizeBytes BigInt  @map("file_size_bytes")
+  uploadHash    String  @map("upload_hash")
+  note          String?
+
+  uploadedByUserId BigInt @map("uploaded_by_user_id")
+  uploadedBy       User   @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([customRequestId, version], map: "uq_custom_request_production_files_version")
+  @@index([customRequestId], map: "idx_custom_request_production_files_request")
+  @@map("custom_request_production_files")
 }
 
 enum FileFormatRequestStatus {

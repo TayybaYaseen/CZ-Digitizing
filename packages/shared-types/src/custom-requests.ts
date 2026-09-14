@@ -80,6 +80,39 @@ export interface CustomRequestSummaryDto {
   updatedAt: string;
 }
 
+// AC-9 — designer production tooling (task checklist, time tracking, file-versioning), distinct
+// from the plain status/notes fields CustomRequestDto already covers.
+export interface CustomRequestTaskDto {
+  id: string;
+  title: string;
+  done: boolean;
+  sortOrder: number;
+  createdByUserId: string;
+  createdByName: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface CustomRequestTimeEntryDto {
+  id: string;
+  designerId: string;
+  designerName: string;
+  minutes: number;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CustomRequestProductionFileDto {
+  id: string;
+  version: number;
+  fileFormat: string;
+  fileSizeBytes: string;
+  note: string | null;
+  uploadedByUserId: string;
+  uploadedByName: string;
+  createdAt: string;
+}
+
 export type FileFormatRequestStatus = 'pending' | 'fulfilled' | 'rejected';
 
 export interface FileFormatRequestDto {

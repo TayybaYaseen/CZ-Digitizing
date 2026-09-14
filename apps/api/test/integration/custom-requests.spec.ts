@@ -201,4 +201,84 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
     const download = await request(app.getHttpServer()).post(`/api/orders/${order.id}/files/${authorizedFile!.id}/download`).set(authHeader(customer)).expect(200);
     expect(download.body.data.downloadUrl).toBeTruthy();
   });
+
+  it('AC-9: designer production tooling — task checklist', async () => {
+    const admin = await createUser('admin');
+    const customer = await createUser('customer');
+    const req = await prisma.customRequest.create({
+      data: { requestNumber: `CR-TEST-${Date.now()}`, customerId: customer.id, requestType: 'embroidery_custom', machineFormat: 'DST', status: 'in_production' },
+    });
+
+    const created = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/tasks`).set(authHeader(admin)).send({ title: 'Digitize left-chest logo' }).expect(201);
+    expect(created.body.data.done).toBe(false);
+    const taskId = created.body.data.id;
+
+    const second = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/tasks`).set(authHeader(admin)).send({ title: 'Stitch-out test' }).expect(201);
+    expect(second.body.data.sortOrder).toBe(1);
+
+    const toggled = await request(app.getHttpServer()).put(`/api/custom-requests/${req.id}/tasks/${taskId}`).set(authHeader(admin)).send({ done: true }).expect(200);
+    expect(toggled.body.data.done).toBe(true);
+    expect(toggled.body.data.completedAt).not.toBeNull();
+
+    const list = await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/tasks`).set(authHeader(admin)).expect(200);
+    expect(list.body.data).toHaveLength(2);
+    expect(list.body.data[0].id).toBe(taskId);
+
+    await request(app.getHttpServer()).delete(`/api/custom-requests/${req.id}/tasks/${taskId}`).set(authHeader(admin)).expect(204);
+    const afterDelete = await prisma.customRequestTask.findMany({ where: { customRequestId: req.id } });
+    expect(afterDelete).toHaveLength(1);
+  });
+
+  it('AC-9: designer production tooling — time tracking', async () => {
+    const admin = await createUser('admin');
+    const customer = await createUser('customer');
+    const req = await prisma.customRequest.create({
+      data: { requestNumber: `CR-TEST-${Date.now()}`, customerId: customer.id, requestType: 'embroidery_custom', machineFormat: 'DST', status: 'in_production' },
+    });
+
+    await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/time-entries`).set(authHeader(admin)).send({ minutes: 45, note: 'Initial digitizing pass' }).expect(201);
+    const second = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/time-entries`).set(authHeader(admin)).send({ minutes: 20 }).expect(201);
+
+    const list = await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/time-entries`).set(authHeader(admin)).expect(200);
+    expect(list.body.data.entries).toHaveLength(2);
+    expect(list.body.data.totalMinutes).toBe(65);
+
+    await request(app.getHttpServer()).delete(`/api/custom-requests/${req.id}/time-entries/${second.body.data.id}`).set(authHeader(admin)).expect(204);
+    const afterDelete = await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/time-entries`).set(authHeader(admin)).expect(200);
+    expect(afterDelete.body.data.totalMinutes).toBe(45);
+  });
+
+  it('AC-9: designer production tooling — versioned production files, staff-only direct download', async () => {
+    const admin = await createUser('admin');
+    const customer = await createUser('customer');
+    const req = await prisma.customRequest.create({
+      data: { requestNumber: `CR-TEST-${Date.now()}`, customerId: customer.id, requestType: 'embroidery_custom', machineFormat: 'DST', status: 'in_production' },
+    });
+
+    const v1 = await request(app.getHttpServer())
+      .post(`/api/custom-requests/${req.id}/production-files`)
+      .set(authHeader(admin))
+      .field('note', 'First draft')
+      .attach('file', Buffer.from('draft-v1-bytes'), 'draft.emb')
+      .expect(201);
+    expect(v1.body.data.version).toBe(1);
+
+    const v2 = await request(app.getHttpServer())
+      .post(`/api/custom-requests/${req.id}/production-files`)
+      .set(authHeader(admin))
+      .attach('file', Buffer.from('draft-v2-bytes'), 'draft.emb')
+      .expect(201);
+    expect(v2.body.data.version).toBe(2);
+
+    const list = await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/production-files`).set(authHeader(admin)).expect(200);
+    expect(list.body.data.map((f: { version: number }) => f.version)).toEqual([2, 1]);
+
+    // Unlike AC-5's customer-facing files (token issuance only), this staff-only route actually
+    // streams real bytes — closing the byte-streaming gap for this one, internal-only download path.
+    const download = await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/production-files/${v2.body.data.id}/download`).set(authHeader(admin)).expect(200);
+    expect(download.body).toEqual(Buffer.from('draft-v2-bytes'));
+
+    // Not customer-reachable — no @Roles('customer') on any /production-files route.
+    await request(app.getHttpServer()).get(`/api/custom-requests/${req.id}/production-files`).set(authHeader(customer)).expect(403);
+  });
 });

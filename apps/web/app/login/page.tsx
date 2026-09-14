@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
+import { safeNextPath } from '@/lib/safe-redirect';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
@@ -45,6 +46,8 @@ function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  const next = searchParams.get('next');
+
   async function onSubmit(values: FormValues) {
     setApiError(null);
     try {
@@ -65,11 +68,13 @@ function LoginForm() {
       }
 
       login(result);
-      router.push('/');
+      router.push(safeNextPath(next));
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.error.code === 'NEW_DEVICE_VERIFICATION_REQUIRED') {
-          router.push(`/verify-device?email=${encodeURIComponent(getValues('email'))}`);
+          const params = new URLSearchParams({ email: getValues('email') });
+          if (next) params.set('next', next);
+          router.push(`/verify-device?${params.toString()}`);
           return;
         }
         if (err.error.code === 'VALIDATION_ERROR' && err.error.errors) {
@@ -127,7 +132,7 @@ function LoginForm() {
 
       <p className="mt-8 text-center text-[13.5px] text-slate-600">
         No account yet?{' '}
-        <Link href="/register" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
+        <Link href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
           Register
         </Link>
       </p>
