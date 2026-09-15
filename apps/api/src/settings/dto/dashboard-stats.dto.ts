@@ -1,9 +1,19 @@
+export interface DashboardRecentOrderDto {
+  orderId: string;
+  customerName: string | null;
+  totalPkr: number;
+  status: string;
+  paymentStatus: string;
+  createdAt: string;
+}
+
 export interface DashboardStatsDto {
-  // TODO(A-013): populate from the Orders table once that aspect exists (still Blocked per
-  // docs/specs/SPEC_INDEX.md). Empty/zero until then — never fabricated.
-  recentOrders: unknown[];
+  // AC-12 — real orders.recentOrders/monthlyRevenuePkr/topDesigns, sourced from the Orders and
+  // Design Catalog tables now that both A-013 and A-006 have shipped (see docs/specs/SPEC_INDEX.md's
+  // incident note on this fix — this DTO's fields were left as documented stubs after both aspects
+  // landed, so the Dashboard kept reporting "hasn't shipped" for a feature that had).
+  recentOrders: DashboardRecentOrderDto[];
   monthlyRevenuePkr: { month: string; revenuePkr: number }[];
-  // TODO(A-006): populate from the Designs table once that aspect exists (still Blocked).
   topDesigns: { designId: string; name: string; unitsSold: number }[];
   recentCustomers: { customerId: string; name: string | null; registeredAt: string }[];
   unreadNotificationCount: number;

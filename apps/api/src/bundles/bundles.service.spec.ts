@@ -139,6 +139,30 @@ describe('BundlesService (AC-1/3/4/7)', () => {
     expect(detail.includedDesigns.map((d) => d.name).sort()).toEqual(['Cap Logo', 'Floral']);
   });
 
+  it('computes the bundle total as its own flat sale price when no member has a price override (AC-1)', async () => {
+    const prisma = createFakePrisma();
+    const service = new BundlesService(prisma as never, createFakeAudit() as never);
+
+    const d1Id = prisma._nextId();
+    prisma._designs.set(d1Id.toString(), { id: d1Id, name: 'Cap Logo', previewImageUrl: 'https://x/1.png', pricePkr: 500, deletedAt: null });
+
+    const bundle = await service.create({ name: 'Flat Price Bundle', pricePkr: 2500, salePricePkr: 2200, isPublished: true }, fakeAdmin());
+    await service.addDesign(bundle.id, d1Id.toString(), {}, fakeAdmin());
+
+    const total = await service.computeBundleTotal(bundle.id);
+    expect(total).toBe(2200); // salePricePkr, not the sum of member design prices (500)
+  });
+
+  it('computes the bundle total as its own flat price when it has no linked designs at all (AC-1)', async () => {
+    const prisma = createFakePrisma();
+    const service = new BundlesService(prisma as never, createFakeAudit() as never);
+
+    const bundle = await service.create({ name: 'Empty Bundle', pricePkr: 1800, isPublished: true }, fakeAdmin());
+
+    const total = await service.computeBundleTotal(bundle.id);
+    expect(total).toBe(1800); // not 0 — a bundle with no members must never check out for free
+  });
+
   it('computes the bundle total as the sum of per-design price overrides, falling back to design price (AC-7)', async () => {
     const prisma = createFakePrisma();
     const service = new BundlesService(prisma as never, createFakeAudit() as never);

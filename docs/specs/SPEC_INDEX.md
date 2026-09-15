@@ -1023,6 +1023,99 @@ against the running `apps/web` dev server that both `/services` cards and both m
 `apps/api` unit suite re-run clean (280/280, unaffected — no code changed, only seed data and static
 assets). A-014/A-014a/A-014b Status remains `Completed`, unaffected by this content update.
 
+## Incident: 2026-09-15 completeness audit (branch `fix/spec-audit-bugs`)
+
+A full manual pass — dev servers actually launched and driven with Playwright rather than reading
+code or tests alone — was run across every `Completed` aspect to check whether "Completed" in this
+file actually meant "works." Three real defects were found and fixed; one suspected defect turned
+out to be working as designed; one tracker entry was found to be flatly wrong. Root causes below so
+the same class of gap doesn't recur silently.
+
+**Root cause common to all three real bugs: this repo's dev database had zero `Design` and zero
+`DesignCategory` rows before this audit**, despite A-006 (Design Catalog) being `Completed` since
+early in this file's history. Every prior verification pass exercised catalog/cart/order code paths
+either through unit tests (mocked data) or integration tests (data created and torn down within the
+same test run) — nobody had ever browsed the live catalog with real, persisted content the way a
+customer would. That gap is exactly how bug #1 went undetected for weeks across multiple `Completed`
+sign-offs of A-008 and A-011.
+
+1. **Bundle checkout pricing ignored the bundle's own price (A-008, A-011).**
+   `BundlesService.computeBundleTotal()` (`apps/api/src/bundles/bundles.service.ts`) always summed
+   each linked design's price (or its override), never falling back to `DesignBundle.pricePkr`/
+   `salePricePkr` — the price actually shown on `/bundles` and `/bundles/:id`. AC-7
+   (`docs/specs/2026-08-28-06-design-bundles.md`) only calls for sum-of-designs pricing *when Admin
+   has set a per-design override*; absent an override, AC-1's flat bundle price is supposed to be
+   authoritative. Because no bundle in this dev DB had any linked designs (see root cause above),
+   every bundle summed to Rs 0 and would have checked out for free — confirmed live: adding
+   "Garden & Wildlife Bundle" (listed at Rs 2,200) to a real cart produced `unitPricePkr: 0`,
+   `totalPkr: 0`. **Why it shipped as `Completed` without being caught:** the unit tests for
+   `computeBundleTotal()` only ever exercised the override path (AC-7's own scenario), so "no
+   override, no linked designs" was never a covered case, and no one had added a real bundle to a
+   real cart against a real database to notice a Rs 0 total.
+   **Fix:** `computeBundleTotal()` now returns `bundle.salePricePkr ?? bundle.pricePkr` unless at
+   least one linked design has a `priceOverridePkr` set, in which case it sums as before. Added two
+   regression tests (`bundles.service.spec.ts`) for the previously-uncovered no-override cases
+   (one linked design, and zero linked designs). Verified live against the real dev DB: the same
+   bundle now computes to Rs 2,200, not Rs 0. This function is shared by `CartService` and
+   `OrdersService`, so both cart totals and order totals are corrected by the one change.
+
+2. **Admin Dashboard told Admin that Orders "hasn't shipped" (A-005d).**
+   `apps/admin/app/dashboard/page.tsx` hardcoded `"No revenue data yet — Orders & Payment Processing
+   hasn't shipped"` / `"No orders yet — ..."`, and the backing `DashboardService.getStats()`
+   (`apps/api/src/settings/dashboard.service.ts`) hardcoded `recentOrders: []` and
+   `monthlyRevenuePkr: []` outright. **Why:** this file was written once, while A-013 (Orders &
+   Payment Processing) was still `Blocked`, with an explicit `TODO(A-013)` — and then never revisited
+   after A-013 shipped and moved to `Completed`. `git log` on the dashboard page shows exactly one
+   commit touching it, dated before A-013 existed. Nothing re-checks stale TODOs against current
+   aspect status, so the placeholder silently outlived the thing it was waiting on. A real order
+   existed in the dev DB the whole time; the dashboard simply never queried it.
+   **Fix:** implemented the three real queries AC-12 always specified — `getRecentOrders()`,
+   `getMonthlyRevenue()` (paid orders only, bucketed by month, last 6 months, zero-filled so a slow
+   month isn't silently skipped), and `getTopDesigns()` (units sold across paid, design-line order
+   items) — and wired the Dashboard page to render them, including AC-14's click-through from a
+   Recent Order row to `/orders/:id` and a Top Design row to `/designs/:id`. Added 4 new unit tests
+   covering the empty, populated, payment-status-filtering, and ranking behavior. Verified: `apps/api`
+   and `apps/admin` both typecheck clean; `dashboard.service.spec.ts` and `bundles.service.spec.ts`
+   pass (11/11 combined, including the 2 new bundle tests and 4 new dashboard tests).
+
+3. **A leftover load-test FAQ row was live in customer-facing content (A-012a).**
+   FAQ id 7, question *"Do you deliver to a remote research station in Antarctica taebo-test?"*,
+   created 2026-09-08 — clearly a row created by an earlier Taebo/A-023a verification pass hitting
+   the real `POST /api/faqs` endpoint rather than a throwaway test database, and never cleaned up
+   afterward. **Why:** this repo's own established practice (documented elsewhere in this file) is to
+   verify against the real running dev API/DB rather than mocks, which is correct for catching real
+   bugs — but it means verification traffic that creates content-table rows (as opposed to files or
+   ephemeral sessions) needs an explicit cleanup step that this one didn't get. Checked for
+   dependents before removing: 3 `TaeboMessage` rows referenced it as their matched-FAQ answer, but
+   that relation is `onDelete: SetNull` by design (the message text itself is independent of the FAQ
+   link), so deleting the FAQ doesn't lose any real conversation history.
+   **Fix:** deleted via the real `DELETE /api/faqs/:id` admin route (not a raw SQL delete), so the
+   removal went through normal validation and audit logging like any other admin action. No code
+   change — this was a data issue, not a code defect.
+
+**Investigated and found NOT a bug:** the Taebo panda's greeting-pose image
+(`/images/taebo-greeting.png`) 404s in the browser console on every page. This is deliberate,
+documented behavior, not a defect: `TaeboPanda.tsx`'s own header comment states every per-pose asset
+is optional and probes for existence client-side, falling back to the master art
+(`taebo-full.png`) and then to a 🐼 emoji if even that's missing — "so the widget always renders
+something coherent while assets are still being supplied." The probe works by deliberately attempting
+the pose-specific URL first and catching the failure, so a console 404 for a not-yet-supplied pose
+asset is the *expected* trace of a working fallback, not evidence of one failing. Confirmed visually
+across every screenshot taken during this audit: the panda always rendered correctly (master art),
+never the emoji fallback. No code change made.
+
+**Tracker correction:** A-015a (Subscription Plans) and A-015b (Credit Packages & Ledger) were
+marked `Not Started` in the table below, but are in fact fully built — `apps/admin/app/pricing/page.tsx`
+and `apps/admin/app/credits/page.tsx` are complete CRUD admin UIs (create/edit/delete/publish, plus
+per-subscriber usage visibility), committed 2026-09-04 in the same commit that shipped A-015's core
+(`7f52ca8`, "Add Subscriptions & Credits (A-015): plans, credit ledger, logo limits, admin CRUD").
+Live-verified in this audit: a real published plan ("Starter Monthly", Rs 2000/mo) and a real credit
+package ("20 Credits Pack") both round-trip through the admin CRUD screens and the public
+`/api/subscriptions/plans` / `/api/credits/packages` endpoints. **Why the table was wrong:** this
+file's "last synced against source" date (2026-08-30) predates the 2026-09-04 commit that built
+these — the table was never updated after that commit landed, even though this file's own dated
+notes elsewhere were. Corrected both rows to `Completed` below; no code change, tracker-only fix.
+
 ---
 
 ## Aspect Registry
@@ -1076,8 +1169,8 @@ assets). A-014/A-014a/A-014b Status remains `Completed`, unaffected by this cont
 | A-015 | Subscriptions & Credits (parent) | A-013 | A-013 | 8 | Completed | 45 |
 | A-017 | Custom Design Request System (parent) | A-007 | A-007, A-004, A-013 | 8 | Completed | 46 |
 | A-005e | Admin: Data Exports | A-005 | A-005, A-013, A-016, A-017 | 9 | Not Started | 47 |
-| A-015a | Subscription Plans | A-015 | A-015 | 9 | Not Started | 48 |
-| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Not Started | 49 |
+| A-015a | Subscription Plans | A-015 | A-015 | 9 | Completed | 48 |
+| A-015b | Credit Packages & Ledger | A-015 | A-015 | 9 | Completed | 49 |
 | A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | Completed | 50 |
 | A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Completed | 51 |
 | A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Completed | 52 |

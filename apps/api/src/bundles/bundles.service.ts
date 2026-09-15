@@ -148,13 +148,23 @@ export class BundlesService {
     });
   }
 
-  // AC-7 — bundle total reflecting the sum of each included design's overridden price, rather
-  // than the flat DesignBundle.pricePkr field, whenever any member has a priceOverridePkr set.
+  // AC-1/AC-7 — a bundle's total is its own flat price (salePricePkr, falling back to pricePkr)
+  // by default, exactly as Admin set it on the bundle itself and as shown on the bundle's own
+  // card/detail page. Only when Admin has set a per-design priceOverridePkr on at least one
+  // member (AC-7's own trigger condition — "Given Admin sets a per-design price override") does
+  // the total switch to summing each member's overridden-or-own price instead. Previously this
+  // always summed member designs regardless of whether any override existed, so a bundle with no
+  // linked designs priced at Rs 0 at checkout no matter what its listed price was, and a bundle
+  // whose linked designs' prices didn't add up to its advertised price silently charged the wrong
+  // amount — see docs/specs/SPEC_INDEX.md's incident note on this fix for how this was found.
   async computeBundleTotal(bundleId: string): Promise<number> {
+    const bundle = await this.findOrThrow(bundleId);
     const members = await this.prisma.bundleDesign.findMany({
       where: { bundleId: BigInt(bundleId) },
       include: { design: true },
     });
+    const hasOverride = members.some((m) => m.priceOverridePkr != null);
+    if (!hasOverride) return Number(bundle.salePricePkr ?? bundle.pricePkr);
     return members.reduce((sum, m) => sum + Number(m.priceOverridePkr ?? m.design.pricePkr), 0);
   }
 
