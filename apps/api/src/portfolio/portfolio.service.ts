@@ -15,18 +15,21 @@ export class PortfolioService {
     private readonly audit: AuditLogService,
   ) {}
 
-  async list(includeUnpublished = false) {
+  // isStaff also gates whether the internal-only projectNotes field (docs/portfolio-spec.md §15)
+  // is included in the response — the same staff check (`!publishedOnlyFor(req)`) the controller
+  // already computes for unpublished-item visibility, reused here rather than duplicated.
+  async list(isStaff = false) {
     const rows = await this.prisma.portfolioItem.findMany({
-      where: includeUnpublished ? {} : { isPublished: true },
+      where: isStaff ? {} : { isPublished: true },
       orderBy: { sortOrder: 'asc' },
     });
-    return rows.map(toPortfolioItemDto);
+    return rows.map((row) => toPortfolioItemDto(row, isStaff));
   }
 
-  async get(id: string, includeUnpublished = false) {
-    const row = await this.prisma.portfolioItem.findFirst({ where: { id: BigInt(id), ...(includeUnpublished ? {} : { isPublished: true }) } });
+  async get(id: string, isStaff = false) {
+    const row = await this.prisma.portfolioItem.findFirst({ where: { id: BigInt(id), ...(isStaff ? {} : { isPublished: true }) } });
     if (!row) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Portfolio item not found');
-    return toPortfolioItemDto(row);
+    return toPortfolioItemDto(row, isStaff);
   }
 
   async create(dto: CreatePortfolioItemDto, admin: AccessTokenPayload) {
@@ -39,10 +42,23 @@ export class PortfolioService {
         sortOrder: dto.sortOrder ?? 0,
         isPublished: dto.isPublished ?? false,
         createdByAdminId: BigInt(admin.sub),
+        isFeatured: dto.isFeatured ?? false,
+        originalArtworkUrl: dto.originalArtworkUrl,
+        embroideryResultUrl: dto.embroideryResultUrl,
+        closeUpImageUrl: dto.closeUpImageUrl,
+        beforeImageUrl: dto.beforeImageUrl,
+        afterImageUrl: dto.afterImageUrl,
+        softwareUsed: dto.softwareUsed ?? [],
+        embroideryType: dto.embroideryType,
+        stitchCount: dto.stitchCount,
+        sizeLabel: dto.sizeLabel,
+        machineFormat: dto.machineFormat,
+        projectNotes: dto.projectNotes,
+        mediaAltTexts: dto.mediaAltTexts ?? {},
       },
     });
     await this.audit.record({ adminUserId: BigInt(admin.sub), actionType: 'PORTFOLIO_ITEM_CREATED', resourceType: 'portfolio_item', resourceId: row.id.toString() });
-    return toPortfolioItemDto(row);
+    return toPortfolioItemDto(row, true);
   }
 
   async update(id: string, dto: UpdatePortfolioItemDto, admin: AccessTokenPayload) {
@@ -56,10 +72,23 @@ export class PortfolioService {
         category: dto.category,
         sortOrder: dto.sortOrder,
         isPublished: dto.isPublished,
+        isFeatured: dto.isFeatured,
+        originalArtworkUrl: dto.originalArtworkUrl,
+        embroideryResultUrl: dto.embroideryResultUrl,
+        closeUpImageUrl: dto.closeUpImageUrl,
+        beforeImageUrl: dto.beforeImageUrl,
+        afterImageUrl: dto.afterImageUrl,
+        softwareUsed: dto.softwareUsed,
+        embroideryType: dto.embroideryType,
+        stitchCount: dto.stitchCount,
+        sizeLabel: dto.sizeLabel,
+        machineFormat: dto.machineFormat,
+        projectNotes: dto.projectNotes,
+        mediaAltTexts: dto.mediaAltTexts,
       },
     });
     await this.audit.record({ adminUserId: BigInt(admin.sub), actionType: 'PORTFOLIO_ITEM_UPDATED', resourceType: 'portfolio_item', resourceId: id, changes: dto as Record<string, unknown> });
-    return toPortfolioItemDto(row);
+    return toPortfolioItemDto(row, true);
   }
 
   async remove(id: string, admin: AccessTokenPayload) {

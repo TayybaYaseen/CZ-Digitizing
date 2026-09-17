@@ -83,4 +83,38 @@ export interface PortfolioItemDto {
   sortOrder: number;
   isPublished: boolean;
   createdAt: string;
+  // docs/portfolio-spec.md §10.1 (Professional Portfolio enhancement of A-012f) — real
+  // work-sample metadata only; CV/biography content is never part of this type.
+  isFeatured: boolean;
+  originalArtworkUrl: string | null;
+  embroideryResultUrl: string | null;
+  closeUpImageUrl: string | null;
+  beforeImageUrl: string | null;
+  afterImageUrl: string | null;
+  softwareUsed: string[];
+  embroideryType: string | null;
+  stitchCount: number | null;
+  sizeLabel: string | null;
+  machineFormat: string | null;
+  projectNotes: string | null;
+  mediaAltTexts: Record<string, string>;
 }
+
+// docs/portfolio-spec.md §10.1/§10.3 — reuses the real Services module taxonomy (apps/api/scripts/
+// seed-services.ts) rather than inventing a separate category vocabulary, so Portfolio categories
+// stay consistent with what a customer also sees on /services. `category` on PortfolioItemDto
+// remains a plain string (no FK) — this is the controlled vocabulary the admin Select offers.
+export const PORTFOLIO_CATEGORIES = [
+  'Logo Digitizing',
+  'Cap & Hat Digitizing',
+  '3D Puff Digitizing',
+  'Left Chest Digitizing',
+  'Jacket Back Digitizing',
+  'Patch & Badge Digitizing',
+  'Appliqué Digitizing',
+  'Image-to-Embroidery',
+  'Monogram & Lettering',
+  'Vector Art',
+] as const;
+
+export type PortfolioCategory = (typeof PORTFOLIO_CATEGORIES)[number];

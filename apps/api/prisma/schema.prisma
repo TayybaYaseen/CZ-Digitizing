@@ -1267,6 +1267,13 @@ model AboutContent {
 
 // AC-12/AC-13/AC-17 — visual-first content, deliberately no languageCode (same treatment as
 // Testimonial, spec §4): title/description render exactly as Admin entered them in every language.
+//
+// docs/portfolio-spec.md §10.1 (Professional Portfolio enhancement of A-012f, 2026-09-16) — the
+// fields below `updatedAt` are additive, all nullable/defaulted, for real work-sample metadata
+// only (originalArtworkUrl…mediaAltTexts). CV-derived professional-profile content (identity,
+// experience, education, etc.) is deliberately NOT modeled here — it ships as static content in
+// apps/web/lib/portfolio-profile-content.ts per that spec's §10.2/§11, so Admin never edits it
+// through this table or its CRUD form.
 model PortfolioItem {
   id               BigInt   @id @default(autoincrement())
   title            String
@@ -1278,6 +1285,21 @@ model PortfolioItem {
   createdByAdminId BigInt?  @map("created_by_admin_id")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
+
+  isFeatured          Boolean  @default(false) @map("is_featured")
+  originalArtworkUrl  String?  @map("original_artwork_url")
+  embroideryResultUrl String?  @map("embroidery_result_url")
+  closeUpImageUrl     String?  @map("close_up_image_url")
+  beforeImageUrl      String?  @map("before_image_url")
+  afterImageUrl       String?  @map("after_image_url")
+  softwareUsed        String[] @default([]) @map("software_used")
+  embroideryType      String?  @map("embroidery_type")
+  stitchCount         Int?     @map("stitch_count")
+  sizeLabel           String?  @map("size_label")
+  machineFormat       String?  @map("machine_format")
+  projectNotes        String?  @map("project_notes")
+  // Map of image URL -> alt text, covering mediaUrls[] and every role field above.
+  mediaAltTexts       Json     @default("{}") @map("media_alt_texts")
 
   @@index([isPublished, sortOrder], map: "idx_portfolio_items_visibility")
   @@map("portfolio_items")
