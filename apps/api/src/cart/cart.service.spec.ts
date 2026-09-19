@@ -348,12 +348,37 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
     expect(merged.items.map((i) => i.name).sort()).toEqual(['Customer-only design', 'Guest-only design']);
   });
 
-  it('applyCredits delegates to CreditsService.assertSufficientBalance (AC-4/AC-7, A-015)', async () => {
+  it('applyCredits delegates the (capped) amount to CreditsService.assertSufficientBalance (AC-4/AC-7, A-015)', async () => {
     const prisma = createFakePrisma();
     const customerId = prisma._nextId();
     const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never, fakeActivity() as never);
+    const { design, sizeId } = seedDesign(prisma); // Rs 500
+    await service.addItem(service.actorFrom({ sub: customerId.toString(), role: 'customer' } as never, GUEST), { designId: design.id.toString(), sizeId: sizeId.toString(), quantity: 1 });
+
     await expect(service.applyCredits(customerId, 100)).rejects.toMatchObject({ code: 'INSUFFICIENT_CREDITS' });
-    await expect(service.applyCredits(customerId, 0)).resolves.toBeUndefined();
+    await expect(service.applyCredits(customerId, 0)).resolves.toBe(0);
+  });
+
+  // A-013 critical fix: 5,000 credits typed against a Rs 500 cart must be reported (and later
+  // consumed) as 500 — never the full requested amount.
+  it('applyCredits never applies more than the cart total', async () => {
+    const prisma = createFakePrisma();
+    const customerId = prisma._nextId();
+    const credits = { assertSufficientBalance: jest.fn(async () => undefined) };
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, credits as never, fakeActivity() as never);
+    const { design, sizeId } = seedDesign(prisma); // Rs 500
+    await service.addItem(service.actorFrom({ sub: customerId.toString(), role: 'customer' } as never, GUEST), { designId: design.id.toString(), sizeId: sizeId.toString(), quantity: 1 });
+
+    await expect(service.applyCredits(customerId, 5000)).resolves.toBe(500);
+    expect(credits.assertSufficientBalance).toHaveBeenCalledWith(customerId, 500);
+    await expect(service.applyCredits(customerId, 200)).resolves.toBe(200);
+  });
+
+  it('applyCredits on an empty cart applies nothing', async () => {
+    const prisma = createFakePrisma();
+    const customerId = prisma._nextId();
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never, fakeActivity() as never);
+    await expect(service.applyCredits(customerId, 5000)).resolves.toBe(0);
   });
 
   it('checkout validates every active line then hands off to OrdersService.createFromCart (AC-6, A-013)', async () => {

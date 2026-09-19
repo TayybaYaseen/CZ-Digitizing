@@ -74,7 +74,7 @@ function fakeNotifications() {
 describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctness)', () => {
   it('applyToOrder debits available and credits used, writing a usage row', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const customerId = prisma._nextId();
     prisma._balances.set(customerId.toString(), { customerId, totalCredits: 500, availableCredits: 500, usedCredits: 0 });
 
@@ -87,7 +87,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('applyToOrder throws INSUFFICIENT_CREDITS rather than letting the balance go negative', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const customerId = prisma._nextId();
     prisma._balances.set(customerId.toString(), { customerId, totalCredits: 50, availableCredits: 50, usedCredits: 0 });
 
@@ -97,7 +97,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('reverseUsageOnOrder restores exactly what that order consumed', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const customerId = prisma._nextId();
     prisma._balances.set(customerId.toString(), { customerId, totalCredits: 500, availableCredits: 500, usedCredits: 0 });
     await service.applyToOrder(prisma as never, customerId, 42n, 150);
@@ -109,7 +109,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('gift moves credits atomically: sender debited, recipient credited, one adjustment row each', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const sender = prisma._nextId();
     const recipient = prisma._nextId();
     prisma._balances.set(sender.toString(), { customerId: sender, totalCredits: 300, availableCredits: 300, usedCredits: 0 });
@@ -124,7 +124,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('gift rejects a gift larger than the sender\'s available balance', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const sender = prisma._nextId();
     prisma._balances.set(sender.toString(), { customerId: sender, totalCredits: 10, availableCredits: 10, usedCredits: 0 });
     prisma._users.set('recipient@example.com', { id: prisma._nextId(), email: 'recipient@example.com' });
@@ -134,7 +134,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('deletePackage removes the package by id (always safe — nothing references a package by FK)', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
 
     await service.deletePackage('7');
 
@@ -143,7 +143,7 @@ describe('CreditsService ledger arithmetic (AC-6/AC-7/AC-10, financial correctne
 
   it('grant increases both total and available (a subscription\'s monthly credit allotment)', async () => {
     const prisma = createFakePrisma();
-    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new CreditsService(prisma as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const customerId = prisma._nextId();
 
     await service.grant(prisma as never, customerId, 250, 'Monthly grant');

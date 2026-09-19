@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Env } from '../config/env.validation';
@@ -23,7 +23,7 @@ const FALLBACK_RATES_TO_PKR: Record<string, number> = {
 };
 
 @Injectable()
-export class ExchangeRateService {
+export class ExchangeRateService implements OnModuleInit {
   private readonly logger = new Logger(ExchangeRateService.name);
   private readonly apiKey?: string;
 
@@ -32,6 +32,25 @@ export class ExchangeRateService {
     config: ConfigService<Env, true>,
   ) {
     this.apiKey = config.get('EXCHANGE_RATE_API_KEY', { infer: true });
+  }
+
+  // A fresh database (or a long outage) must not leave checkout without any rate until the first
+  // hourly cron tick — provider payments fail closed without a rate (PaymentAmountService), so
+  // make sure the table is populated at boot. Never blocks startup on failure.
+  async onModuleInit(): Promise<void> {
+    try {
+      const count = await this.prisma.exchangeRate.count();
+      if (count === 0) await this.refreshRates();
+    } catch (err) {
+      this.logger.warn(`Could not seed exchange rates at startup: ${(err as Error).message}`);
+    }
+  }
+
+  // Used by PaymentAmountService: the raw rate plus when it was last refreshed, so the caller can
+  // refuse a stale one. Null when no rate is on file (unsupported currency / never refreshed).
+  async getRate(currencyCode: string): Promise<{ rateToPkr: number; updatedAt: Date } | null> {
+    const row = await this.prisma.exchangeRate.findUnique({ where: { currencyCode: currencyCode.toUpperCase() } });
+    return row ? { rateToPkr: Number(row.rateToPkr), updatedAt: row.updatedAt } : null;
   }
 
   @Cron(CronExpression.EVERY_HOUR)

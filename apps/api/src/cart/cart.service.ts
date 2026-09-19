@@ -230,8 +230,13 @@ export class CartService {
   // inside OrdersService.createFromCart() at checkout (see this.checkout()'s creditsToApplyPkr
   // param below), so this is a live "can I apply this much" validation the frontend can call as
   // the customer types an amount, without it mutating anything itself.
-  async applyCredits(customerId: bigint, amountPkr: number): Promise<void> {
-    await this.credits.assertSufficientBalance(customerId, amountPkr);
+  // A-013 — returns the amount that would ACTUALLY be applied: never more than the cart total, so
+  // the checkout screen can't promise (or later consume) 5,000 credits against a Rs 1,500 order.
+  async applyCredits(customerId: bigint, amountPkr: number): Promise<number> {
+    const cart = await this.getCart({ customerId, guestSessionId: '' });
+    const applied = Math.min(amountPkr, cart.totalPkr);
+    if (applied > 0) await this.credits.assertSufficientBalance(customerId, applied);
+    return applied;
   }
 
   // AC-6 — real pre-checkout validation (every active line still published, every design line
@@ -249,8 +254,9 @@ export class CartService {
       if (item.designId && !item.sizeId) throw new ApiException('SIZE_REQUIRED', 422, `A size must be selected for "${item.design?.name}"`);
     }
 
-    if (creditsToApplyPkr > 0) await this.credits.assertSufficientBalance(BigInt(actor.sub), creditsToApplyPkr);
-
+    // The credits balance is enforced inside OrdersService.createFromCart()'s own transaction, on
+    // the amount actually consumed (capped at the order total) — checking the raw requested amount
+    // here would wrongly reject "apply 5,000" from a customer whose 2,000 balance covers the order.
     return this.orders.createFromCart(actor, cart, paymentMethod, creditsToApplyPkr);
   }
 

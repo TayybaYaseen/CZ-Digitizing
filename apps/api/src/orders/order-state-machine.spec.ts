@@ -1,4 +1,23 @@
-import { assertValidOrderTransition, InvalidOrderTransitionError, isValidOrderTransition, statusAllowsFileAccess } from './order-state-machine';
+import { assertValidOrderTransition, InvalidOrderTransitionError, isPaymentGatedStatus, isValidOrderTransition, statusAllowsFileAccess } from './order-state-machine';
+
+describe('payment-gated statuses (A-013 critical fix: no manual payment bypass)', () => {
+  it('payment_confirmed and refunded can only be reached through their own verified flow', () => {
+    expect(isPaymentGatedStatus('payment_confirmed')).toBe(true);
+    expect(isPaymentGatedStatus('refunded')).toBe(true);
+  });
+
+  it('every other status stays manually settable by Admin', () => {
+    for (const s of ['pending', 'payment_pending', 'processing', 'ready', 'completed', 'cancelled'] as const) {
+      expect(isPaymentGatedStatus(s)).toBe(false);
+    }
+  });
+
+  it('a cancelled order has no way back to payment_confirmed at the state-machine level either', () => {
+    expect(isValidOrderTransition('cancelled', 'payment_confirmed')).toBe(false);
+    expect(isValidOrderTransition('refunded', 'payment_confirmed')).toBe(false);
+    expect(isValidOrderTransition('completed', 'payment_confirmed')).toBe(false);
+  });
+});
 
 describe('order state machine (spec §3)', () => {
   it('allows every step of the documented happy path', () => {

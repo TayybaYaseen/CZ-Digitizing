@@ -78,7 +78,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
   it('decrements the allowance on every consume and never throws while under the limit', async () => {
     const prisma = createFakePrisma();
     const notifications = fakeNotifications();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never, {} as never);
     const customerId = seed(prisma, { logoLimit: 10 });
 
     const result = await service.consumeLogoDownload(customerId);
@@ -89,7 +89,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
 
   it('throws SUBSCRIPTION_LOGO_LIMIT_REACHED once the plan limit is hit', async () => {
     const prisma = createFakePrisma();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     const customerId = seed(prisma, { logoLimit: 10, logosUsed: 10 });
 
     await expect(service.consumeLogoDownload(customerId)).rejects.toMatchObject({ code: 'SUBSCRIPTION_LOGO_LIMIT_REACHED' });
@@ -98,7 +98,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
   it('never throws or caps usage when the plan has no logoLimit (unlimited)', async () => {
     const prisma = createFakePrisma();
     const notifications = fakeNotifications();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never, {} as never);
     const customerId = seed(prisma, { logoLimit: null, logosUsed: 999 });
 
     const result = await service.consumeLogoDownload(customerId);
@@ -110,7 +110,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
   it(`fires the low-balance notification exactly once, the first time remaining drops to ${LOW_LOGO_LIMIT_THRESHOLD}`, async () => {
     const prisma = createFakePrisma();
     const notifications = fakeNotifications();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never, {} as never);
     // limit=10, used=6 -> after this consume, used=7, remaining=3 (the threshold) -> should warn.
     const customerId = seed(prisma, { logoLimit: 10, logosUsed: 6 });
 
@@ -130,7 +130,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
   it('does not warn again if logoLimitWarnedAt was already set this cycle', async () => {
     const prisma = createFakePrisma();
     const notifications = fakeNotifications();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, notifications as never, {} as never);
     const customerId = seed(prisma, { logoLimit: 10, logosUsed: 8, logoLimitWarnedAt: new Date() });
 
     await service.consumeLogoDownload(customerId);
@@ -140,14 +140,14 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
 
   it('rejects consuming for a customer with no active subscription', async () => {
     const prisma = createFakePrisma();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
 
     await expect(service.consumeLogoDownload(999n)).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
   it('deletePlan removes a plan that has never had a subscriber', async () => {
     const prisma = createFakePrisma();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     prisma._plans.set('30', { id: 30n, name: 'Unused Plan', logoLimit: null });
 
     await service.deletePlan('30');
@@ -157,7 +157,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
 
   it('deletePlan refuses to delete a plan with at least one subscriber, with a clear CONFLICT', async () => {
     const prisma = createFakePrisma();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     seed(prisma, { logoLimit: 10 }); // plan id 10 now has a subscriber
 
     await expect(service.deletePlan('10')).rejects.toMatchObject({ code: 'CONFLICT' });
@@ -166,7 +166,7 @@ describe('SubscriptionsService logo download limits (admin-requested extension)'
 
   it('listAdminUsage reports used/remaining per subscriber across the whole customer base', async () => {
     const prisma = createFakePrisma();
-    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never);
+    const service = new SubscriptionsService(prisma as never, {} as never, {} as never, {} as never, fakeNotifications() as never, {} as never);
     seed(prisma, { logoLimit: 10, logosUsed: 4 });
 
     const usage = await service.listAdminUsage();

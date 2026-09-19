@@ -4,7 +4,6 @@ import { BundlesModule } from '../bundles/bundles.module';
 import { CreditsModule } from '../credits/credits.module';
 import { FilesModule } from '../files/files.module';
 import { PaymentsModule } from '../payments/payments.module';
-import { ExchangeRateService } from './exchange-rate.service';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { WebhooksController } from './webhooks.controller';
@@ -14,11 +13,12 @@ import { WebhooksController } from './webhooks.controller';
 // "service consumed by another feature module" shape as BundlesModule exporting BundlesService for
 // CartModule's own bundle-pricing needs. Imports CreditsModule (not the other way around — see
 // PaymentsModule's own doc comment) so checkout can deduct a customer's applied credits (AC-7,
-// subscriptions-credits spec) and refund() can reverse them for real.
+// subscriptions-credits spec) and refund() can reverse them for real. ExchangeRateService and
+// PaymentAmountService come from PaymentsModule (every provider caller converts through it).
 @Module({
   imports: [BundlesModule, FilesModule, PaymentsModule, CreditsModule, ActivityModule],
   controllers: [OrdersController, WebhooksController],
-  providers: [OrdersService, ExchangeRateService],
+  providers: [OrdersService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

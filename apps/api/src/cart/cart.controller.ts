@@ -81,8 +81,8 @@ export class CartController {
   @Roles('customer')
   @HttpCode(200)
   async applyCredits(@Body() dto: ApplyCreditsDto, @Req() req: CartRequest) {
-    await this.service.applyCredits(BigInt(req.user!.sub), dto.amountPkr);
-    return { creditsUsed: dto.amountPkr };
+    const creditsUsed = await this.service.applyCredits(BigInt(req.user!.sub), dto.amountPkr);
+    return { creditsUsed };
   }
 
   @Post('checkout')

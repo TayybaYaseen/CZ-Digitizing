@@ -39,6 +39,18 @@ export class InvalidOrderTransitionError extends Error {
   }
 }
 
+// A-013 — statuses that may ONLY be entered through their own verified flow, never through the
+// generic manual PUT /api/orders/:id/status: `payment_confirmed` means money was actually received
+// (a verified provider payment, an approved bank-transfer receipt, or credits fully covering the
+// order) and `refunded` must move paymentStatus/credits in step (PUT /:id/refund). Letting an
+// arbitrary status update land on either would simulate a payment (and release files) or leave the
+// order in an inconsistent money state.
+const PAYMENT_GATED_STATUSES: OrderStatus[] = ['payment_confirmed', 'refunded'];
+
+export function isPaymentGatedStatus(status: OrderStatus): boolean {
+  return PAYMENT_GATED_STATUSES.includes(status);
+}
+
 // AC-6 — "anything after payment" per the spec's own wording: gates file access on every status
 // that comes at or after payment_confirmed in the happy-path chain. Explicitly excludes
 // cancelled/refunded even though refunded is reachable from e.g. `processing` — AC-11's "access is

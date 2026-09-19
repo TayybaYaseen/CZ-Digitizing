@@ -819,6 +819,18 @@ model Order {
   // AC-10 — set once Stripe's payment_intent.succeeded webhook is verified and processed.
   stripePaymentIntentId String? @map("stripe_payment_intent_id")
 
+  // AC-1/AC-10 — the amount the payment provider is expected to collect, LOCKED when the order is
+  // created. PKR (totalPkr) stays the source of truth; PayPal/Stripe can't settle PKR, so the
+  // provider is charged in providerCurrency at the rate on file at that moment. Webhooks and the
+  // server-side verify step compare the provider's reported amount/currency against exactly these
+  // columns (never against a re-computed value, so an hourly rate change can't cause a false
+  // mismatch). providerChargePkr is what the customer owes after credits; null for bank-transfer
+  // and for orders fully covered by credits (no provider charge at all).
+  providerCurrency     String?  @map("provider_currency")
+  providerAmountMinor  Int?     @map("provider_amount_minor")
+  providerRateToPkr    Decimal? @map("provider_rate_to_pkr") @db.Decimal(14, 6)
+  providerChargePkr    Decimal? @map("provider_charge_pkr") @db.Decimal(10, 2)
+
   // AC-11 — null until a refund is issued; full refund sets this to totalPkr and paymentStatus to
   // 'refunded', a partial refund sets a lesser amount and paymentStatus to 'partially_refunded'.
   refundedAmountPkr Decimal? @map("refunded_amount_pkr") @db.Decimal(10, 2)
@@ -902,6 +914,12 @@ model PaymentReceipt {
 
   fileUrl    String   @map("file_url")
   uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  // Detected from the file's magic bytes at upload (never the client-declared type) so the Admin
+  // review screen knows how to render it (image vs PDF). Null only on rows uploaded before this
+  // column existed; the file endpoint re-detects from bytes for those.
+  contentType      String? @map("content_type")
+  originalFilename String? @map("original_filename")
 
   reviewStatus      ReceiptReviewStatus @default(pending) @map("review_status")
   reviewedByAdminId BigInt?             @map("reviewed_by_admin_id")

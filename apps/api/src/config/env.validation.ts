@@ -70,6 +70,19 @@ export const envSchema = z.object({
   PAYPAL_API_BASE: z.string().default('https://api-m.sandbox.paypal.com'),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Public by design (it ships to the browser to mount Stripe's Payment Element) — returned to the
+  // customer with the PaymentIntent client secret so apps/web needs no build-time Stripe config.
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  // PayPal/Stripe are settled in this one currency; PKR (the order's source of truth) is converted
+  // at the rate on file when the order is created (see payments/payment-amount.service.ts).
+  PAYMENT_PROVIDER_CURRENCY: z
+    .string()
+    .length(3)
+    .transform((v) => v.toUpperCase())
+    .default('USD'),
+  // Provider payments fail closed (503) if the rate for PAYMENT_PROVIDER_CURRENCY hasn't been
+  // refreshed for this long — never charge on an unbounded-stale rate.
+  PAYMENT_RATE_MAX_AGE_HOURS: z.coerce.number().positive().default(24),
   // AC-8 — spec §8 risk #3 (provider not finalized): unset uses the hardcoded fallback rate table
   // in ExchangeRateService instead of a live provider.
   EXCHANGE_RATE_API_KEY: z.string().optional(),

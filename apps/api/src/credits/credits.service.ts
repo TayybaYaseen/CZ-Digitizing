@@ -4,6 +4,7 @@ import type { CreditTransactionType, Prisma } from '../generated/prisma';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PayPalService } from '../orders/payments/paypal.service';
 import { StripeService } from '../orders/payments/stripe.service';
+import { PaymentAmountService } from '../payments/payment-amount.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PagedResult } from '../designs/designs.service';
 import { CreditPackageWriteDto, GiftCreditsDto } from './dto/credit-write.dto';
@@ -22,6 +23,7 @@ export class CreditsService {
     private readonly paypal: PayPalService,
     private readonly stripe: StripeService,
     private readonly notifications: NotificationService,
+    private readonly paymentAmounts: PaymentAmountService,
   ) {}
 
   async listPublicPackages(): Promise<CreditPackageDto[]> {
@@ -80,16 +82,19 @@ export class CreditsService {
     const pkg = await this.prisma.creditPackage.findUnique({ where: { id: BigInt(packageId) } });
     if (!pkg || !pkg.isPublished) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Credit package not found');
 
+    // PKR -> provider currency at the rate on file (fails closed with no rate) — this path used to
+    // send the PKR price to PayPal/Stripe as if it were USD.
+    const quote = await this.paymentAmounts.quote(Number(pkg.pricePkr));
     const pending = await this.prisma.pendingCreditPurchase.create({ data: { customerId, packageId: pkg.id } });
 
     if (paymentMethod === 'paypal') {
-      const created = await this.paypal.createOrder(Number(pkg.pricePkr), `credit:${pending.id}`);
+      const created = await this.paypal.createOrder({ referenceId: `credit:${pending.id}`, currency: quote.currency, amountDecimal: quote.amountDecimal });
       if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
       await this.prisma.pendingCreditPurchase.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });
       return { approveUrl: created.approveUrl, clientSecret: null };
     }
 
-    const created = await this.stripe.createPaymentIntent(Number(pkg.pricePkr), `credit:${pending.id}`);
+    const created = await this.stripe.createPaymentIntent({ referenceId: `credit:${pending.id}`, currency: quote.currency, amountMinor: quote.amountMinor });
     if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
     await this.prisma.pendingCreditPurchase.update({ where: { id: pending.id }, data: { stripePaymentIntentId: created.paymentIntentId } });
     return { approveUrl: null, clientSecret: created.clientSecret };

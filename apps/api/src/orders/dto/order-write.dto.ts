@@ -64,6 +64,16 @@ export class OrderQueryDto {
   @IsOptional()
   @IsString()
   toDate?: string;
+
+  // A-013 AC-4 — the Admin receipt queue: `pending` returns bank-transfer orders that are still
+  // awaiting payment AND have a receipt waiting for review.
+  @IsOptional()
+  @IsIn(['pending'])
+  receiptStatus?: 'pending';
+
+  @IsOptional()
+  @IsIn(['paypal', 'stripe', 'bank_transfer'])
+  paymentMethod?: 'paypal' | 'stripe' | 'bank_transfer';
 }
 
 // Shared by GET /api/orders/:id and GET /api/orders/user/history — AC-8's currency display.

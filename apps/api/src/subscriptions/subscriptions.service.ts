@@ -5,6 +5,7 @@ import type { BillingPeriod, CustomerSubscription, SubscriptionPlan } from '../g
 import { NotificationService } from '../notifications/services/notification.service';
 import { PayPalService } from '../orders/payments/paypal.service';
 import { StripeService } from '../orders/payments/stripe.service';
+import { PaymentAmountService } from '../payments/payment-amount.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangePlanDto, SubscriptionPlanWriteDto } from './dto/subscription-write.dto';
 import {
@@ -39,6 +40,7 @@ export class SubscriptionsService {
     private readonly stripe: StripeService,
     private readonly credits: CreditsService,
     private readonly notifications: NotificationService,
+    private readonly paymentAmounts: PaymentAmountService,
   ) {}
 
   async listPublicPlans(): Promise<SubscriptionPlanDto[]> {
@@ -178,16 +180,19 @@ export class SubscriptionsService {
     const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: BigInt(planId) } });
     if (!plan || !plan.isPublished) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Subscription plan not found');
 
+    // PKR -> provider currency at the rate on file (fails closed with no rate) — this path used to
+    // send the PKR price to PayPal/Stripe as if it were USD.
+    const quote = await this.paymentAmounts.quote(Number(plan.pricePkr));
     const pending = await this.prisma.pendingSubscriptionPayment.create({ data: { customerId, planId: plan.id } });
 
     if (paymentMethod === 'paypal') {
-      const created = await this.paypal.createOrder(Number(plan.pricePkr), `subscription:${pending.id}`);
+      const created = await this.paypal.createOrder({ referenceId: `subscription:${pending.id}`, currency: quote.currency, amountDecimal: quote.amountDecimal });
       if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
       await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });
       return { approveUrl: created.approveUrl, clientSecret: null };
     }
 
-    const created = await this.stripe.createPaymentIntent(Number(plan.pricePkr), `subscription:${pending.id}`);
+    const created = await this.stripe.createPaymentIntent({ referenceId: `subscription:${pending.id}`, currency: quote.currency, amountMinor: quote.amountMinor });
     if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
     await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { stripePaymentIntentId: created.paymentIntentId } });
     return { approveUrl: null, clientSecret: created.clientSecret };
@@ -288,8 +293,9 @@ export class SubscriptionsService {
   // very first payment was. A subscription that misses RENEWAL_MAX_RETRIES attempts across
   // RENEWAL_GRACE_PERIOD_DAYS lapses (AC-8: no further automatic credit grant after that).
   async attemptRenewal(sub: CustomerSubscription & { plan: SubscriptionPlan }): Promise<void> {
+    const quote = await this.paymentAmounts.quote(Number(sub.plan.pricePkr));
     const pending = await this.prisma.pendingSubscriptionPayment.create({ data: { customerId: sub.customerId, planId: sub.planId } });
-    const created = await this.paypal.createOrder(Number(sub.plan.pricePkr), `subscription:${pending.id}`);
+    const created = await this.paypal.createOrder({ referenceId: `subscription:${pending.id}`, currency: quote.currency, amountDecimal: quote.amountDecimal });
     const approveUrl = created?.approveUrl ?? null;
     if (!created) await this.prisma.pendingSubscriptionPayment.delete({ where: { id: pending.id } });
     else await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });

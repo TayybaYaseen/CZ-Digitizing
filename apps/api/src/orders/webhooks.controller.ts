@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ApiException } from '../common/exceptions/api-exception';
 import { Public } from '../common/decorators/public.decorator';
+import { decimalToMinor } from '../payments/provider-amount.util';
 import { PayPalService } from './payments/paypal.service';
 import { StripeService } from './payments/stripe.service';
 import { OrdersService } from './orders.service';
@@ -10,7 +11,11 @@ import { OrdersService } from './orders.service';
 // docs/specs/2026-08-28-08-orders-payment-processing.md §3 (AC-1/AC-2/AC-10). Public — not
 // user-invocable, no @Roles/JWT gate — but every event is signature-verified before anything is
 // trusted from it (AC-2: a failed verification never transitions an order and is logged, not
-// silently swallowed).
+// silently swallowed). A valid signature only proves the provider sent the event: whether it
+// CONFIRMS the order is decided by OrdersService.confirmProviderPayment, which compares the
+// reported amount/currency/reference with what was locked on the order. Once the signature is
+// good, every outcome (confirmed, duplicate, mismatch, unknown order) is acknowledged with 200 so
+// the provider does not retry an event that can never succeed; mismatches are logged at error level.
 @ApiTags('webhooks')
 @Controller('api/webhooks')
 export class WebhooksController {
@@ -45,13 +50,27 @@ export class WebhooksController {
     // event type (declined, refunded-by-PayPal-directly, etc.) is acknowledged with 200 but not
     // acted on here, which is the correct "not yet handled" response for a webhook endpoint.
     if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-      const resource = event.resource as { id: string; supplementary_data?: { related_ids?: { order_id?: string } } };
+      const resource = event.resource as {
+        id: string;
+        status?: string;
+        amount?: { currency_code?: string; value?: string };
+        supplementary_data?: { related_ids?: { order_id?: string } };
+      };
       const orderRef = resource.supplementary_data?.related_ids?.order_id;
       const orderId = orderRef ? await this.orders.findByPaypalOrderId(orderRef) : null;
-      if (orderId) {
-        await this.orders.confirmAutomaticPayment(orderId, 'paypal', { paypalOrderId: orderRef, paypalCaptureId: resource.id });
-      } else {
+      if (!orderId || !orderRef) {
         this.logger.error(`PayPal capture ${resource.id} has no matching order reference`);
+      } else if (resource.status !== undefined && resource.status !== 'COMPLETED') {
+        this.logger.warn(`PayPal capture ${resource.id} for order ${orderId} reported status ${resource.status} on a COMPLETED event — ignoring`);
+      } else {
+        // An unparseable amount becomes -1, which can never equal a locked amount -> rejected.
+        await this.orders.confirmProviderPayment(orderId, {
+          method: 'paypal',
+          currency: resource.amount?.currency_code ?? '',
+          amountMinor: decimalToMinor(resource.amount?.value) ?? -1,
+          paypalOrderId: orderRef,
+          paypalCaptureId: resource.id,
+        });
       }
     }
 
@@ -76,10 +95,15 @@ export class WebhooksController {
     // AC-10 — this webhook's job is only to react to the final payment_intent.succeeded event;
     // 3D Secure itself is handled client-side by Stripe.js/Payment Element before this ever fires.
     if (event.type === 'payment_intent.succeeded') {
-      const intent = event.data.object as { id: string; metadata?: Record<string, string> };
+      const intent = event.data.object as { id: string; amount?: number; amount_received?: number; currency?: string; metadata?: Record<string, string> };
       const orderId = this.resolveOrderIdFromMetadata(intent.metadata);
       if (orderId) {
-        await this.orders.confirmAutomaticPayment(orderId, 'stripe', { stripePaymentIntentId: intent.id });
+        await this.orders.confirmProviderPayment(orderId, {
+          method: 'stripe',
+          currency: intent.currency ?? '',
+          amountMinor: intent.amount_received ?? intent.amount ?? -1,
+          stripePaymentIntentId: intent.id,
+        });
       } else {
         this.logger.error(`Stripe payment_intent ${intent.id} has no orderId in metadata`);
       }
@@ -89,9 +113,9 @@ export class WebhooksController {
   }
 
   // Stripe's PaymentIntent metadata.orderId is set when the PaymentIntent itself is created
-  // (checkout's own "create payment intent" call, outside this webhook). Never trust a bare
-  // numeric id unverified — this is a plain parse, not a DB lookup, because Stripe's own signature
-  // verification (already passed by the time this runs) is what makes the metadata trustworthy.
+  // (OrdersService.startProviderSession). This is a plain parse, not a trust decision: Stripe's own
+  // signature verification (already passed by the time this runs) makes the metadata authentic, and
+  // OrdersService.confirmProviderPayment still requires the intent id and amount to match the order.
   private resolveOrderIdFromMetadata(metadata: Record<string, string> | undefined): bigint | null {
     if (!metadata?.orderId) return null;
     try {

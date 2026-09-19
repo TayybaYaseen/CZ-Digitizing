@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedRequest } from '../common/decorators/current-user.decorator';
@@ -52,6 +53,8 @@ export class OrdersController {
     return this.service.getForAdmin(id);
   }
 
+  // Manual transitions. `payment_confirmed`/`refunded` are refused here by the service — see
+  // OrdersService.updateStatus.
   @Put(':id/status')
   @Roles('admin', 'freelancer', 'moderator')
   @RequiresPermission('orders', 'crud')
@@ -73,8 +76,38 @@ export class OrdersController {
     return this.service.refund(id, dto, admin);
   }
 
+  // AC-1/AC-10 — starts (or restarts, after a reload / declined card / expired PayPal order) the
+  // provider payment for the caller's own unpaid PayPal/Stripe order: PayPal approval link, or
+  // Stripe client secret + publishable key. Confirms nothing.
+  @Post(':id/payment-session')
+  @Roles('customer')
+  @HttpCode(200)
+  paymentSession(@Param('id') id: string, @CurrentUser() user: AccessTokenPayload) {
+    return this.service.getPaymentSession(id, BigInt(user.sub));
+  }
+
+  // AC-1/AC-10 — called by the customer's browser when it returns from PayPal / Stripe. The client
+  // supplies nothing: the SERVER reads the payment's real state from the provider (capturing an
+  // approved PayPal order), checks amount/currency against the order, and only then confirms.
+  @Post(':id/verify-payment')
+  @Roles('customer')
+  @HttpCode(200)
+  verifyPayment(@Param('id') id: string, @CurrentUser() user: AccessTokenPayload) {
+    return this.service.verifyPayment(id, { customerId: BigInt(user.sub) });
+  }
+
+  // Same server-side verification, Admin-triggered for any provider order (e.g. a missed webhook).
+  @Post(':id/reverify-payment')
+  @Roles('admin', 'freelancer', 'moderator')
+  @RequiresPermission('orders', 'crud')
+  @HttpCode(200)
+  reverifyPayment(@Param('id') id: string) {
+    return this.service.verifyPayment(id, {});
+  }
+
   // spec §3 — "POST /api/orders/:id/receipt (new, proposed)". memoryStorage: hashed/validated
-  // before ever touching disk, same posture as DesignFilesController's upload route.
+  // before ever touching disk, same posture as DesignFilesController's upload route. The service
+  // additionally checks the file's magic bytes (JPEG/PNG/WebP/PDF only).
   @Post(':id/receipt')
   @Roles('customer')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
@@ -82,5 +115,25 @@ export class OrdersController {
   uploadReceipt(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @CurrentUser() user: AccessTokenPayload) {
     if (!file) throw new ApiException('RECEIPT_REQUIRED', 422, 'A receipt file is required');
     return this.service.uploadReceipt(id, BigInt(user.sub), file);
+  }
+
+  // Admin receipt preview (AC-4/AC-5: review before approving). Staff-only, role + permission gated;
+  // never a public URL. Uses bare @Res() (not a returned StreamableFile) for the same reason as
+  // CustomRequestsController's production-file download: the global ResponseInterceptor would wrap
+  // a returned value in a `{ data }` envelope and corrupt the bytes.
+  @Get(':id/receipts/:receiptId/file')
+  @Roles('admin', 'freelancer', 'moderator')
+  @RequiresPermission('orders', 'read_only')
+  async receiptFile(@Param('id') id: string, @Param('receiptId') receiptId: string, @Res() res: Response) {
+    const { buffer, contentType, filename } = await this.service.getReceiptFile(id, receiptId);
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': String(buffer.length),
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+    });
+    res.send(buffer);
   }
 }
