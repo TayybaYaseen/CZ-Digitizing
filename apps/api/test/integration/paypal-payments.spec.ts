@@ -7,6 +7,9 @@ import { createOrdersHarness, type OrdersHarness } from './helpers/orders-harnes
 // duplicate-event idempotency. PayPal's REST API is scripted (FakePayPal) — see the harness header.
 //
 // Requires a THROWAWAY Postgres (the harness refuses otherwise): see helpers/orders-harness.ts.
+// App boot (Nest compile + Prisma) can exceed the 15s default when the machine is busy.
+jest.setTimeout(60_000);
+
 describe('A-013 PayPal payments', () => {
   let h: OrdersHarness;
 

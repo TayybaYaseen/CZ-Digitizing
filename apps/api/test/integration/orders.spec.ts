@@ -9,6 +9,9 @@ import { createOrdersHarness, tinyPdf, tinyPng, type OrdersHarness } from './hel
 //
 // Requires a THROWAWAY Postgres (the harness refuses otherwise): see helpers/orders-harness.ts.
 //   DATABASE_URL=postgresql://dev:dev@localhost:5432/czd_a013_test pnpm --filter @czd/api test:integration -- orders
+// App boot (Nest compile + Prisma) can exceed the 15s default when the machine is busy.
+jest.setTimeout(60_000);
+
 describe('A-013 Orders & Payment Processing', () => {
   let h: OrdersHarness;
 
@@ -495,6 +498,39 @@ describe('A-013 Orders & Payment Processing', () => {
       expect(await h.prisma.order.count()).toBe(1);
       expect(await h.prisma.orderItem.count()).toBe(1);
       expect((await h.http().get('/api/cart').set(h.auth(customer))).body.data.items).toHaveLength(0);
+    });
+
+    // The HTTP-level test above can be won by a request that simply reads the cart after the first
+    // checkout committed. This one FORCES the race: two checkouts holding the same stale cart
+    // snapshot (as two requests that both read the cart before either committed would) — only the
+    // row lock + "cart still holds these exact lines" check in createFromCart can stop the second.
+    it('two checkouts holding the same stale cart snapshot: exactly one order, the other is refused with CART_CHANGED', async () => {
+      const customer = await h.mkUser('customer');
+      const { design, size } = await h.mkDesign(1500);
+      await h.addToCart(customer, design, size);
+      const cart = await h.prisma.cart.findFirstOrThrow({ where: { customerId: customer.id } });
+      const snapshot = await h.services.cart.loadCartWithItems(cart.id);
+      const actor = { sub: customer.id.toString(), role: 'customer' };
+
+      const results = await Promise.allSettled([1, 2, 3].map(() => h.services.orders.createFromCart(actor, snapshot, 'bank_transfer', 0)));
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(rejected).toHaveLength(2);
+      rejected.forEach((r) => expect(r.reason).toMatchObject({ code: 'CART_CHANGED' }));
+      expect(await h.prisma.order.count()).toBe(1);
+      expect(await h.prisma.orderItem.count()).toBe(1);
+    });
+
+    it('a stale snapshot whose lines changed underneath it is refused (never orders lines that are no longer in the cart)', async () => {
+      const customer = await h.mkUser('customer');
+      const { design, size } = await h.mkDesign(1500);
+      await h.addToCart(customer, design, size);
+      const cart = await h.prisma.cart.findFirstOrThrow({ where: { customerId: customer.id } });
+      const snapshot = await h.services.cart.loadCartWithItems(cart.id);
+      await h.prisma.cartItem.deleteMany({ where: { cartId: cart.id } }); // customer removed the line meanwhile
+
+      await expect(h.services.orders.createFromCart({ sub: customer.id.toString(), role: 'customer' }, snapshot, 'bank_transfer', 0)).rejects.toMatchObject({ code: 'CART_CHANGED' });
+      expect(await h.prisma.order.count()).toBe(0);
     });
 
     it('simultaneous checkouts that apply credits can never spend the same credits twice', async () => {

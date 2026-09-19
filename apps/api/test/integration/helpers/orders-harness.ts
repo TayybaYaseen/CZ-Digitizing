@@ -241,7 +241,7 @@ export interface OrdersHarness {
   prisma: any;
   paypal: FakePayPal;
   stripe: FakeStripe;
-  services: { tokens: any; credits: any; exchange: any; paypalService: any; stripeService: any };
+  services: { tokens: any; credits: any; exchange: any; paypalService: any; stripeService: any; orders: any; cart: any };
   http: () => ReturnType<typeof request>;
   auth: (user: User) => { Authorization: string };
   mkUser: (role: 'customer' | 'admin') => Promise<User>;
@@ -286,6 +286,8 @@ export async function createOrdersHarness(): Promise<OrdersHarness> {
   const { PayPalService } = await import('../../../src/orders/payments/paypal.service');
   const { StripeService } = await import('../../../src/orders/payments/stripe.service');
   const { PrismaService } = await import('../../../src/prisma/prisma.service');
+  const { OrdersService } = await import('../../../src/orders/orders.service');
+  const { CartService } = await import('../../../src/cart/cart.service');
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication({ rawBody: true });
@@ -316,7 +318,7 @@ export async function createOrdersHarness(): Promise<OrdersHarness> {
     prisma,
     paypal,
     stripe,
-    services: { tokens, credits, exchange, paypalService, stripeService },
+    services: { tokens, credits, exchange, paypalService, stripeService, orders: app.get(OrdersService), cart: app.get(CartService) },
     http,
     auth,
     mkUser: (role) => prisma.user.create({ data: { email: `${role}-${uid()}@orders-test.example.com`, role } }),

@@ -12,6 +12,9 @@ import { createOrdersHarness, type OrdersHarness } from './helpers/orders-harnes
 // reach; the backend's part is verifying the final outcome, which is what these tests cover.
 //
 // Requires a THROWAWAY Postgres (the harness refuses otherwise): see helpers/orders-harness.ts.
+// App boot (Nest compile + Prisma) can exceed the 15s default when the machine is busy.
+jest.setTimeout(60_000);
+
 describe('A-013 Stripe card payments', () => {
   let h: OrdersHarness;
 

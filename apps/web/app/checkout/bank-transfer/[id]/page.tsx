@@ -34,6 +34,9 @@ export default function BankTransferCheckoutPage() {
   // mean any transient failure silently rendered as an empty details box with no explanation,
   // right when a customer is about to send money.
   const [bankConfigLoadFailed, setBankConfigLoadFailed] = useState(false);
+  // Until the settings request settles, bankConfig is still null — without this the page flashed
+  // "details aren't available yet" (alarming, right before a payment) for the first moments.
+  const [bankConfigLoaded, setBankConfigLoaded] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -55,8 +58,14 @@ export default function BankTransferCheckoutPage() {
       .then(setOrder)
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
     apiFetch<{ bankTransferConfig: Record<string, string> | null }>('/api/settings/public')
-      .then((s) => setBankConfig(s.bankTransferConfig ?? null))
-      .catch(() => setBankConfigLoadFailed(true));
+      .then((s) => {
+        setBankConfig(s.bankTransferConfig ?? null);
+        setBankConfigLoaded(true);
+      })
+      .catch(() => {
+        setBankConfigLoadFailed(true);
+        setBankConfigLoaded(true);
+      });
   }, [user, accessToken, params.id]);
 
   async function onUpload() {
@@ -97,6 +106,8 @@ export default function BankTransferCheckoutPage() {
             We couldn&apos;t load the bank account details right now. Please refresh this page before sending
             payment — do not transfer money until you can see the account details below.
           </p>
+        ) : !bankConfigLoaded ? (
+          <p className="text-gray-400">Loading bank details…</p>
         ) : bankConfig ? (
           <>
             {bankConfig.bankName && <p>Bank: {bankConfig.bankName}</p>}
