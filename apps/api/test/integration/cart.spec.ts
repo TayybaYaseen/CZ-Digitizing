@@ -36,6 +36,10 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
   });
 
   beforeEach(async () => {
+    // Checkout now creates real orders (A-013), which reference the designs/customers below.
+    await prisma.customerAuthorizedFile.deleteMany();
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany({ where: { customer: { email: { contains: '@cart-test.example.com' } } } });
     await prisma.cartItem.deleteMany();
     await prisma.cart.deleteMany();
     await prisma.design.deleteMany();
