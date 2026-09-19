@@ -19,7 +19,9 @@ const PAYMENT_METHODS: { value: 'paypal' | 'stripe' | 'bank_transfer'; label: st
 interface OrderDto {
   id: string;
   status: string;
+  paymentStatus: string;
   paymentMethod: string;
+  amountDuePkr: number;
   bankTransferReference: string | null;
 }
 
@@ -87,10 +89,15 @@ export default function CheckoutPage() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       await refresh();
-      if (paymentMethod === 'bank_transfer') {
+      if (order.paymentStatus === 'completed') {
+        // Fully covered by credits — nothing left to transfer or pay.
+        router.push(`/order-confirmation/${order.id}`);
+      } else if (paymentMethod === 'bank_transfer') {
         router.push(`/checkout/bank-transfer/${order.id}`);
       } else {
-        router.push(`/order-confirmation/${order.id}`);
+        // PayPal / card: the payment page starts the provider flow and confirms nothing itself —
+        // the server verifies the provider's own state before the order is ever marked paid.
+        router.push(`/checkout/pay/${order.id}`);
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Checkout failed.', traceId: '' });
@@ -130,6 +137,18 @@ export default function CheckoutPage() {
           <span>Total</span>
           <span>Rs {cart.totalPkr}</span>
         </div>
+        {creditsToApplyPkr > 0 && !creditsError && (
+          <>
+            <div className="flex justify-between text-sm text-emerald-700">
+              <span>Credits applied</span>
+              <span>− Rs {creditsToApplyPkr}</span>
+            </div>
+            <div className="flex justify-between text-base font-semibold text-brand-navy">
+              <span>Amount due</span>
+              <span>Rs {Math.max(0, cart.totalPkr - creditsToApplyPkr)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
@@ -157,7 +176,10 @@ export default function CheckoutPage() {
           {checkingCredits && <span className="text-xs text-gray-400">Checking…</span>}
         </div>
         {creditsToApplyPkr > 0 && !creditsError && (
-          <p className="text-sm text-emerald-700">Rs {creditsToApplyPkr} in credits will be applied to this order.</p>
+          <p className="text-sm text-emerald-700">
+            Rs {creditsToApplyPkr} in credits will be applied to this order
+            {Number(creditsInput) > creditsToApplyPkr ? ` (that is all this order needs — the rest stays in your balance)` : ''}.
+          </p>
         )}
         <ErrorBanner error={creditsError} />
       </div>

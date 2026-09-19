@@ -11,8 +11,11 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 interface OrderDto {
   id: string;
   status: string;
+  paymentStatus: string;
   paymentMethod: string;
   totalPkr: number;
+  amountDuePkr: number;
+  creditsUsed: number;
   bankTransferReference: string | null;
 }
 
@@ -55,6 +58,40 @@ export default function OrderConfirmationPage() {
       .then(setOrder)
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
   }, [user, accessToken, params.id]);
+
+  // A-013 — returning from PayPal / the card form (or reloading): ask the SERVER to check the
+  // payment with the provider (it captures an approved PayPal order and confirms only after
+  // comparing amount/currency). Nothing on this page marks an order paid. Re-checks a few times
+  // because a card payment can still be settling for a moment.
+  const isProviderOrder = order?.paymentMethod === 'paypal' || order?.paymentMethod === 'stripe';
+  const awaitingProvider = Boolean(isProviderOrder && order?.status === 'payment_pending');
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  useEffect(() => {
+    if (!awaitingProvider || !accessToken) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = async () => {
+      attempts += 1;
+      setCheckingPayment(true);
+      try {
+        const updated = await apiFetch<OrderDto>(`/api/orders/${params.id}/verify-payment`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!cancelled) setOrder(updated);
+        if (updated.status !== 'payment_pending') return;
+      } catch {
+        // Not approved / provider hiccup — the order simply stays "awaiting payment"; keep the
+        // customer on the page with a way back to the payment step (below).
+      } finally {
+        if (!cancelled) setCheckingPayment(false);
+      }
+      if (!cancelled && attempts < 8) timer = setTimeout(check, 3000);
+    };
+    void check();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [awaitingProvider, accessToken, params.id]);
 
   const filesReady = order && ['payment_confirmed', 'processing', 'ready', 'completed'].includes(order.status);
 
@@ -110,7 +147,14 @@ export default function OrderConfirmationPage() {
               if you haven&apos;t already.
             </p>
           )}
-          {!filesReady && order.paymentMethod !== 'bank_transfer' && <p className="text-gray-600">We&apos;ll notify you once payment is confirmed.</p>}
+          {awaitingProvider && (
+            <div className="space-y-2 text-gray-600">
+              <p>{checkingPayment ? 'Checking your payment with the provider…' : 'We have not received a confirmed payment for this order yet.'}</p>
+              <Link href={`/checkout/pay/${order.id}`} className="inline-block rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50">
+                Continue to payment
+              </Link>
+            </div>
+          )}
           {filesReady && (
             <div className="space-y-2">
               <p className="font-semibold text-brand-navy">Your files:</p>

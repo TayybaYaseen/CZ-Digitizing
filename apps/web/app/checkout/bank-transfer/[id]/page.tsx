@@ -10,7 +10,10 @@ import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 interface OrderDto {
   id: string;
   status: string;
+  paymentStatus: string;
   totalPkr: number;
+  amountDuePkr: number;
+  creditsUsed: number;
   bankTransferReference: string | null;
   receipts: { id: string; reviewStatus: string; rejectionReason: string | null }[];
 }
@@ -40,6 +43,12 @@ export default function BankTransferCheckoutPage() {
     if (isReady && !user) router.replace('/login');
   }, [isReady, user, router]);
 
+  // Already paid (e.g. credits covered the whole order): there is nothing to transfer and no
+  // receipt to upload — go straight to the confirmation.
+  useEffect(() => {
+    if (order?.paymentStatus === 'completed') router.replace(`/order-confirmation/${order.id}`);
+  }, [order, router]);
+
   useEffect(() => {
     if (!user || !accessToken) return;
     apiFetch<OrderDto>(`/api/orders/${params.id}`, { headers: { Authorization: `Bearer ${accessToken}` } })
@@ -68,8 +77,11 @@ export default function BankTransferCheckoutPage() {
 
   if (!isReady || !user) return null;
   if (!order) return <p className="mx-auto max-w-lg text-center text-sm text-gray-500">Loading order…</p>;
+  if (order.paymentStatus === 'completed') return null; // redirecting to the confirmation
 
   const latestReceipt = order.receipts[0];
+  const receiptAwaitingReview = uploaded || latestReceipt?.reviewStatus === 'pending';
+  const orderClosed = order.status !== 'payment_pending';
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -77,7 +89,8 @@ export default function BankTransferCheckoutPage() {
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-sm">
         <p>
-          Please transfer <strong>Rs {order.totalPkr}</strong> to the account below and include your reference number.
+          Please transfer <strong>Rs {order.amountDuePkr}</strong> to the account below and include your reference number.
+          {order.creditsUsed > 0 && <span className="text-gray-500"> (Order total Rs {order.totalPkr}, of which Rs {order.creditsUsed} was paid with credits.)</span>}
         </p>
         {bankConfigLoadFailed ? (
           <p className="rounded bg-amber-50 px-3 py-2 text-amber-800">
@@ -105,12 +118,14 @@ export default function BankTransferCheckoutPage() {
         </div>
       )}
 
-      {uploaded ? (
-        <SuccessBanner message="Receipt uploaded. Admin will review it shortly and you'll be notified once payment is confirmed." />
+      {orderClosed ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">This order is &quot;{order.status}&quot; and no longer accepts a payment receipt.</div>
+      ) : receiptAwaitingReview ? (
+        <SuccessBanner message="Receipt received. Admin will review it shortly and you'll be notified once payment is confirmed." />
       ) : (
         <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-brand-navy">Upload Payment Receipt</h2>
-          <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
           <ErrorBanner error={error} />
           <button
             onClick={onUpload}
