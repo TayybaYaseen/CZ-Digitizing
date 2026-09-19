@@ -1162,7 +1162,7 @@ notes elsewhere were. Corrected both rows to `Completed` below; no code change, 
 | A-011 | Shopping Cart & Checkout | A-006 | A-006, A-008 | 6 | Completed | 38 |
 | A-016a | Quote Questions & Answers (Step 2) | A-016 | A-016 | 6 | Completed | 39 |
 | A-016b | Quote Submission Form (Step 3) | A-016 | A-016 | 6 | Completed | 40 |
-| A-013 | Orders & Payment Processing (parent) | A-011 | A-011, A-007, A-005, A-004 | 7 | Completed | 41 |
+| A-013 | Orders & Payment Processing (parent) | A-011 | A-011, A-007, A-005, A-004 | 7 | In Progress | 41 |
 | A-013a | PayPal Integration | A-013 | A-013 | 8 | Completed | 42 |
 | A-013b | Bank Transfer (Manual) | A-013 | A-013 | 8 | Completed | 43 |
 | A-013c | Order History / Payment State Machine | A-013 | A-013 | 8 | Completed | 44 |
@@ -1392,6 +1392,15 @@ Found while reconciling the source documents' presentation order against actual 
 4. **Taebo's technical dependency level vs. recommended build order.** See the note under position
    28 above — not a conflict, but flagged so Order is never mistaken for "when to build it."
 
+5. **A-013 is `In Progress` while its sub-aspects and dependents read `Completed` (2026-09-19).**
+   A-013a/A-013b/A-013c list A-013 as their only Dependency, and A-015, A-016, A-017, A-019 and
+   A-005e (among others) list it too. Under `CLAUDE.md` §5, a `Completed` aspect whose dependency
+   is not `Completed` is a data-integrity flag, not a status to accept at face value. Only A-013
+   was moved back (that was the explicit instruction); the rest are deliberately **not** flipped
+   automatically, because most of them (credits, quotes, custom requests, activity tracking) call
+   into `OrdersService` paths this iteration does not change. They must be re-confirmed — and
+   A-013a/b/c moved with A-013 — before A-013 is marked `Completed` again.
+
 No dependent aspect was found positioned before its parent in either source document's own
 narrative flow once these three items were corrected — the remaining presentation order in both
 documents (SRS numbered sections 1–32, architecture's section order) is a *reading* order, not a
@@ -1403,6 +1412,7 @@ build order, and was not assumed to be one anywhere in this file.
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-09-19 | A-013 Status: Completed → In Progress (branch `feature/orders-payment-critical-fixes`); A-013a/A-013b/A-013c and every aspect that lists A-013 as a Dependency are **left as recorded, not silently changed — flagged for re-verification** | A 50-probe completeness audit of `docs/specs/2026-08-28-08-orders-payment-processing.md` (run on a throwaway Postgres plus a real-browser pass) showed the earlier `Completed` (2026-09-03, re-affirmed 2026-09-07) was not supported by the acceptance criteria: a customer could not actually start a PayPal or Stripe payment (no approve link / client secret was ever returned), the provider was sent the PKR total as if it were USD (Rs 1,500 → `USD 1500.00` / 150,000 cents), signed webhooks confirmed an order without comparing the paid amount/currency, Admin could approve a bank-transfer receipt without being able to see it, `PUT /:id/status` could set `payment_confirmed` with no payment, and approving a receipt on a `cancelled` order revived it. Per `CLAUDE.md` §5 ("existence is not completion") A-013 returns to `In Progress` and stays there until every AC is verified — this pass fixes the six critical findings and re-tests all 12 ACs; any AC still partial is recorded as partial in the A-013 spec, not rounded up. A-013a (PayPal), A-013b (Bank Transfer) and A-013c (State Machine) are the sub-aspects these fixes land in; their `Completed` marks are **not** touched by this entry (only A-013 was asked to move) but they cannot be trusted until A-013 re-completes — see Dependency Issues #5 |
 | 2026-09-12 | A-023 stays `In Progress`; `apps/mobile`'s brand-theme/typography gap (flagged 2026-09-11) fully closed; one real bug fixed (`apps/mobile` had no pinned `eslint`, silently depending on root-hoist luck) | See the dated prose note above this table ("closed the `apps/mobile` gap the above note left open") for full detail. Real Playfair Display/Montserrat fonts now load via `expo-font`/`@expo-google-fonts/*` (pinned to SDK 51-compatible versions, not the latest majors); `lib/theme.ts`/`HomeScreen.tsx` reference the exact loaded family names instead of a Georgia/System fallback paired with a no-op `fontWeight`. Every hex value re-diffed against the imported design-system guideline cards and confirmed exact. Verified via typecheck/lint/jest, `expo export` for both platforms (zero bundler errors, fonts correctly packaged), and a full live `expo start --web` login → new-device-verify → Home flow (Playwright, real Postgres/Redis/`apps/api`) with a screenshot and a `getComputedStyle` check confirming the real font/color render. Does **not** close A-023 itself — native device/emulator testing remains the one still-open item, unchanged by this pass |
 | 2026-09-11 | A-023 stays `In Progress`; spec §8's three remaining open risks closed (push-token staleness/pruning policy, Expo-managed-workflow decision formally recorded, AC-15 last-write-wins actually audited); one real bug fixed (`CartService` lost-update race), one real gap flagged for the owning specs (credits/checkout TOCTOU race) | See the dated prose note above this table ("§8's three remaining open risks closed") and `docs/specs/2026-08-29-18-mobile-app-android-ios.md`'s own §8 addendum for full detail. `NotificationPushService` now prunes dead tokens on Expo's `DeviceNotRegistered` signal; `CZ_DIGITIZING_ARCHITECTURE.md` now states Expo managed workflow explicitly; `CartService.addItem()`/`mergeGuestCartInto()` switched to atomic `{ increment }` updates, fixing a genuine lost-update race that was strictly worse than the "last-write-wins" AC-15 claims. 4 new push-token/push-service unit tests + 1 new cart concurrency test; full `apps/api` suite now 280/280 (was 275 before this pass). Status unchanged |
 | 2026-09-11 | A-023 stays `In Progress`; spec §7's three out-of-scope items (offline write queuing, Android/iOS-only features, tablet layouts) confirmed genuinely absent by design | See the dated prose note above this table ("§7 out-of-scope items confirmed by design, not gaps") for full detail. Verified against the actual code rather than taken on the spec's word — no write queue, no platform-exclusive feature, no tablet breakpoint logic anywhere in `apps/mobile`. Verification-only; no code changes. Status unchanged |
