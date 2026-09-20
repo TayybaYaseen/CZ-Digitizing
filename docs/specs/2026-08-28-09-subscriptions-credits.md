@@ -139,7 +139,7 @@ into AC-9/AC-10 above.
 
 | # | Risk / question | Owner | Resolution |
 |---|---|---|---|
-| 1 | Recurring billing mechanism for PayPal subscriptions (PayPal Subscriptions API vs. manual re-charge) not specified — architecture only shows one-time PayPal capture flow | Engineering | Open |
+| 1 | ~~Recurring billing mechanism for PayPal subscriptions~~ — **Closed 2026-09-19 (business decision: bank transfer only).** The first payment, every renewal and every credit-package purchase is a bank-transfer order (`transaction_type` `purchase` / `renewal`); approving its receipt grants the credits / activates or extends the subscription exactly once (Orders spec AC-12/AC-13). There is no stored payment method and no recurring provider billing | Engineering | Closed |
 | 2 | Exact "eligible purchases" rule for credit application referenced in SRS §11 has no concrete rule engine | Admin | Open |
 | 3 | Failed-renewal retry cadence/backoff and grace period before subscription lapses not specified | Admin | Open |
 

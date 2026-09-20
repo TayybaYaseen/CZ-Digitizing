@@ -5,6 +5,15 @@ export function formatNumber(value: number, locale: string): string {
   return new Intl.NumberFormat(locale).format(value);
 }
 
+// Bank transfer is settled in PKR, always: this formats the exact stored PKR amount ("PKR 1,500",
+// "PKR 1,500.50") — never a converted or rounded figure. Fixed en-US grouping so the amount a customer
+// is told to transfer reads the same on every device/locale.
+export function formatPkr(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  const hasFraction = Math.abs(rounded % 1) > 0;
+  return `PKR ${rounded.toLocaleString('en-US', { minimumFractionDigits: hasFraction ? 2 : 0, maximumFractionDigits: 2 })}`;
+}
+
 export function formatDate(value: Date | string, locale: string): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date);

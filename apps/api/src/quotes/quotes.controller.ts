@@ -106,6 +106,6 @@ export class QuotesController {
   @Roles('admin', 'freelancer', 'moderator')
   @RequiresPermission('quotes', 'crud')
   convert(@Param('id') id: string, @Body() dto: ConvertQuoteDto, @CurrentUser() admin: AccessTokenPayload) {
-    return this.orders.createFromQuote(id, dto.paymentMethod, admin);
+    return this.orders.createFromQuote(id, dto.paymentMethod ?? 'bank_transfer', admin);
   }
 }

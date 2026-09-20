@@ -32,8 +32,10 @@ export class PurchaseCreditsDto {
   @IsString()
   packageId!: string;
 
-  @IsIn(['paypal', 'stripe'])
-  paymentMethod!: 'paypal' | 'stripe';
+  // Bank transfer is the only payment method; any other value is rejected by validation.
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }
 
 // AC-10 — gift credits to another customer, identified by email (the only customer-facing

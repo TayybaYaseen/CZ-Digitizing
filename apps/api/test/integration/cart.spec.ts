@@ -36,6 +36,10 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
   });
 
   beforeEach(async () => {
+    // Checkout now creates real orders (A-013), which reference the designs/customers below.
+    await prisma.customerAuthorizedFile.deleteMany();
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany({ where: { customer: { email: { contains: '@cart-test.example.com' } } } });
     await prisma.cartItem.deleteMany();
     await prisma.cart.deleteMany();
     await prisma.design.deleteMany();
@@ -93,7 +97,7 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
     expect(res.body.error.code).toBe('SIZE_REQUIRED');
   });
 
-  it('AC-6: unpublishing a cart item makes checkout fail validation with ITEM_NOT_PUBLISHED before the ORDERS_NOT_AVAILABLE stub', async () => {
+  it('AC-6: unpublishing a cart item makes checkout fail validation with ITEM_NOT_PUBLISHED before any order is created', async () => {
     const { design, size } = await createDesign();
     const customer = await createCustomer();
     const agent = request.agent(app.getHttpServer());
@@ -102,11 +106,14 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
     await agent.post('/api/cart/items').send({ designId: design.id.toString(), sizeId: size.id.toString(), quantity: 1 }).expect(201);
     await prisma.design.update({ where: { id: design.id }, data: { isPublished: false } });
 
-    const res = await agent.post('/api/cart/checkout').send({}).expect(422);
+    const res = await agent.post('/api/cart/checkout').send({ paymentMethod: 'bank_transfer' }).expect(422);
     expect(res.body.error.code).toBe('ITEM_NOT_PUBLISHED');
+    expect(await prisma.order.count({ where: { customerId: customer.id } })).toBe(0);
   });
 
-  it('AC-6: checkout on a fully valid cart fails with the honest ORDERS_NOT_AVAILABLE stub, never a fabricated success', async () => {
+  // A-013 has shipped: checkout is no longer the ORDERS_NOT_AVAILABLE stub this test used to assert
+  // (that 501 stub was removed when POST /api/cart/checkout started creating real orders).
+  it('AC-6: checkout on a fully valid cart creates a real payment_pending order and clears the active cart', async () => {
     const { design, size } = await createDesign();
     const customer = await createCustomer();
     const agent = request.agent(app.getHttpServer());
@@ -114,8 +121,9 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
 
     await agent.post('/api/cart/items').send({ designId: design.id.toString(), sizeId: size.id.toString(), quantity: 1 }).expect(201);
 
-    const res = await agent.post('/api/cart/checkout').send({}).expect(501);
-    expect(res.body.error.code).toBe('ORDERS_NOT_AVAILABLE');
+    const res = await agent.post('/api/cart/checkout').send({ paymentMethod: 'bank_transfer' }).expect(201);
+    expect(res.body.data).toMatchObject({ status: 'payment_pending', paymentMethod: 'bank_transfer' });
+    expect((await agent.get('/api/cart').expect(200)).body.data.items).toHaveLength(0);
   });
 
   it('a guest cannot checkout — requires an authenticated customer', async () => {
@@ -170,12 +178,22 @@ describe('Shopping Cart & Checkout (docs/specs/2026-08-28-07-shopping-cart-check
   });
 
   it('AC-4: applying credits with no balance available rejects with INSUFFICIENT_CREDITS', async () => {
+    const { design, size } = await createDesign();
     const customer = await createCustomer();
+    // A-013: the amount checked is what the order could actually use (capped at the cart total), so
+    // there must be something in the cart for a credit amount to apply to.
+    await request(app.getHttpServer()).post('/api/cart/items').set(authHeader(customer)).send({ designId: design.id.toString(), sizeId: size.id.toString(), quantity: 1 }).expect(201);
     const res = await request(app.getHttpServer())
       .post('/api/cart/credits')
       .set(authHeader(customer))
       .send({ amountPkr: 100 })
       .expect(422);
     expect(res.body.error.code).toBe('INSUFFICIENT_CREDITS');
+  });
+
+  it('AC-4 (A-013): credits can never be applied beyond the cart total — an empty cart applies nothing', async () => {
+    const customer = await createCustomer();
+    const res = await request(app.getHttpServer()).post('/api/cart/credits').set(authHeader(customer)).send({ amountPkr: 5000 }).expect(200);
+    expect(res.body.data.creditsUsed).toBe(0);
   });
 });

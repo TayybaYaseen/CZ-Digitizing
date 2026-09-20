@@ -60,8 +60,7 @@ Cart  [A-011]  (review items, apply eligible Credits)
         ↓
 Checkout  [A-013]  ⚠ Login/Register required here if not already authenticated [A-002]
         ↓
-        ├──▶ PayPal  [A-013a] → automatic webhook confirmation
-        └──▶ Bank Transfer  [A-013b] → upload receipt → Admin verifies → confirmed/rejected
+        └──▶ Bank Transfer (the only payment method)  [A-013b] → exact PKR amount + Admin-configured bank details → upload receipt → Admin verifies → confirmed / rejected (new receipt)
         ↓
 Order Confirmation  [A-013c]  →  Notification: order confirmed, payment received
         ↓
@@ -150,7 +149,7 @@ here.
 | Custom Design Request | `/custom-request` | A-017 | A-007 | Submit reference images + requirements | Status tracking |
 | Pricing | `/pricing`, `/pricing/subscriptions`, `/pricing/credits` | A-015 | A-013 | Toggle plans/credits, subscribe/purchase | My Account |
 | Cart | `/cart` | A-011 | A-006 | Review items, apply credits | Checkout |
-| Checkout | `/checkout`, `/checkout/bank-transfer` | A-013 | A-011 | Choose PayPal or Bank Transfer | Order Confirmation |
+| Checkout | `/checkout`, `/checkout/bank-transfer` | A-013 | A-011 | Bank Transfer (only method): exact PKR amount, bank details, receipt upload | Order Confirmation |
 | Order Confirmation | `/order-confirmation/:id` | A-013c | A-013 | View order number, next steps | My Account → Orders |
 | Login / Register | `/login`, `/register` | A-002 | — | Authenticate | Wherever the login was triggered from |
 | New-Device Verification | `/verify-device` | A-002 | — | Enter 4-digit code | Session established |

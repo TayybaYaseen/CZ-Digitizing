@@ -75,7 +75,7 @@ describe('CustomerFilesService (AC-6, AC-11 — logic proven ahead of A-013 wiri
     expect(prisma._row.downloadCount).toBe(0);
   });
 
-  function createFakeOrderPrisma(order: { id: bigint; customerId: bigint; status: string; paymentStatus: string } | null, authorizedFiles: Record<string, unknown>[] = []) {
+  function createFakeOrderPrisma(order: { id: bigint; customerId: bigint; status: string; paymentStatus: string; refundedAmountPkr?: number | null } | null, authorizedFiles: Record<string, unknown>[] = []) {
     return {
       order: { findFirst: jest.fn(async () => order) },
       customerAuthorizedFile: {
@@ -104,6 +104,30 @@ describe('CustomerFilesService (AC-6, AC-11 — logic proven ahead of A-013 wiri
     const prisma = createFakeOrderPrisma({ id: 1n, customerId: 1n, status: 'processing', paymentStatus: 'refunded' });
     const service = new CustomerFilesService(prisma as never, {} as never, {} as never);
     await expect(service.listAuthorizedFiles('1', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
+  });
+
+  // A-013 FINAL PAYMENT ACCESS POLICY: files are reachable only while the order is 100% paid and
+  // confirmed (paymentStatus 'completed') with no refund. Every other state answers PAYMENT_NOT_CONFIRMED
+  // on BOTH the file list and a direct download request.
+  it.each([
+    ['unpaid / awaiting payment', 'payment_pending', 'pending', null],
+    ['receipt rejected (payment failed)', 'payment_pending', 'failed', null],
+    ['a PARTIAL refund, fulfilment status still payment_confirmed', 'payment_confirmed', 'partially_refunded', 200],
+    ['a PARTIAL refund on a processing order', 'processing', 'partially_refunded', 200],
+    ['a PARTIAL refund on a ready order', 'ready', 'partially_refunded', 1],
+    ['a PARTIAL refund on a completed order', 'completed', 'partially_refunded', 500],
+    ['a FULL refund', 'refunded', 'refunded', 1500],
+    ['a cancelled order', 'cancelled', 'pending', null],
+    ['a cancelled order that had been paid', 'cancelled', 'completed', null],
+    ['payment somehow "completed" but a refund amount is recorded', 'completed', 'completed', 1],
+  ])('rejects list AND direct download with PAYMENT_NOT_CONFIRMED: %s', async (_label, status, paymentStatus, refundedAmountPkr) => {
+    const prisma = createFakeOrderPrisma({ id: 1n, customerId: 1n, status, paymentStatus, refundedAmountPkr }, [{ id: 5n, designFile: { designId: 9n, fileFormat: 'DST', fileSizeBytes: 100n } }]);
+    const service = new CustomerFilesService(prisma as never, {} as never, {} as never);
+    await expect(service.listAuthorizedFiles('1', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
+    await expect(service.requestDownload('1', '5', 1n)).rejects.toMatchObject({ code: 'PAYMENT_NOT_CONFIRMED' });
+    // the lock is decided before any file row is even looked up
+    expect(prisma.customerAuthorizedFile.findFirst).not.toHaveBeenCalled();
+    expect(prisma.customerAuthorizedFile.findMany).not.toHaveBeenCalled();
   });
 
   it('allows listing files once the order is payment_confirmed or later (AC-1/AC-6)', async () => {

@@ -6,13 +6,19 @@ import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { formatPkr } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 interface OrderDto {
   id: string;
   status: string;
+  paymentStatus: string;
   paymentMethod: string;
   totalPkr: number;
+  amountDuePkr: number;
+  amountOutstandingPkr: number;
+  filesUnlocked: boolean;
+  creditsUsed: number;
   bankTransferReference: string | null;
 }
 
@@ -25,7 +31,7 @@ interface AuthorizedFileDto {
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
-  payment_pending: 'Awaiting payment confirmation',
+  payment_pending: 'Awaiting bank transfer confirmation',
   payment_confirmed: 'Payment confirmed',
   processing: 'Processing',
   ready: 'Ready',
@@ -35,7 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 // docs/specs/2026-08-28-08-orders-payment-processing.md §5 — "order confirmation screen with
-// order number, next steps, and (once confirmed) a link to purchased files".
+// order number, next steps, and (once confirmed) a link to purchased files". Bank transfer only.
 export default function OrderConfirmationPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -56,7 +62,10 @@ export default function OrderConfirmationPage() {
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
   }, [user, accessToken, params.id]);
 
-  const filesReady = order && ['payment_confirmed', 'processing', 'ready', 'completed'].includes(order.status);
+  // Files are only offered once the SERVER reports them unlocked — the order is 100% paid and confirmed by
+  // an Admin (or credits covered all of it) and nothing was refunded. This page merely reads that decision
+  // and can never mark an order paid itself; the download routes re-check it on every request anyway.
+  const filesReady = order?.filesUnlocked === true;
 
   // docs/specs/2026-08-28-05-private-file-management.md §3 (aspect A-007) — GET
   // /api/orders/:id/files (AC-4/5). Loaded only once files are actually releasable, same gate the
@@ -100,17 +109,17 @@ export default function OrderConfirmationPage() {
             Order <strong>#{order.id}</strong>
           </p>
           <p>Status: {STATUS_LABEL[order.status] ?? order.status}</p>
-          <p>Total: Rs {order.totalPkr}</p>
-          {order.paymentMethod === 'bank_transfer' && !filesReady && (
+          <p>Total: {formatPkr(order.totalPkr)}</p>
+          {order.creditsUsed > 0 && <p>Paid with credits: {formatPkr(order.creditsUsed)}</p>}
+          {order.status === 'payment_pending' && order.paymentStatus !== 'completed' && (
             <p className="text-amber-700">
-              We&apos;re waiting for your bank-transfer receipt to be reviewed.{' '}
+              Payment method: Bank Transfer — {formatPkr(order.amountOutstandingPkr)} still to be transferred and confirmed — your files unlock once the full amount is paid and confirmed.{' '}
               <Link href={`/checkout/bank-transfer/${order.id}`} className="underline">
-                Upload it here
-              </Link>{' '}
-              if you haven&apos;t already.
+                See the bank details and upload your receipt
+              </Link>
+              .
             </p>
           )}
-          {!filesReady && order.paymentMethod !== 'bank_transfer' && <p className="text-gray-600">We&apos;ll notify you once payment is confirmed.</p>}
           {filesReady && (
             <div className="space-y-2">
               <p className="font-semibold text-brand-navy">Your files:</p>

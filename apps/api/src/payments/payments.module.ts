@@ -1,14 +1,12 @@
 import { Module } from '@nestjs/common';
-import { PayPalService } from '../orders/payments/paypal.service';
-import { StripeService } from '../orders/payments/stripe.service';
+import { ExchangeRateService } from '../orders/exchange-rate.service';
 
-// Extracted out of OrdersModule so Subscriptions & Credits (A-015) can reuse the same one-time
-// PayPal/Stripe capture flow for a plan's first payment / a credit-package purchase without
-// creating a circular module dependency: OrdersModule itself needs CreditsModule (to deduct/reverse
-// a customer's balance at checkout/refund), so Credits/Subscriptions can't depend back on
-// OrdersModule for payments — this module is the shared leaf both sides import instead.
+// Bank transfer is the only payment method (A-013, spec §11), so this module no longer wraps any
+// payment provider. It only provides ExchangeRateService — the hourly-refreshed PKR rates behind the
+// DISPLAY-ONLY local-currency amount (AC-8). No payment is ever priced or charged through it: what a
+// customer transfers is always the exact PKR amount due.
 @Module({
-  providers: [PayPalService, StripeService],
-  exports: [PayPalService, StripeService],
+  providers: [ExchangeRateService],
+  exports: [ExchangeRateService],
 })
 export class PaymentsModule {}

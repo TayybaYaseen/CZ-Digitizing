@@ -1,9 +1,9 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 
 const ORDER_STATUSES = ['pending', 'payment_pending', 'payment_confirmed', 'processing', 'ready', 'completed', 'cancelled', 'refunded'] as const;
 
-// PUT /api/orders/:id/status — admin manual transitions (bank-transfer path per spec §3).
+// PUT /api/orders/:id/status — admin manual transitions (payment_confirmed/refunded are refused).
 export class UpdateOrderStatusDto {
   @IsIn(ORDER_STATUSES)
   status!: (typeof ORDER_STATUSES)[number];
@@ -12,9 +12,22 @@ export class UpdateOrderStatusDto {
 // POST /api/orders/:id/payment-confirmation — AC-5: Admin marks the most recent receipt
 // Confirmed or Rejected/Pending. `approve: false` requires a reason so the customer sees a real
 // explanation (spec §5 "bank-transfer rejection shows Admin's stated reason if provided").
+//
+// A-013 FINAL PAYMENT ACCESS POLICY: `amountPkr` is the PKR Admin confirms was actually received for
+// this receipt. Omitted = "the whole outstanding amount". Less than the outstanding amount records a
+// PARTIAL payment — the receipt is confirmed but the order stays unpaid and its files stay locked until
+// the confirmed payments (plus credits) reach 100% of the order total. More than outstanding is refused.
 export class PaymentConfirmationDto {
   @IsBoolean()
   approve!: boolean;
+
+  // Only an ABSENT amount means "the whole outstanding amount": an explicit null (or anything that is
+  // not a positive PKR figure) is a validation error rather than silently confirming everything.
+  @ValidateIf((_, value) => value !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amountPkr?: number;
 
   @IsOptional()
   @IsString()
@@ -64,6 +77,16 @@ export class OrderQueryDto {
   @IsOptional()
   @IsString()
   toDate?: string;
+
+  // A-013 AC-4 — the Admin receipt queue: `pending` returns bank-transfer orders that are still
+  // awaiting payment AND have a receipt waiting for review.
+  @IsOptional()
+  @IsIn(['pending'])
+  receiptStatus?: 'pending';
+
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }
 
 // Shared by GET /api/orders/:id and GET /api/orders/user/history — AC-8's currency display.

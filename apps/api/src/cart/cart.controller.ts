@@ -81,14 +81,14 @@ export class CartController {
   @Roles('customer')
   @HttpCode(200)
   async applyCredits(@Body() dto: ApplyCreditsDto, @Req() req: CartRequest) {
-    await this.service.applyCredits(BigInt(req.user!.sub), dto.amountPkr);
-    return { creditsUsed: dto.amountPkr };
+    const creditsUsed = await this.service.applyCredits(BigInt(req.user!.sub), dto.amountPkr);
+    return { creditsUsed };
   }
 
   @Post('checkout')
   @Roles('customer')
   @HttpCode(201)
   checkout(@Body() dto: CheckoutDto, @Req() req: CartRequest) {
-    return this.service.checkout(req.user, dto.paymentMethod, dto.creditsToApplyPkr);
+    return this.service.checkout(req.user, dto.paymentMethod ?? 'bank_transfer', dto.creditsToApplyPkr);
   }
 }

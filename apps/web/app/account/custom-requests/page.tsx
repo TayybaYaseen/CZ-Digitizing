@@ -97,17 +97,18 @@ export default function MyCustomRequestsPage() {
     setChatInput('');
   }
 
-  async function approve(paymentMethod: 'bank_transfer' | 'paypal' | 'stripe') {
+  // Bank transfer is the only payment method: approving creates the order to pay.
+  async function approve() {
     if (!expanded || !accessToken) return;
     setError(null);
     try {
-      await apiFetch(`/api/custom-requests/${expanded.id}/approve`, {
+      const order = await apiFetch<{ id: string }>(`/api/custom-requests/${expanded.id}/approve`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ paymentMethod }),
+        body: JSON.stringify({ paymentMethod: 'bank_transfer' }),
       });
-      await expand(expanded.id);
-      await load();
+      // Straight to the bank details + receipt upload for the new order.
+      router.push(`/checkout/bank-transfer/${order.id}`);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not approve the quote.', traceId: '' });
     }
@@ -175,11 +176,8 @@ export default function MyCustomRequestsPage() {
                     <div className="rounded-md bg-gray-50 p-3">
                       <p className="mb-2 text-sm font-medium">Quote: PKR {expanded.quotedPricePkr} — approve to proceed</p>
                       <div className="flex gap-2">
-                        <button onClick={() => approve('bank_transfer')} className="rounded-md bg-brand-gold px-3 py-1.5 text-xs font-semibold text-brand-navy">
-                          Approve — Bank Transfer
-                        </button>
-                        <button onClick={() => approve('paypal')} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs">
-                          Approve — PayPal
+                        <button onClick={() => approve()} className="rounded-md bg-brand-gold px-3 py-1.5 text-xs font-semibold text-brand-navy">
+                          Approve — Pay by Bank Transfer
                         </button>
                       </div>
                     </div>

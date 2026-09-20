@@ -6,9 +6,9 @@ import type { AccessTokenPayload } from '../auth/token.types';
 import { CustomerFilesService } from './customer-files.service';
 
 // docs/specs/2026-08-28-05-private-file-management.md §3 (aspect A-007, AC-4/5/6/8/9).
-// TODO(A-013): both routes always 422 PAYMENT_NOT_CONFIRMED today — see CustomerFilesService's
-// header comment. The contract (route shape, auth, response envelope) is real; only the order
-// lookup underneath it is stubbed.
+// A-013 final payment access policy: both routes answer 422 PAYMENT_NOT_CONFIRMED unless the order is
+// 100% paid and admin-confirmed with no refund — see CustomerFilesService's header comment. The gate
+// runs on every request; nothing the client sends can open it.
 @ApiTags('orders/files')
 @ApiBearerAuth()
 @Controller('api/orders/:id/files')

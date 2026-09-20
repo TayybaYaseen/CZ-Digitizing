@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { ApiException } from '../common/exceptions/api-exception';
-import { statusAllowsFileAccess } from '../orders/order-state-machine';
+import { parseIdOr404 } from '../common/parse-id.util';
+import { orderAllowsFileAccess } from '../orders/order-state-machine';
 import { DesignFilesService } from '../files/design-files.service';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,9 +21,9 @@ export class FileFormatRequestsService {
   ) {}
 
   async create(orderId: string, customerId: bigint, dto: CreateFileFormatRequestDto) {
-    const order = await this.prisma.order.findFirst({ where: { id: BigInt(orderId), customerId } });
+    const order = await this.prisma.order.findFirst({ where: { id: parseIdOr404(orderId, 'Order'), customerId } });
     if (!order) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Order not found');
-    if (!statusAllowsFileAccess(order.status)) throw new ApiException('PAYMENT_NOT_CONFIRMED', 422, 'Payment for this order has not been confirmed');
+    if (!orderAllowsFileAccess(order)) throw new ApiException('PAYMENT_NOT_CONFIRMED', 422, 'Files are available only once this order has been paid in full and the payment confirmed');
 
     const row = await this.prisma.fileFormatRequest.create({
       data: { orderId: order.id, customerId, requestedFormat: dto.requestedFormat, notes: dto.notes },

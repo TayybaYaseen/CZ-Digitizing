@@ -42,10 +42,19 @@ export type ApiErrorCode =
   // one step Orders & Payment Processing (A-013, still Blocked) owns — never a fabricated success.
   | 'ORDERS_NOT_AVAILABLE'
   // Orders & Payment Processing spec (docs/specs/2026-08-28-08-orders-payment-processing.md §3)
-  | 'INVALID_WEBHOOK_SIGNATURE'
   | 'ORDER_ALREADY_CONFIRMED'
   | 'RECEIPT_REQUIRED'
   | 'INVALID_ORDER_TRANSITION'
+  // A-013 (receipts, state guards) — added 2026-09-19.
+  | 'ORDER_NOT_PAYABLE'
+  | 'ORDER_STATE_CHANGED'
+  | 'CART_CHANGED'
+  | 'RECEIPT_ALREADY_PENDING'
+  | 'PAYMENT_CONFIRMATION_REQUIRED'
+  | 'USE_REFUND_ENDPOINT'
+  // Bank transfer only (2026-09-19 business decision): refunds are manual and cannot be recorded on a
+  // credit-package/subscription order (its credits/subscription would not be taken back).
+  | 'REFUND_NOT_SUPPORTED'
   // Subscriptions & Credits spec (docs/specs/2026-08-28-09-subscriptions-credits.md §3)
   | 'ALREADY_SUBSCRIBED'
   | 'RENEWAL_PAYMENT_FAILED'

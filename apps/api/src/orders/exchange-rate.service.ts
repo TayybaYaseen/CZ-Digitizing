@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Env } from '../config/env.validation';
@@ -23,7 +23,7 @@ const FALLBACK_RATES_TO_PKR: Record<string, number> = {
 };
 
 @Injectable()
-export class ExchangeRateService {
+export class ExchangeRateService implements OnModuleInit {
   private readonly logger = new Logger(ExchangeRateService.name);
   private readonly apiKey?: string;
 
@@ -32,6 +32,18 @@ export class ExchangeRateService {
     config: ConfigService<Env, true>,
   ) {
     this.apiKey = config.get('EXCHANGE_RATE_API_KEY', { infer: true });
+  }
+
+  // A fresh database must not show PKR-only until the first hourly cron tick, so make sure the table
+  // is populated at boot. Display-only: no payment is ever priced from these rates. Never blocks
+  // startup on failure.
+  async onModuleInit(): Promise<void> {
+    try {
+      const count = await this.prisma.exchangeRate.count();
+      if (count === 0) await this.refreshRates();
+    } catch (err) {
+      this.logger.warn(`Could not seed exchange rates at startup: ${(err as Error).message}`);
+    }
   }
 
   @Cron(CronExpression.EVERY_HOUR)

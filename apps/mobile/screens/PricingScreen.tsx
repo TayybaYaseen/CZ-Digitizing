@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { ApiClientError, apiFetch } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
 import type { CreditPackageDto, SubscriptionPlanDto } from '../lib/types';
+import type { RootTabParamList } from '../navigation/types';
 
 // Port of apps/web/app/pricing/page.tsx — GET /api/subscriptions/plans + /api/credits/packages,
 // POST /api/subscriptions/subscribe + /api/credits/purchase. Closes A-023's §5 Pricing gap.
 //
-// Unlike web (window.location.href = approveUrl, a full-page redirect with no in-app return
-// handling), React Native has no browser to redirect within — Linking.openURL hands the PayPal
-// approval page to the system browser, same "no client-side confirmation step exists" gap web
-// already has (the customer returns to the app manually; PayPal's webhook is what actually
-// updates the subscription/credit balance, per this app's own AC-12 sync guarantee).
+// BANK TRANSFER is the only payment method: both calls create an order for the exact PKR price, and the
+// customer is taken to the BankTransfer screen (bank details + receipt upload). The subscription /
+// credits are only added once an Admin approves the receipt.
 type Tab = 'subscriptions' | 'credits';
 
 export function PricingScreen() {
   const { accessToken } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootTabParamList>>();
   const [tab, setTab] = useState<Tab>('subscriptions');
   const [plans, setPlans] = useState<SubscriptionPlanDto[] | null>(null);
   const [packages, setPackages] = useState<CreditPackageDto[] | null>(null);
@@ -40,12 +41,12 @@ export function PricingScreen() {
     setActionError(null);
     setBusyId(planId);
     try {
-      const res = await apiFetch<{ approveUrl: string | null; clientSecret: string | null }>('/api/subscriptions/subscribe', {
+      const order = await apiFetch<{ id: string }>('/api/subscriptions/subscribe', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ planId, paymentMethod: 'paypal' }),
+        body: JSON.stringify({ planId }),
       });
-      if (res.approveUrl) await Linking.openURL(res.approveUrl);
+      navigation.navigate('CartTab', { screen: 'BankTransfer', params: { orderId: order.id } });
     } catch (e) {
       setActionError(e instanceof ApiClientError ? e.error.message : 'Subscribe failed.');
     } finally {
@@ -57,12 +58,12 @@ export function PricingScreen() {
     setActionError(null);
     setBusyId(packageId);
     try {
-      const res = await apiFetch<{ approveUrl: string | null; clientSecret: string | null }>('/api/credits/purchase', {
+      const order = await apiFetch<{ id: string }>('/api/credits/purchase', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ packageId, paymentMethod: 'paypal' }),
+        body: JSON.stringify({ packageId }),
       });
-      if (res.approveUrl) await Linking.openURL(res.approveUrl);
+      navigation.navigate('CartTab', { screen: 'BankTransfer', params: { orderId: order.id } });
     } catch (e) {
       setActionError(e instanceof ApiClientError ? e.error.message : 'Purchase failed.');
     } finally {

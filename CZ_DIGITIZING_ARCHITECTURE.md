@@ -278,7 +278,7 @@ CREATE TABLE orders (
   order_number VARCHAR(20) UNIQUE NOT NULL,
   customer_id BIGINT NOT NULL REFERENCES users(id),
   order_status ENUM('pending', 'payment_pending', 'payment_confirmed', 'processing', 'ready', 'completed', 'cancelled') DEFAULT 'pending',
-  payment_method ENUM('paypal', 'bank_transfer', 'credit_card'),
+  payment_method ENUM('bank_transfer'),  -- bank transfer is the only payment method (2026-09-19 business decision)
   payment_status ENUM('pending', 'processing', 'completed', 'failed', 'refunded'),
   subtotal_pkr DECIMAL(12, 2),
   discount_pkr DECIMAL(12, 2),
@@ -1041,55 +1041,35 @@ Lazy Loading:
 
 ### Payment Providers
 
-#### PayPal Integration
+#### Online payment providers — REMOVED (business decision, 2026-09-19)
 ```
-Flow:
-1. Customer clicks "PayPal Checkout"
-2. Create PayPal order on backend
-3. Redirect to PayPal
-4. Customer approves & authorizes
-5. PayPal redirects back with auth code
-6. Backend captures payment
-7. Verify transaction signature
-8. Update order status → payment_confirmed
-9. Release files for download
-10. Send customer notification
-
-Webhook:
-- payment.capture.completed
-- payment.capture.denied
-- payment.capture.refunded
+The website accepts BANK TRANSFER ONLY. There is no online payment provider integration: no provider
+checkout, capture, webhook, SDK, credentials or provider refund. Admin approving an uploaded receipt is
+the only mechanism that confirms a payment. Amounts are always the exact PKR amount due.
 ```
 
-#### Bank Transfer (Manual)
+#### Bank Transfer (Manual) — the only payment method
 ```
 Flow:
-1. Customer selects "Bank Transfer"
-2. Display bank details & unique reference number
-3. Customer transfers funds (INTERAC/Wire)
+1. Customer checks out (Bank Transfer is the only method)
+2. Display the exact PKR amount, the Admin-configured bank details & a unique reference number
+3. Customer transfers exactly that PKR amount
 4. Customer uploads receipt/proof
 5. Admin notification sent
 6. Admin verifies receipt
-7. Admin marks payment as confirmed
+7. Admin approves the receipt (or rejects it with a reason; the customer uploads a new one)
 8. System releases files
 9. Send customer notification
 
-Fields:
+Fields (Admin-configured in Settings, shown live to the customer):
 - Bank Name
-- Account Holder
-- Account Number / IBAN
-- Swift/Routing Code
+- Account Title
+- Account Number
+- IBAN
+- Additional payment instructions
 - Unique Reference (Auto-generated per order)
 ```
 
-#### Future: Credit Card (Stripe)
-```
-- PCI-compliant token handling
-- 3D Secure authentication
-- Recurring billing for subscriptions
-- Automatic retry logic
-- Webhook handling
-```
 
 ### Order Payment State Machine
 
@@ -1098,9 +1078,7 @@ pending
     ↓
 payment_pending (awaiting customer payment)
     ↓
-    ├─ [PayPal] → Direct verification
-    ├─ [Bank] → Manual verification
-    └─ [Card] → Stripe webhook
+    └─ [Bank transfer] → Admin approves the uploaded receipt (the only confirmation path)
     ↓
 payment_confirmed
     ↓
@@ -1696,7 +1674,7 @@ Faceted Search:
 - Design management (CRUD, categories)
 - Design cards & browsing
 - Shopping cart
-- Order creation & PayPal integration
+- Order creation & bank-transfer payment
 - Admin panel basics
 - Email notifications
 
@@ -1713,7 +1691,7 @@ Faceted Search:
 - Credit packages
 - Subscription management
 - Credit transaction tracking
-- Recurring billing (PayPal)
+- Subscription renewals as bank-transfer orders
 
 ### Phase 4: Advanced Features (Weeks 17-20)
 - Taebo chatbot

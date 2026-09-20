@@ -4,7 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
-import { ChangePlanDto, SubscribeDto } from './dto/subscription-write.dto';
+import { ChangePlanDto } from './dto/subscription-write.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 // docs/specs/2026-08-28-09-subscriptions-credits.md §3 (aspect A-015a) — public + customer routes.
@@ -19,13 +19,8 @@ export class SubscriptionsController {
     return this.service.listPublicPlans();
   }
 
-  @Post('subscribe')
-  @Roles('customer')
-  @ApiBearerAuth()
-  @HttpCode(201)
-  subscribe(@Body() dto: SubscribeDto, @CurrentUser() user: AccessTokenPayload) {
-    return this.service.subscribe(BigInt(user.sub), dto.planId, dto.paymentMethod);
-  }
+  // POST /api/subscriptions/subscribe lives in PurchasesController (purchases module): a subscription's
+  // first payment is a bank-transfer order, created through OrdersService.
 
   @Get('current')
   @Roles('customer')

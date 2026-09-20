@@ -41,13 +41,13 @@ export class ApplyCreditsDto {
   amountPkr!: number;
 }
 
-// docs/specs/2026-08-28-08-orders-payment-processing.md §3 (aspect A-013) — the customer's chosen
-// settlement rail, passed through to OrdersService.createFromCart(). Values match the real
-// PaymentMethod enum (not PaymentMethodType's display-config-keyed 'credit_card' label) since this
-// is what actually processes the order, not what Admin toggles on/off in Settings.
+// docs/specs/2026-08-28-08-orders-payment-processing.md §3/§11 (aspect A-013) — bank transfer is the
+// only payment method. `paymentMethod` is optional (it can only ever be 'bank_transfer'); any other value
+// is rejected by validation, not silently accepted.
 export class CheckoutDto {
-  @IsIn(['paypal', 'stripe', 'bank_transfer'])
-  paymentMethod!: 'paypal' | 'stripe' | 'bank_transfer';
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 
   // docs/specs/2026-08-28-09-subscriptions-credits.md AC-7 — the amount of the customer's own
   // credit balance to apply against this order's total. Carried on checkout itself rather than

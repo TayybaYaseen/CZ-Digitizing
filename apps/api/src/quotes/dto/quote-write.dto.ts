@@ -75,8 +75,10 @@ export class RespondQuoteDto {
 
 // AC-7 — Admin converts a responded quote into an order.
 export class ConvertQuoteDto {
-  @IsIn(['bank_transfer', 'paypal', 'stripe'])
-  paymentMethod!: 'bank_transfer' | 'paypal' | 'stripe';
+  // Bank transfer is the only payment method; any other value is rejected by validation.
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }
 
 // AC-1/AC-4 admin list filter.

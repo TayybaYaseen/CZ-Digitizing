@@ -132,9 +132,12 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
     expect(afterApprove.orderId?.toString()).toBe(orderId);
 
     // Confirm payment (bank-transfer path) — this is what advances the linked request to
-    // in_production per OrdersService.releaseFilesAndNotify's custom-request hook.
-    await prisma.order.update({ where: { id: BigInt(orderId) }, data: { status: 'payment_pending' } });
-    await request(app.getHttpServer()).put(`/api/orders/${orderId}/status`).set(authHeader(admin)).send({ status: 'payment_confirmed' }).expect(200);
+    // in_production per OrdersService.releaseFilesAndNotify's custom-request hook. A-013: payment
+    // can no longer be faked with PUT /api/orders/:id/status -> payment_confirmed, so this goes
+    // through the real path: the customer uploads a receipt and Admin approves it.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    await request(app.getHttpServer()).post(`/api/orders/${orderId}/receipt`).set(authHeader(customer)).attach('file', png, 'receipt.png').expect(201);
+    await request(app.getHttpServer()).post(`/api/orders/${orderId}/payment-confirmation`).set(authHeader(admin)).send({ approve: true }).expect(201);
 
     const inProduction = await prisma.customRequest.findUniqueOrThrow({ where: { id: req.id } });
     expect(inProduction.status).toBe('in_production');
@@ -157,6 +160,15 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
 
     const download = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer)).expect(200);
     expect(download.body.data.downloadUrl).toBeTruthy();
+
+    // A-013 FINAL PAYMENT ACCESS POLICY: the deliverable is only reachable while its order is 100% paid.
+    // A PARTIAL refund of that order re-locks the download, and so does a full refund.
+    await request(app.getHttpServer()).put(`/api/orders/${orderId}/refund`).set(authHeader(admin)).send({ amountPkr: 100 }).expect(200);
+    const relocked = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer));
+    expect(relocked.status).toBe(422);
+    expect(relocked.body.error.code).toBe('PAYMENT_NOT_CONFIRMED');
+    await request(app.getHttpServer()).put(`/api/orders/${orderId}/refund`).set(authHeader(admin)).send({}).expect(200);
+    expect((await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer))).status).toBe(422);
   });
 
   it('AC-6: file-format-request create -> fulfill -> customer downloads through the standard authorized-file path', async () => {

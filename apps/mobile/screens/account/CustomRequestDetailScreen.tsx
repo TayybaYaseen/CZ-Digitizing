@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, type NavigationProp } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { io, type Socket } from 'socket.io-client';
 import type { CustomRequestDto, CustomRequestFileDto, CustomRequestMessageDto } from '@czd/shared-types';
 import { API_URL, ApiClientError, apiFetch } from '../../lib/api-client';
 import { useAuth } from '../../lib/auth-context';
-import type { AccountStackParamList } from '../../navigation/types';
+import type { AccountStackParamList, RootTabParamList } from '../../navigation/types';
 
 // Port of apps/web/app/account/custom-requests/page.tsx's expanded-detail half, including AC-8's
 // live message delivery + typing indicator over the custom-requests WebSocket gateway
@@ -18,6 +18,7 @@ type Props = NativeStackScreenProps<AccountStackParamList, 'CustomRequestDetail'
 export function CustomRequestDetailScreen({ route }: Props) {
   const { requestId } = route.params;
   const { accessToken } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootTabParamList>>();
   const [detail, setDetail] = useState<CustomRequestDto | null>(null);
   const [messages, setMessages] = useState<CustomRequestMessageDto[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -69,15 +70,17 @@ export function CustomRequestDetailScreen({ route }: Props) {
     setChatInput('');
   }
 
-  async function approve(paymentMethod: 'bank_transfer' | 'paypal') {
+  // Bank transfer is the only payment method: approving creates the order to pay, and the customer is
+  // taken straight to the bank details + receipt upload.
+  async function approve() {
     setError(null);
     try {
-      await apiFetch(`/api/custom-requests/${requestId}/approve`, {
+      const order = await apiFetch<{ id: string }>(`/api/custom-requests/${requestId}/approve`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ paymentMethod }),
+        body: JSON.stringify({ paymentMethod: 'bank_transfer' }),
       });
-      await load();
+      navigation.navigate('CartTab', { screen: 'BankTransfer', params: { orderId: order.id } });
     } catch (e) {
       setError(e instanceof ApiClientError ? e.error.message : 'Could not approve the quote.');
     }
@@ -125,11 +128,8 @@ export function CustomRequestDetailScreen({ route }: Props) {
         <View style={styles.quoteBox}>
           <Text style={styles.quoteText}>Quote: PKR {detail.quotedPricePkr} — approve to proceed</Text>
           <View style={styles.quoteActions}>
-            <Pressable style={styles.button} onPress={() => approve('bank_transfer')}>
-              <Text style={styles.buttonText}>Approve — Bank Transfer</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => approve('paypal')}>
-              <Text style={styles.secondaryButtonText}>Approve — PayPal</Text>
+            <Pressable style={styles.button} onPress={() => approve()}>
+              <Text style={styles.buttonText}>Approve — Pay by Bank Transfer</Text>
             </Pressable>
           </View>
         </View>

@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { ApiException } from '../common/exceptions/api-exception';
+import { parseIdOr404 } from '../common/parse-id.util';
 import { StorageService } from '../files/storage.service';
+import { orderAllowsFileAccess } from '../orders/order-state-machine';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toCustomRequestFileDto } from './dto/custom-request.dto';
@@ -65,13 +67,19 @@ export class CustomRequestFilesService {
   }
 
   async requestDownload(id: string, fileId: string, customerId: bigint): Promise<{ downloadUrl: string; expiresAt: Date }> {
-    const request = await this.prisma.customRequest.findFirst({ where: { id: BigInt(id), customerId } });
+    const request = await this.prisma.customRequest.findFirst({ where: { id: parseIdOr404(id, 'Custom request'), customerId } });
     if (!request) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Custom request not found');
     if (request.status !== 'delivered' && request.status !== 'completed') {
       throw new ApiException('PAYMENT_NOT_CONFIRMED', 422, 'Files for this request have not been delivered yet');
     }
+    // A-013 payment access policy: deliverables are only reachable while the request's own order is
+    // 100% paid and confirmed — a refund (partial included) or cancellation of that order re-locks them.
+    const order = request.orderId ? await this.prisma.order.findUnique({ where: { id: request.orderId } }) : null;
+    if (!order || !orderAllowsFileAccess(order)) {
+      throw new ApiException('PAYMENT_NOT_CONFIRMED', 422, 'Files are available only once the order has been paid in full and the payment confirmed');
+    }
 
-    const row = await this.prisma.customRequestFile.findFirst({ where: { id: BigInt(fileId), customRequestId: request.id } });
+    const row = await this.prisma.customRequestFile.findFirst({ where: { id: parseIdOr404(fileId, 'File'), customRequestId: request.id } });
     if (!row) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'File not found for this request');
 
     if (row.maxDownloadAttempts !== null && row.downloadCount >= row.maxDownloadAttempts) {

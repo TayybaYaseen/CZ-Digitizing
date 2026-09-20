@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ApiException } from '../common/exceptions/api-exception';
 import { CreditsService } from '../credits/credits.service';
-import type { BillingPeriod, CustomerSubscription, SubscriptionPlan } from '../generated/prisma';
+import type { BillingPeriod, CustomerSubscription, Prisma, SubscriptionPlan } from '../generated/prisma';
 import { NotificationService } from '../notifications/services/notification.service';
-import { PayPalService } from '../orders/payments/paypal.service';
-import { StripeService } from '../orders/payments/stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangePlanDto, SubscriptionPlanWriteDto } from './dto/subscription-write.dto';
 import {
@@ -21,13 +19,20 @@ import { computeRenewalDate } from './renewal-date.util';
 // alongside logosUsed on each renewal grant).
 export const LOW_LOGO_LIMIT_THRESHOLD = 3;
 
-// docs/specs/2026-08-28-09-subscriptions-credits.md §3/§4 (aspect A-015a). Dunning cadence (spec §8
-// risk #3, left Open by the spec itself): resolved here as 3 retry attempts over a 3-day grace
-// period before lapsing — a concrete, documented choice rather than leaving retry/backoff
-// unimplemented, per this repo's "flag, don't guess, but still ship something real" convention
-// (see e.g. OrdersService.reviewPaymentConfirmation's own doc comment on the same kind of call).
+// docs/specs/2026-08-28-09-subscriptions-credits.md §3/§4 (aspect A-015a). Payment is BANK TRANSFER
+// ONLY: the first payment and every renewal are ordinary bank-transfer orders (created by
+// PurchasesService, activated here by activateFromOrder once an Admin approves the receipt).
+// Dunning cadence (spec §8 risk #3, left Open by the spec itself): resolved as 3 missed renewal
+// reminders over a 3-day grace period before lapsing (PurchasesService.attemptRenewal).
 export const RENEWAL_MAX_RETRIES = 3;
 export const RENEWAL_GRACE_PERIOD_DAYS = 3;
+
+// What activating a subscription changed — used only to word the customer's notification.
+export interface SubscriptionActivation {
+  planName: string;
+  renewalDate: Date;
+  isRenewal: boolean;
+}
 
 @Injectable()
 export class SubscriptionsService {
@@ -35,8 +40,6 @@ export class SubscriptionsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly paypal: PayPalService,
-    private readonly stripe: StripeService,
     private readonly credits: CreditsService,
     private readonly notifications: NotificationService,
   ) {}
@@ -92,12 +95,12 @@ export class SubscriptionsService {
   // subscribe to anymore without touching subscribers' historical records.
   async deletePlan(id: string): Promise<void> {
     const planId = BigInt(id);
-    const subscriberCount = await this.prisma.customerSubscription.count({ where: { planId } });
+    const subscriberCount = (await this.prisma.customerSubscription.count({ where: { planId } })) + (await this.prisma.orderItem.count({ where: { subscriptionPlanId: planId } }));
     if (subscriberCount > 0) {
       throw new ApiException(
         'CONFLICT',
         409,
-        `Cannot delete "${(await this.prisma.subscriptionPlan.findUnique({ where: { id: planId } }))?.name ?? 'this plan'}" — ${subscriberCount} customer(s) have subscribed to it. Unpublish it instead to stop new signups.`,
+        `Cannot delete "${(await this.prisma.subscriptionPlan.findUnique({ where: { id: planId } }))?.name ?? 'this plan'}" — it is referenced by ${subscriberCount} subscription/order record(s). Unpublish it instead to stop new signups.`,
       );
     }
     await this.prisma.subscriptionPlan.delete({ where: { id: planId } });
@@ -167,66 +170,29 @@ export class SubscriptionsService {
     return toCustomerSubscriptionDto(sub);
   }
 
-  // AC-2 (part 1) — mirrors CreditsService.purchase()'s "create a pending payment, confirm via
-  // webhook" shape (see PendingSubscriptionPayment's own doc comment). ALREADY_SUBSCRIBED (spec §3)
-  // is checked here, not just at confirm time, so the customer gets an immediate, honest rejection
-  // instead of paying for a subscription the webhook will silently refuse to activate.
-  async subscribe(customerId: bigint, planId: string, paymentMethod: 'paypal' | 'stripe'): Promise<{ approveUrl: string | null; clientSecret: string | null }> {
-    const existing = await this.prisma.customerSubscription.findUnique({ where: { customerId } });
-    if (existing && existing.status === 'active') throw new ApiException('ALREADY_SUBSCRIBED', 409, 'An active subscription already exists');
-
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: BigInt(planId) } });
-    if (!plan || !plan.isPublished) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Subscription plan not found');
-
-    const pending = await this.prisma.pendingSubscriptionPayment.create({ data: { customerId, planId: plan.id } });
-
-    if (paymentMethod === 'paypal') {
-      const created = await this.paypal.createOrder(Number(plan.pricePkr), `subscription:${pending.id}`);
-      if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
-      await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });
-      return { approveUrl: created.approveUrl, clientSecret: null };
-    }
-
-    const created = await this.stripe.createPaymentIntent(Number(plan.pricePkr), `subscription:${pending.id}`);
-    if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
-    await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { stripePaymentIntentId: created.paymentIntentId } });
-    return { approveUrl: null, clientSecret: created.clientSecret };
-  }
-
-  // AC-2 (part 2)/AC-3 — called by the webhook once payment is confirmed. Handles both the first
-  // subscription (no existing row) and a renewal charge (row exists) with the same logic, since
-  // both cases are "a payment for this customer's plan just succeeded, extend their access".
-  async confirmPayment(pendingId: bigint): Promise<void> {
-    const pending = await this.prisma.pendingSubscriptionPayment.findUnique({ where: { id: pendingId } });
-    if (!pending) {
-      this.logger.log(`Subscription payment ${pendingId} already processed or unknown — ignoring duplicate webhook`);
-      return;
-    }
-    const plan = await this.prisma.subscriptionPlan.findUniqueOrThrow({ where: { id: pending.planId } });
+  // AC-2 (part 2)/AC-3 — called from OrdersService inside the transaction that approves a subscription
+  // order's bank-transfer receipt (first payment or renewal alike: both are "a payment for this
+  // customer's plan was confirmed, extend their access"). Because that approval is single-winner,
+  // this runs exactly once per order. Creates the subscription on the first payment, otherwise
+  // reactivates/extends the existing row, then grants the plan's monthly credits and resets the logo
+  // allowance. Returns what the customer notification needs.
+  async activateFromOrder(tx: Prisma.TransactionClient, customerId: bigint, planId: bigint): Promise<SubscriptionActivation> {
+    const plan = await tx.subscriptionPlan.findUniqueOrThrow({ where: { id: planId } });
     const now = new Date();
     const renewalDate = computeRenewalDate(now, plan.billingPeriod);
 
-    const existing = await this.prisma.customerSubscription.findUnique({ where: { customerId: pending.customerId } });
-
+    const existing = await tx.customerSubscription.findUnique({ where: { customerId } });
     const sub = existing
-      ? await this.prisma.customerSubscription.update({
-          where: { customerId: pending.customerId },
+      ? await tx.customerSubscription.update({
+          where: { customerId },
           data: { planId: plan.id, status: 'active', autoRenew: true, renewalDate, endDate: null, failedRenewalCount: 0, lastRenewalFailedAt: null },
         })
-      : await this.prisma.customerSubscription.create({
-          data: { customerId: pending.customerId, planId: plan.id, status: 'active', autoRenew: true, startDate: now, renewalDate },
+      : await tx.customerSubscription.create({
+          data: { customerId, planId: plan.id, status: 'active', autoRenew: true, startDate: now, renewalDate },
         });
 
-    await this.grantMonthlyCredits(sub, plan);
-    await this.prisma.pendingSubscriptionPayment.delete({ where: { id: pending.id } });
-
-    await this.notifications.notify({
-      recipientUserId: pending.customerId.toString(),
-      type: 'subscription_renewal',
-      title: existing ? 'Subscription renewed' : 'Subscription activated',
-      message: `Your "${plan.name}" subscription is now active. Next renewal: ${renewalDate.toDateString()}.`,
-      channels: ['email', 'in_app'],
-    });
+    await this.grantMonthlyCredits(tx, sub, plan);
+    return { planName: plan.name, renewalDate, isRenewal: existing !== null };
   }
 
   // AC-4 — cancellation leaves renewalDate as the already-paid access boundary (copied into
@@ -280,57 +246,14 @@ export class SubscriptionsService {
     return { subscription: toCustomerSubscriptionDto(updated), proratedChargePkr };
   }
 
-  // AC-3/AC-8 — invoked by SubscriptionRenewalService's daily cron for every active,
-  // auto-renewing subscription whose renewalDate has arrived. Not a silent auto-charge: no stored
-  // payment method exists in this payment layer (spec §8 risk #1, left Open by the spec itself —
-  // PayPal Subscriptions API vs. manual re-charge), so "attempt" concretely means creating a fresh
-  // one-time payment intent and prompting the customer to complete it, tracked the same way the
-  // very first payment was. A subscription that misses RENEWAL_MAX_RETRIES attempts across
-  // RENEWAL_GRACE_PERIOD_DAYS lapses (AC-8: no further automatic credit grant after that).
-  async attemptRenewal(sub: CustomerSubscription & { plan: SubscriptionPlan }): Promise<void> {
-    const pending = await this.prisma.pendingSubscriptionPayment.create({ data: { customerId: sub.customerId, planId: sub.planId } });
-    const created = await this.paypal.createOrder(Number(sub.plan.pricePkr), `subscription:${pending.id}`);
-    const approveUrl = created?.approveUrl ?? null;
-    if (!created) await this.prisma.pendingSubscriptionPayment.delete({ where: { id: pending.id } });
-    else await this.prisma.pendingSubscriptionPayment.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });
-
-    const failedCount = sub.failedRenewalCount + 1;
-    const shouldLapse = failedCount >= RENEWAL_MAX_RETRIES;
-
-    await this.prisma.customerSubscription.update({
-      where: { customerId: sub.customerId },
-      data: shouldLapse
-        ? { status: 'lapsed', autoRenew: false, failedRenewalCount: failedCount, lastRenewalFailedAt: new Date() }
-        : { failedRenewalCount: failedCount, lastRenewalFailedAt: new Date() },
-    });
-
-    await this.notifications.notify({
-      recipientUserId: sub.customerId.toString(),
-      type: 'subscription_renewal_failed',
-      title: shouldLapse ? 'Subscription lapsed' : 'Renewal payment required',
-      message: shouldLapse
-        ? `Your "${sub.plan.name}" subscription has lapsed after ${RENEWAL_MAX_RETRIES} missed renewal attempts. Subscribe again any time.`
-        : `Your "${sub.plan.name}" subscription renewal needs a payment.${approveUrl ? ` Complete it here: ${approveUrl}` : ''} (attempt ${failedCount}/${RENEWAL_MAX_RETRIES})`,
-      channels: ['email', 'in_app'],
-    });
-  }
-
-  // AC-3 — idempotent monthly grant: SubscriptionCreditGrant.creditTransactionId is unique, and
-  // this checks for an existing grant tied to the *current* renewalDate window (approximated here
-  // by "granted since this subscription's last renewalDate update") before writing a second one,
-  // so a retried webhook/cron tick can never double-grant.
-  private async grantMonthlyCredits(sub: CustomerSubscription, plan: SubscriptionPlan): Promise<void> {
-    const recentGrant = await this.prisma.subscriptionCreditGrant.findFirst({
-      where: { customerSubscriptionId: sub.id, grantedAt: { gte: new Date(Date.now() - 60_000) } },
-    });
-    if (recentGrant) return;
-
-    await this.prisma.$transaction(async (tx) => {
-      const creditTransactionId = await this.credits.grant(tx, sub.customerId, plan.monthlyCredits, `Monthly grant for subscription plan "${plan.name}"`);
-      await tx.subscriptionCreditGrant.create({ data: { customerSubscriptionId: sub.id, creditTransactionId } });
-      // AC-3/AC-8 for logos, same cycle boundary as the credit grant above — a fresh cycle means a
-      // fresh logo allowance and a fresh chance to hit (and be re-warned about) the low threshold.
-      await tx.customerSubscription.update({ where: { id: sub.id }, data: { logosUsed: 0, logoLimitWarnedAt: null } });
-    });
+  // AC-3 — the monthly grant. Runs only from activateFromOrder(), i.e. once per approved payment
+  // (the approval's single-winner claim is what makes it idempotent); SubscriptionCreditGrant links
+  // the grant to its ledger entry (creditTransactionId is unique).
+  private async grantMonthlyCredits(tx: Prisma.TransactionClient, sub: CustomerSubscription, plan: SubscriptionPlan): Promise<void> {
+    const creditTransactionId = await this.credits.grant(tx, sub.customerId, plan.monthlyCredits, `Monthly grant for subscription plan "${plan.name}"`);
+    await tx.subscriptionCreditGrant.create({ data: { customerSubscriptionId: sub.id, creditTransactionId } });
+    // AC-3/AC-8 for logos, same cycle boundary as the credit grant above — a fresh cycle means a
+    // fresh logo allowance and a fresh chance to hit (and be re-warned about) the low threshold.
+    await tx.customerSubscription.update({ where: { id: sub.id }, data: { logosUsed: 0, logoLimitWarnedAt: null } });
   }
 }
