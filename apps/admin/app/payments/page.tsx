@@ -18,6 +18,7 @@ interface QueueRow {
   customerDisplayName: string | null;
   totalPkr: number;
   amountDuePkr: number;
+  amountOutstandingPkr: number;
   bankTransferReference: string | null;
   createdAt: string;
   latestReceipt: { id: string; uploadedAt: string; reviewStatus: string; contentType: string | null } | null;
@@ -59,7 +60,7 @@ export default function PaymentsPage() {
     <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-navy-800">Payments</h1>
-        <p className="mt-1 text-sm text-gray-500">Bank-transfer receipts awaiting review, and payment method configuration.</p>
+        <p className="mt-1 text-sm text-gray-500">Bank-transfer receipts awaiting review (the only payment method), and the bank account customers pay into.</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -75,7 +76,7 @@ export default function PaymentsPage() {
                   <th className="py-2 pr-4">Order</th>
                   <th className="py-2 pr-4">Customer</th>
                   <th className="py-2 pr-4">Reference</th>
-                  <th className="py-2 pr-4">Amount due</th>
+                  <th className="py-2 pr-4">Outstanding to confirm</th>
                   <th className="py-2 pr-4">Receipt uploaded</th>
                   <th className="py-2 pr-4" />
                 </tr>
@@ -89,7 +90,7 @@ export default function PaymentsPage() {
                       {row.customerDisplayName && <div className="text-xs text-gray-500">{row.customerEmail}</div>}
                     </td>
                     <td className="py-2 pr-4 font-mono text-xs">{row.bankTransferReference ?? '—'}</td>
-                    <td className="py-2 pr-4">Rs {row.amountDuePkr}</td>
+                    <td className="py-2 pr-4">PKR {row.amountOutstandingPkr}</td>
                     <td className="py-2 pr-4">
                       {row.latestReceipt ? new Date(row.latestReceipt.uploadedAt).toLocaleString() : '—'}
                       {row.latestReceipt?.contentType && <span className="ml-2 text-xs text-gray-400">{row.latestReceipt.contentType.replace('application/', '').replace('image/', '')}</span>}
@@ -107,13 +108,12 @@ export default function PaymentsPage() {
         )}
       </Card>
 
-      <Card title="Payment method settings">
+      <Card title="Bank account details">
         <p className="text-sm text-gray-500">
-          Bank-transfer display details (AC-9 — changes apply to the very next checkout, no deploy). PayPal and Stripe API credentials are server environment variables and are not
-          editable here.
+          Bank name, account title, account number, IBAN and payment instructions are edited in Settings (AC-9 — a change applies to the very next customer payment page, no deploy).
         </p>
         <Link href="/settings/platform" className="mt-2 inline-block text-sm font-semibold text-navy-800 underline">
-          Go to Settings
+          Edit bank details
         </Link>
       </Card>
     </div>

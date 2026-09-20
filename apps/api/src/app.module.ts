@@ -26,6 +26,7 @@ import { CartSessionMiddleware } from './cart/cart-session.middleware';
 import { CreditsModule } from './credits/credits.module';
 import { FilesModule } from './files/files.module';
 import { OrdersModule } from './orders/orders.module';
+import { PurchasesModule } from './purchases/purchases.module';
 import { RedisModule } from './redis/redis.module';
 import { SettingsModule } from './settings/settings.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -71,14 +72,18 @@ import { PushTokensModule } from './users/push-tokens/push-tokens.module';
     SettingsModule,
     DesignsModule,
     BundlesModule,
-    // Before OrdersModule: OrdersModule imports CreditsModule (checkout credit deduction/refund
-    // reversal — see PaymentsModule's own doc comment for why the dependency runs this direction).
+    // Before OrdersModule: OrdersModule imports CreditsModule and SubscriptionsModule (checkout credit
+    // deduction, refund reversal, and crediting/activating a bought package or subscription when a
+    // bank-transfer receipt is approved).
     CreditsModule,
     SubscriptionsModule,
     // Before CartModule: CartService.checkout() calls OrdersService.createFromCart() directly
     // (CartModule itself also imports OrdersModule — listed here too for the same top-level
     // feature-module visibility every other module gets in this list).
     OrdersModule,
+    // After Orders/Credits/Subscriptions: creates the bank-transfer orders for credit packages,
+    // subscription sign-ups and renewals (POST /api/credits/purchase, /api/subscriptions/subscribe).
+    PurchasesModule,
     CartModule,
     FilesModule,
     // Content & Knowledge Base (A-012, sub-aspects A-012a-f). FaqModule/BlogModule export their

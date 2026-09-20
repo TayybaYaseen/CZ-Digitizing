@@ -106,7 +106,7 @@ export class CustomRequestsController {
   @Post(':id/approve')
   @Roles('customer')
   approve(@Param('id') id: string, @Body() dto: ApproveQuoteDto, @CurrentUser() user: AccessTokenPayload) {
-    return this.orders.createFromCustomRequest(id, BigInt(user.sub), dto.paymentMethod);
+    return this.orders.createFromCustomRequest(id, BigInt(user.sub), dto.paymentMethod ?? 'bank_transfer');
   }
 
   @Get(':id/messages')

@@ -160,6 +160,15 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
 
     const download = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer)).expect(200);
     expect(download.body.data.downloadUrl).toBeTruthy();
+
+    // A-013 FINAL PAYMENT ACCESS POLICY: the deliverable is only reachable while its order is 100% paid.
+    // A PARTIAL refund of that order re-locks the download, and so does a full refund.
+    await request(app.getHttpServer()).put(`/api/orders/${orderId}/refund`).set(authHeader(admin)).send({ amountPkr: 100 }).expect(200);
+    const relocked = await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer));
+    expect(relocked.status).toBe(422);
+    expect(relocked.body.error.code).toBe('PAYMENT_NOT_CONFIRMED');
+    await request(app.getHttpServer()).put(`/api/orders/${orderId}/refund`).set(authHeader(admin)).send({}).expect(200);
+    expect((await request(app.getHttpServer()).post(`/api/custom-requests/${req.id}/files/${fileId}/download`).set(authHeader(customer))).status).toBe(422);
   });
 
   it('AC-6: file-format-request create -> fulfill -> customer downloads through the standard authorized-file path', async () => {

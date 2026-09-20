@@ -54,7 +54,7 @@ not renumbered as specs are added; the table order reflects actual build sequenc
 | 05 | [Private Embroidery File Management & Protection](specs/2026-08-28-05-private-file-management.md) | `.EMB` privacy, admin uploads, signed downloads, ZIP protection, allowed-format configuration |
 | 06 | [Design Bundles](specs/2026-08-28-06-design-bundles.md) | Curated multi-design bundles and their purchase/file-authorization flow |
 | 07 | [Shopping Cart & Checkout](specs/2026-08-28-07-shopping-cart-checkout.md) | Cart contents, credit application, saved-for-later, checkout hand-off |
-| 08 | [Orders & Payment Processing](specs/2026-08-28-08-orders-payment-processing.md) | Order state machine, PayPal, Bank Transfer, Stripe, refunds, currency conversion |
+| 08 | [Orders & Payment Processing](specs/2026-08-28-08-orders-payment-processing.md) | Order state machine, Bank Transfer (the only payment method), receipts, credits, manual refunds, renewals |
 
 ### Phase 2 — Monetization extensions & service requests
 

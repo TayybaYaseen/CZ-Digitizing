@@ -9,18 +9,16 @@ export class PaymentMethodEntryDto {
   @IsBoolean()
   isEnabled!: boolean;
 
-  // Non-secret display config: for bank_transfer, the account details a customer transfers
-  // money INTO (bankName/accountTitle/accountNumber/iban) — necessarily customer-visible, not a
-  // secret, per docs/specs/2026-08-28-08-orders-payment-processing.md AC-3/AC-9. Real API
-  // credentials (PayPal client secret, Stripe secret key) never go here — those stay in .env,
-  // per that spec's own §8 risk #2 note.
+  // The bank account a customer transfers PKR into: bankName / accountTitle / accountNumber / iban /
+  // instructions (any other key is dropped by PlatformSettingsService). Necessarily customer-visible,
+  // so it is display config, not a secret — docs/specs/2026-08-28-08-orders-payment-processing.md AC-3/AC-9.
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
 }
 
-// AC-2/AC-10 — past order records retain the payment details active at order time; only future
-// checkouts see this update (enforced by A-013's own Order snapshot once that aspect exists).
+// AC-2/AC-9 — bank transfer is the only payment method; checkout / payment pages read these details
+// live, so a change applies to the very next page view. Amounts on past orders are unaffected.
 export class UpdatePaymentMethodsDto {
   @IsArray()
   @ArrayMinSize(1)

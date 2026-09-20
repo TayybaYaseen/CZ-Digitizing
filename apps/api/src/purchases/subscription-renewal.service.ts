@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { SubscriptionsService } from './subscriptions.service';
+import { PurchasesService } from './purchases.service';
 
 // AC-3/AC-8 — daily sweep for due renewals, same @nestjs/schedule cron pattern as
-// notification-batching.service.ts's own daily jobs.
+// notification-batching.service.ts's own daily jobs. Each due subscription gets (or keeps) an unpaid
+// bank-transfer renewal order — see PurchasesService.attemptRenewal.
 @Injectable()
 export class SubscriptionRenewalService {
   private readonly logger = new Logger(SubscriptionRenewalService.name);
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly subscriptions: SubscriptionsService,
+    private readonly purchases: PurchasesService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_7AM)
@@ -23,7 +24,7 @@ export class SubscriptionRenewalService {
 
     for (const sub of due) {
       try {
-        await this.subscriptions.attemptRenewal(sub);
+        await this.purchases.attemptRenewal(sub);
       } catch (err) {
         this.logger.error(`Renewal attempt failed for subscription ${sub.id}: ${(err as Error).message}`);
       }

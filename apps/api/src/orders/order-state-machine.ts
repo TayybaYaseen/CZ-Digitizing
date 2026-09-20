@@ -1,4 +1,4 @@
-import type { OrderStatus } from '../generated/prisma';
+import type { OrderPaymentStatus, OrderStatus } from '../generated/prisma';
 
 // docs/specs/2026-08-28-08-orders-payment-processing.md §3 — authoritative state machine:
 //   pending -> payment_pending -> payment_confirmed -> processing -> ready -> completed
@@ -51,13 +51,26 @@ export function isPaymentGatedStatus(status: OrderStatus): boolean {
   return PAYMENT_GATED_STATUSES.includes(status);
 }
 
-// AC-6 — "anything after payment" per the spec's own wording: gates file access on every status
-// that comes at or after payment_confirmed in the happy-path chain. Explicitly excludes
-// cancelled/refunded even though refunded is reachable from e.g. `processing` — AC-11's "access is
-// re-evaluated per Admin policy" is the open question flagged in customer-files.service.ts, not an
-// automatic continuation of access after a refund.
+// AC-6 — "anything after payment" per the spec's own wording: the statuses at or after
+// payment_confirmed in the happy-path chain. Explicitly excludes cancelled/refunded. This is only
+// HALF of the file-access rule — see orderAllowsFileAccess() below, which is what every gate uses.
 const FILE_RELEASE_STATUSES: OrderStatus[] = ['payment_confirmed', 'processing', 'ready', 'completed'];
 
 export function statusAllowsFileAccess(status: OrderStatus): boolean {
   return FILE_RELEASE_STATUSES.includes(status);
+}
+
+// A-013 FINAL PAYMENT ACCESS POLICY — customer files are unlocked ONLY after 100% of the order amount
+// has been paid and an authorized admin has confirmed it. Partial payment never unlocks files, and any
+// refund (partial included) re-locks them, because after a refund the order is no longer fully paid.
+//
+// `paymentStatus === 'completed'` is only ever written by the two single-claim paths that verify the
+// FULL amount (an admin approving the receipt that brings confirmed payments + credits up to the
+// total, or credits covering the whole order) — so it means "fully paid and confirmed". Anything else
+// (pending, failed, partially_refunded, refunded) keeps files locked, as does a cancelled order. A
+// recorded refund amount is checked too, as a belt-and-braces guard should paymentStatus ever lag it.
+// Every file-access path (list, download token, extra-format requests, custom-request deliverables)
+// must call THIS, never `statusAllowsFileAccess` on its own.
+export function orderAllowsFileAccess(order: { status: OrderStatus; paymentStatus: OrderPaymentStatus; refundedAmountPkr: { toString(): string } | number | null }): boolean {
+  return statusAllowsFileAccess(order.status) && order.paymentStatus === 'completed' && !(Number(order.refundedAmountPkr ?? 0) > 0);
 }

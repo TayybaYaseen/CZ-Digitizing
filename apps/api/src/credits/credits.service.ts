@@ -1,10 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { CreditTransactionType, Prisma } from '../generated/prisma';
 import { NotificationService } from '../notifications/services/notification.service';
-import { PayPalService } from '../orders/payments/paypal.service';
-import { StripeService } from '../orders/payments/stripe.service';
-import { PaymentAmountService } from '../payments/payment-amount.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PagedResult } from '../designs/designs.service';
 import { CreditPackageWriteDto, GiftCreditsDto } from './dto/credit-write.dto';
@@ -16,14 +13,9 @@ import { CreditBalanceDto, CreditPackageDto, CreditTransactionDto, toCreditPacka
 // a negative availableCredits balance is a ledger-integrity violation that must never occur).
 @Injectable()
 export class CreditsService {
-  private readonly logger = new Logger(CreditsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly paypal: PayPalService,
-    private readonly stripe: StripeService,
     private readonly notifications: NotificationService,
-    private readonly paymentAmounts: PaymentAmountService,
   ) {}
 
   async listPublicPackages(): Promise<CreditPackageDto[]> {
@@ -51,11 +43,16 @@ export class CreditsService {
     return toCreditPackageDto(updated);
   }
 
-  // Unlike SubscriptionPlan, CreditPackage has no FK referencing it from anywhere (a purchase's
-  // CreditTransaction records the resulting credit amount directly, never the package id it came
-  // from) — so a hard delete here is always safe and never needs a "has subscribers" guard.
+  // A package that has ever been ordered is referenced by order_items (Restrict FK), so it can no longer
+  // be deleted — unpublish it instead (the always-safe way to stop new purchases without touching
+  // purchase history). A never-ordered package is simply deleted.
   async deletePackage(id: string): Promise<void> {
-    await this.prisma.creditPackage.delete({ where: { id: BigInt(id) } });
+    const packageId = BigInt(id);
+    const orders = await this.prisma.orderItem.count({ where: { creditPackageId: packageId } });
+    if (orders > 0) {
+      throw new ApiException('CONFLICT', 409, `This credit package is referenced by ${orders} order(s) and cannot be deleted. Unpublish it instead to stop new purchases.`);
+    }
+    await this.prisma.creditPackage.delete({ where: { id: packageId } });
   }
 
   async getBalance(customerId: bigint): Promise<CreditBalanceDto> {
@@ -72,60 +69,21 @@ export class CreditsService {
     return { items: rows.map(toCreditTransactionDto), total };
   }
 
-  // AC-6 (part 1) — mirrors OrdersService.createFromCart()'s "create a payment intent, track the
-  // provider reference, confirm later via webhook" shape, but for a credit package rather than an
-  // Order row (no Order concept applies to a credit top-up). PendingCreditPurchase is what lets
-  // handleWebhookConfirmed() below recover (customerId, packageId) once the provider's webhook
-  // fires — see that model's own doc comment in schema.prisma for why this can't just be a
-  // CreditTransaction row created eagerly (the ledger only ever records confirmed money).
-  async purchase(customerId: bigint, packageId: string, paymentMethod: 'paypal' | 'stripe'): Promise<{ approveUrl: string | null; clientSecret: string | null }> {
-    const pkg = await this.prisma.creditPackage.findUnique({ where: { id: BigInt(packageId) } });
-    if (!pkg || !pkg.isPublished) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Credit package not found');
+  // AC-6 — a credit-package purchase is a bank-transfer ORDER (OrdersService.createFromCreditPackage,
+  // exposed at POST /api/credits/purchase by PurchasesController). Approving its receipt calls
+  // grantPurchase() below from inside the approval transaction; nothing a browser sends can add credits.
+  //
+  // Adds a purchased package's credits, keyed to the order that paid for it. Idempotent: the ledger
+  // refuses a second 'purchase' entry for the same order, so a replayed/duplicate approval can never
+  // grant twice. Returns whether credits were actually added.
+  async grantPurchase(tx: Prisma.TransactionClient, customerId: bigint, orderId: bigint, credits: number, note: string): Promise<boolean> {
+    if (credits <= 0) return false;
+    const already = await tx.creditTransaction.findFirst({ where: { relatedOrderId: orderId, type: 'purchase' }, select: { id: true } });
+    if (already) return false;
 
-    // PKR -> provider currency at the rate on file (fails closed with no rate) — this path used to
-    // send the PKR price to PayPal/Stripe as if it were USD.
-    const quote = await this.paymentAmounts.quote(Number(pkg.pricePkr));
-    const pending = await this.prisma.pendingCreditPurchase.create({ data: { customerId, packageId: pkg.id } });
-
-    if (paymentMethod === 'paypal') {
-      const created = await this.paypal.createOrder({ referenceId: `credit:${pending.id}`, currency: quote.currency, amountDecimal: quote.amountDecimal });
-      if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
-      await this.prisma.pendingCreditPurchase.update({ where: { id: pending.id }, data: { paypalOrderId: created.paypalOrderId } });
-      return { approveUrl: created.approveUrl, clientSecret: null };
-    }
-
-    const created = await this.stripe.createPaymentIntent({ referenceId: `credit:${pending.id}`, currency: quote.currency, amountMinor: quote.amountMinor });
-    if (!created) throw new ApiException('VALIDATION_ERROR', 502, 'Payment provider is not available');
-    await this.prisma.pendingCreditPurchase.update({ where: { id: pending.id }, data: { stripePaymentIntentId: created.paymentIntentId } });
-    return { approveUrl: null, clientSecret: created.clientSecret };
-  }
-
-  // AC-6 (part 2) — called by CreditsWebhooksController once PayPal/Stripe signature verification
-  // passes. Idempotent: a pending row is deleted the first time it's processed, so a replayed
-  // webhook for the same pendingId finds nothing and safely no-ops (same posture as
-  // OrdersService.confirmAutomaticPayment's duplicate-webhook guard).
-  async confirmPurchase(pendingId: bigint): Promise<void> {
-    const pending = await this.prisma.pendingCreditPurchase.findUnique({ where: { id: pendingId } });
-    if (!pending) {
-      this.logger.log(`Credit purchase ${pendingId} already processed or unknown — ignoring duplicate webhook`);
-      return;
-    }
-    const pkg = await this.prisma.creditPackage.findUniqueOrThrow({ where: { id: pending.packageId } });
-    const totalCredits = pkg.credits + pkg.bonusCredits;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.creditTransaction.create({ data: { customerId: pending.customerId, type: 'purchase', amount: totalCredits, note: `Purchased package "${pkg.name}"` } });
-      await this.adjustBalance(tx, pending.customerId, { totalDelta: totalCredits, availableDelta: totalCredits });
-      await tx.pendingCreditPurchase.delete({ where: { id: pending.id } });
-    });
-
-    await this.notifications.notify({
-      recipientUserId: pending.customerId.toString(),
-      type: 'credit_purchase',
-      title: 'Credits purchased',
-      message: `${totalCredits} credits have been added to your account.`,
-      channels: ['email', 'in_app'],
-    });
+    await tx.creditTransaction.create({ data: { customerId, type: 'purchase', amount: credits, relatedOrderId: orderId, note } });
+    await this.adjustBalance(tx, customerId, { totalDelta: credits, availableDelta: credits });
+    return true;
   }
 
   // AC-7 — real balance check backing CartService.applyCredits()'s pre-validation and
@@ -148,17 +106,24 @@ export class CreditsService {
     await this.adjustBalance(tx, customerId, { availableDelta: -amountPkr, usedDelta: amountPkr });
   }
 
-  // AC-11 (Orders spec) / mirrors OrdersService.reverseCreditsUsedOnOrder()'s former TODO(A-015)
-  // stub — a full/partial refund restores the credits that order had consumed.
-  async reverseUsageOnOrder(orderId: bigint, amountPkr: number): Promise<void> {
+  // AC-11 (Orders spec) — a full refund (or the cancellation of an order that was never paid) restores the
+  // credits that order had consumed. Idempotent:
+  // an order's credits are restored at most once (a 'refund' ledger row already existing for the order
+  // means it was), so a retried refund can never credit the customer twice. Pass the caller's `tx` to
+  // make the restore atomic with the refund itself.
+  async reverseUsageOnOrder(orderId: bigint, amountPkr: number, tx?: Prisma.TransactionClient, reason: 'refund' | 'cancellation' = 'refund'): Promise<void> {
     if (amountPkr <= 0) return;
-    const usage = await this.prisma.creditTransaction.findFirst({ where: { relatedOrderId: orderId, type: 'usage' } });
-    if (!usage) return;
+    const run = async (client: Prisma.TransactionClient) => {
+      const usage = await client.creditTransaction.findFirst({ where: { relatedOrderId: orderId, type: 'usage' } });
+      if (!usage) return;
+      const restored = await client.creditTransaction.findFirst({ where: { relatedOrderId: orderId, type: 'refund' }, select: { id: true } });
+      if (restored) return;
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.creditTransaction.create({ data: { customerId: usage.customerId, type: 'refund', amount: amountPkr, relatedOrderId: orderId, note: `Refund reversal for order #${orderId}` } });
-      await this.adjustBalance(tx, usage.customerId, { availableDelta: amountPkr, usedDelta: -amountPkr });
-    });
+      await client.creditTransaction.create({ data: { customerId: usage.customerId, type: 'refund', amount: amountPkr, relatedOrderId: orderId, note: reason === 'cancellation' ? `Credits returned — order #${orderId} was cancelled before it was paid` : `Refund reversal for order #${orderId}` } });
+      await this.adjustBalance(client, usage.customerId, { availableDelta: amountPkr, usedDelta: -amountPkr });
+    };
+    if (tx) await run(tx);
+    else await this.prisma.$transaction(run);
   }
 
   // AC-3/AC-8 — the subscription renewal cron's monthly grant, invoked by SubscriptionsService

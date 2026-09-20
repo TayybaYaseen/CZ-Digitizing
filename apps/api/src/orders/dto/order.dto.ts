@@ -1,4 +1,6 @@
 import type { Order, OrderItem, OrderStatus, OrderPaymentStatus, PaymentMethod, PaymentReceipt, PaymentTransactionType, ReceiptReviewStatus } from '../../generated/prisma';
+import { amountDuePkr as computeAmountDuePkr, confirmedReceiptsTotalPkr, outstandingPkr } from '../order-payment.util';
+import { orderAllowsFileAccess } from '../order-state-machine';
 
 export interface OrderItemDto {
   id: string;
@@ -18,36 +20,13 @@ export interface PaymentReceiptDto {
   reviewStatus: ReceiptReviewStatus;
   reviewedAt: string | null;
   rejectionReason: string | null;
+  // The PKR Admin confirmed as received for this receipt; null while pending / when rejected. Less
+  // than what was due = a PARTIAL payment (the order stays unpaid and its files stay locked).
+  confirmedAmountPkr: number | null;
   // Detected from the file's bytes at upload; the file itself is only ever served to Admin via
   // GET /api/orders/:id/receipts/:receiptId/file (never a public URL, never the storage path).
   contentType: string | null;
   originalFilename: string | null;
-}
-
-// A-013 — what the payment provider was asked to collect for this order, LOCKED at order creation
-// and traceable back to the PKR total: amountPkr (what the customer owes after credits) at
-// rateToPkr became `amount` in `currency` (= amountMinor in that currency's smallest unit).
-export interface ProviderChargeDto {
-  currency: string;
-  amount: string;
-  amountMinor: number;
-  amountPkr: number;
-  rateToPkr: number;
-}
-
-// A-013 — everything the browser needs to START a provider payment. Returned by checkout and by
-// POST /api/orders/:id/payment-session. Nothing in here confirms a payment: the order only becomes
-// payment_confirmed after the SERVER verifies the provider's own state (webhook or verify-payment).
-export interface PaymentSessionDto {
-  provider: 'paypal' | 'stripe';
-  // PayPal: redirect the buyer here to approve; PayPal returns them to /checkout/pay/:id.
-  approveUrl: string | null;
-  // Stripe: mount the Payment Element with this (+ publishableKey); it runs 3-D Secure itself.
-  clientSecret: string | null;
-  publishableKey: string | null;
-  currency: string;
-  amount: string;
-  amountMinor: number;
 }
 
 // AC-8 — localAmount/localCurrencyCode are only populated when the caller asked for a conversion
@@ -61,8 +40,17 @@ export interface OrderDto {
   paymentMethod: PaymentMethod;
   transactionType: PaymentTransactionType;
   totalPkr: number;
-  // totalPkr minus credits applied: what the customer still has to pay (0 when credits covered it).
+  // totalPkr minus credits applied: the EXACT PKR amount the customer transfers (0 when credits covered
+  // it — then no bank transfer or receipt is needed). Never converted to another currency.
   amountDuePkr: number;
+  // Bank money Admin has confirmed so far, and what is STILL unpaid. Files unlock only once the
+  // outstanding amount reaches 0 AND the order is confirmed (filesUnlocked) — partial payment never
+  // unlocks them, and neither does any refund.
+  amountPaidPkr: number;
+  amountOutstandingPkr: number;
+  // The backend's own file-access decision (orderAllowsFileAccess) — clients display it, they never
+  // compute it, and the download routes re-check it on every request regardless.
+  filesUnlocked: boolean;
   localAmount: number | null;
   localCurrencyCode: string | null;
   bankTransferReference: string | null;
@@ -70,9 +58,6 @@ export interface OrderDto {
   // docs/specs/2026-08-28-09-subscriptions-credits.md AC-7 — the customer's own credit balance
   // applied against this order's total at checkout; 0 when no credits were used.
   creditsUsed: number;
-  providerCharge: ProviderChargeDto | null;
-  // Only set on the checkout response (and never persisted) — see PaymentSessionDto.
-  payment: PaymentSessionDto | null;
   items: OrderItemDto[];
   receipts: PaymentReceiptDto[];
   createdAt: string;
@@ -96,6 +81,7 @@ export interface AdminOrderSummaryDto extends OrderSummaryDto {
   customerEmail: string;
   customerDisplayName: string | null;
   amountDuePkr: number;
+  amountOutstandingPkr: number;
   bankTransferReference: string | null;
   latestReceipt: { id: string; uploadedAt: string; reviewStatus: ReceiptReviewStatus; contentType: string | null } | null;
 }
@@ -110,7 +96,9 @@ function toItemDto(item: OrderItemWithNames): OrderItemDto {
     id: item.id.toString(),
     designId: item.designId?.toString() ?? null,
     bundleId: item.bundleId?.toString() ?? null,
-    name: item.design?.name ?? item.bundle?.name ?? 'Unknown item',
+    // Quote / custom-request / credit-package / subscription lines have no catalog record — their
+    // snapshotted description is the name.
+    name: item.design?.name ?? item.bundle?.name ?? item.customDescription ?? 'Unknown item',
     sizeId: item.sizeId?.toString() ?? null,
     sizeLabel: item.size?.sizeLabel ?? null,
     quantity: item.quantity,
@@ -126,32 +114,27 @@ function toReceiptDto(receipt: PaymentReceipt): PaymentReceiptDto {
     reviewStatus: receipt.reviewStatus,
     reviewedAt: receipt.reviewedAt?.toISOString() ?? null,
     rejectionReason: receipt.rejectionReason,
+    confirmedAmountPkr: receipt.confirmedAmountPkr !== null ? Number(receipt.confirmedAmountPkr) : null,
     contentType: receipt.contentType,
     originalFilename: receipt.originalFilename,
   };
 }
 
 export function amountDuePkrOf(order: Pick<Order, 'totalPkr' | 'creditsUsed'>): number {
-  return Math.max(0, Number(order.totalPkr) - Number(order.creditsUsed));
+  return computeAmountDuePkr(order);
 }
 
-function toProviderChargeDto(order: Order): ProviderChargeDto | null {
-  if (!order.providerCurrency || order.providerAmountMinor === null || order.providerRateToPkr === null || order.providerChargePkr === null) return null;
-  const minor = order.providerAmountMinor;
-  return {
-    currency: order.providerCurrency,
-    amount: `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, '0')}`,
-    amountMinor: minor,
-    amountPkr: Number(order.providerChargePkr),
-    rateToPkr: Number(order.providerRateToPkr),
-  };
+// Still-unpaid amount for an order that can yet be paid; 0 once it is paid/refunded or cancelled.
+function amountOutstandingPkrOf(order: OrderWithRelations): number {
+  const payable = order.status !== 'cancelled' && (order.paymentStatus === 'pending' || order.paymentStatus === 'failed');
+  return payable ? outstandingPkr(order, order.receipts) : 0;
 }
 
 // currencyConversion — AC-8: when the caller (customer's stored preference or a ?currencyCode
 // query param) resolves to a non-PKR currency with a known exchange rate, both PKR and the
 // converted amount are returned; otherwise localAmount/localCurrencyCode are null. Full
 // locale-detection is TODO(A-021) — the caller decides what currencyCode to ask for.
-export function toOrderDto(order: OrderWithRelations, currencyConversion?: { currencyCode: string; amountLocal: number }, payment: PaymentSessionDto | null = null): OrderDto {
+export function toOrderDto(order: OrderWithRelations, currencyConversion?: { currencyCode: string; amountLocal: number }): OrderDto {
   return {
     id: order.id.toString(),
     customerId: order.customerId.toString(),
@@ -161,13 +144,14 @@ export function toOrderDto(order: OrderWithRelations, currencyConversion?: { cur
     transactionType: order.transactionType,
     totalPkr: Number(order.totalPkr),
     amountDuePkr: amountDuePkrOf(order),
+    amountPaidPkr: confirmedReceiptsTotalPkr(order.receipts),
+    amountOutstandingPkr: amountOutstandingPkrOf(order),
+    filesUnlocked: orderAllowsFileAccess(order),
     localAmount: currencyConversion?.amountLocal ?? null,
     localCurrencyCode: currencyConversion?.currencyCode ?? null,
     bankTransferReference: order.bankTransferReference,
     refundedAmountPkr: order.refundedAmountPkr !== null ? Number(order.refundedAmountPkr) : null,
     creditsUsed: Number(order.creditsUsed),
-    providerCharge: toProviderChargeDto(order),
-    payment,
     items: order.items.map(toItemDto),
     receipts: order.receipts.map(toReceiptDto),
     createdAt: order.createdAt.toISOString(),
@@ -196,6 +180,7 @@ export function toAdminOrderSummaryDto(order: OrderWithCustomer): AdminOrderSumm
     customerEmail: order.customer.email,
     customerDisplayName: order.customer.displayName,
     amountDuePkr: amountDuePkrOf(order),
+    amountOutstandingPkr: amountOutstandingPkrOf(order),
     bankTransferReference: order.bankTransferReference,
     latestReceipt: latest ? { id: latest.id.toString(), uploadedAt: latest.uploadedAt.toISOString(), reviewStatus: latest.reviewStatus, contentType: latest.contentType } : null,
   };

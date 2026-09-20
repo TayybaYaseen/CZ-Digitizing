@@ -1,5 +1,7 @@
 // docs/specs/2026-08-29-18-mobile-app-android-ios.md AC-1/§5 (aspect A-023) — route params for
 // each stack navigator. Kept intentionally small: only the params each thin screen actually needs.
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export type HomeStackParamList = {
   Home: undefined;
   DesignDetail: { designId: string };
@@ -71,7 +73,8 @@ export type RootTabParamList = {
   HomeTab: undefined;
   CategoriesTab: undefined;
   SearchTab: undefined;
-  CartTab: undefined;
+  // BankTransfer lives in the Cart stack; Pricing / Custom Request open it via CartTab -> BankTransfer.
+  CartTab: NavigatorScreenParams<CartStackParamList> | undefined;
   MoreTab: undefined;
   AccountTab: undefined;
 };

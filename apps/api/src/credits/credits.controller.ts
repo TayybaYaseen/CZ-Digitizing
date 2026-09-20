@@ -1,11 +1,11 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { CreditsService } from './credits.service';
-import { GiftCreditsDto, PurchaseCreditsDto } from './dto/credit-write.dto';
+import { GiftCreditsDto } from './dto/credit-write.dto';
 
 // docs/specs/2026-08-28-09-subscriptions-credits.md §3 (aspect A-015b) — public + customer routes.
 @ApiTags('credits')
@@ -34,13 +34,8 @@ export class CreditsController {
     return { data: items, meta: { page: Number(page), pageSize: Number(pageSize), total } };
   }
 
-  @Post('purchase')
-  @Roles('customer')
-  @ApiBearerAuth()
-  @HttpCode(201)
-  purchase(@Body() dto: PurchaseCreditsDto, @CurrentUser() user: AccessTokenPayload) {
-    return this.service.purchase(BigInt(user.sub), dto.packageId, dto.paymentMethod);
-  }
+  // POST /api/credits/purchase lives in PurchasesController (purchases module): buying a package is a
+  // bank-transfer order, created through OrdersService, which this module cannot depend on.
 
   // AC-10 — not in the spec's own API contract table (only listed under §4's acceptance criteria),
   // added here as the natural customer-facing route for it, same posture as this repo's other

@@ -34,9 +34,9 @@ export class ExchangeRateService implements OnModuleInit {
     this.apiKey = config.get('EXCHANGE_RATE_API_KEY', { infer: true });
   }
 
-  // A fresh database (or a long outage) must not leave checkout without any rate until the first
-  // hourly cron tick — provider payments fail closed without a rate (PaymentAmountService), so
-  // make sure the table is populated at boot. Never blocks startup on failure.
+  // A fresh database must not show PKR-only until the first hourly cron tick, so make sure the table
+  // is populated at boot. Display-only: no payment is ever priced from these rates. Never blocks
+  // startup on failure.
   async onModuleInit(): Promise<void> {
     try {
       const count = await this.prisma.exchangeRate.count();
@@ -44,13 +44,6 @@ export class ExchangeRateService implements OnModuleInit {
     } catch (err) {
       this.logger.warn(`Could not seed exchange rates at startup: ${(err as Error).message}`);
     }
-  }
-
-  // Used by PaymentAmountService: the raw rate plus when it was last refreshed, so the caller can
-  // refuse a stale one. Null when no rate is on file (unsupported currency / never refreshed).
-  async getRate(currencyCode: string): Promise<{ rateToPkr: number; updatedAt: Date } | null> {
-    const row = await this.prisma.exchangeRate.findUnique({ where: { currencyCode: currencyCode.toUpperCase() } });
-    return row ? { rateToPkr: Number(row.rateToPkr), updatedAt: row.updatedAt } : null;
   }
 
   @Cron(CronExpression.EVERY_HOUR)

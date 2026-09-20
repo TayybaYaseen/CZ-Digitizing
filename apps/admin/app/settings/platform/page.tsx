@@ -47,26 +47,20 @@ type SocialValues = z.infer<typeof socialSchema>;
 type ExperienceValues = z.infer<typeof experienceSchema>;
 type DomainValues = z.infer<typeof domainSchema>;
 
-const PAYMENT_METHODS = ['paypal', 'bank_transfer', 'credit_card'] as const;
-type PaymentMethodKey = (typeof PAYMENT_METHODS)[number];
+// BANK TRANSFER is the only payment method (orders spec §11): this card edits the bank account customers
+// transfer PKR into. The values are non-secret display config — the customer's checkout/payment page reads
+// them live (GET /api/settings/public -> bankTransferConfig), so a saved change applies to the very next
+// page view with no deploy. Nothing here (or anywhere) is a payment-provider credential.
+const BANK_TRANSFER_FIELDS: { key: string; label: string; multiline?: boolean }[] = [
+  { key: 'bankName', label: 'Bank name' },
+  { key: 'accountTitle', label: 'Account title' },
+  { key: 'accountNumber', label: 'Account number' },
+  { key: 'iban', label: 'IBAN' },
+  { key: 'instructions', label: 'Additional payment instructions (shown to the customer)', multiline: true },
+];
 
-// Non-secret display config per method (spec §4/§8 risk #2) — shown to the customer at checkout
-// (bank_transfer via GET /api/settings/public's bankTransferConfig) or kept here purely for
-// Admin's own reference. Real API credentials (PayPal client id/secret, Stripe secret key) are
-// never entered here — those stay in server .env and are never editable from this screen.
-const PAYMENT_METHOD_FIELDS: Record<PaymentMethodKey, { key: string; label: string }[]> = {
-  paypal: [{ key: 'accountEmail', label: 'PayPal business account email' }],
-  bank_transfer: [
-    { key: 'bankName', label: 'Bank name' },
-    { key: 'accountTitle', label: 'Account title' },
-    { key: 'accountNumber', label: 'Account number' },
-    { key: 'iban', label: 'IBAN (optional)' },
-  ],
-  credit_card: [{ key: 'statementDescriptor', label: 'Statement / merchant display name' }],
-};
-
-function emptyConfig(method: PaymentMethodKey): Record<string, string> {
-  return Object.fromEntries(PAYMENT_METHOD_FIELDS[method].map((f) => [f.key, '']));
+function emptyBankConfig(): Record<string, string> {
+  return Object.fromEntries(BANK_TRANSFER_FIELDS.map((f) => [f.key, '']));
 }
 
 export default function PlatformSettingsPage() {
@@ -76,12 +70,8 @@ export default function PlatformSettingsPage() {
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<Record<string, boolean>>({});
-  const [paymentConfigs, setPaymentConfigs] = useState<Record<PaymentMethodKey, Record<string, string>>>({
-    paypal: emptyConfig('paypal'),
-    bank_transfer: emptyConfig('bank_transfer'),
-    credit_card: emptyConfig('credit_card'),
-  });
+  const [bankEnabled, setBankEnabled] = useState(true);
+  const [bankConfig, setBankConfig] = useState<Record<string, string>>(emptyBankConfig());
 
   const contactForm = useForm<ContactValues>({ resolver: zodResolver(contactSchema) });
   const socialForm = useForm<SocialValues>({ resolver: zodResolver(socialSchema) });
@@ -106,18 +96,10 @@ export default function PlatformSettingsPage() {
       });
       experienceForm.reset({ experienceStartYear: dto.experienceStartYear });
       domainForm.reset({ domain: dto.domain ?? '' });
-      setPaymentMethods(Object.fromEntries(dto.paymentMethods.map((m) => [m.method, m.isEnabled])));
-      setPaymentConfigs({
-        paypal: { ...emptyConfig('paypal'), ...(dto.paymentMethods.find((m) => m.method === 'paypal')?.config as Record<string, string> | undefined) },
-        bank_transfer: {
-          ...emptyConfig('bank_transfer'),
-          ...(dto.paymentMethods.find((m) => m.method === 'bank_transfer')?.config as Record<string, string> | undefined),
-        },
-        credit_card: {
-          ...emptyConfig('credit_card'),
-          ...(dto.paymentMethods.find((m) => m.method === 'credit_card')?.config as Record<string, string> | undefined),
-        },
-      });
+      const bank = dto.paymentMethods.find((m) => m.method === 'bank_transfer');
+      // Bank transfer is the only method, so a missing row simply means "not set up yet" (enabled, empty).
+      setBankEnabled(bank ? bank.isEnabled : true);
+      setBankConfig({ ...emptyBankConfig(), ...(bank?.config as Record<string, string> | undefined) });
     } catch (err) {
       setLoadError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load settings.', traceId: '' });
     }
@@ -153,19 +135,14 @@ export default function PlatformSettingsPage() {
 
   async function onSavePaymentMethods() {
     await save('/api/admin/settings/payment-methods', {
-      methods: PAYMENT_METHODS.map((method) => ({
-        method,
-        isEnabled: !!paymentMethods[method],
-        config: paymentConfigs[method],
-      })),
+      methods: [{ method: 'bank_transfer', isEnabled: bankEnabled, config: bankConfig }],
     });
   }
 
-  // Clears a method's details locally — takes effect once "Save payment methods" is pressed,
-  // same as every other edit on this screen, rather than deleting on click (no separate
-  // delete endpoint exists; PUT with an emptied config is how "delete" is expressed here).
-  function onClearConfig(method: PaymentMethodKey) {
-    setPaymentConfigs((prev) => ({ ...prev, [method]: emptyConfig(method) }));
+  // Clears the details locally — takes effect once "Save bank details" is pressed, same as every other
+  // edit on this screen, rather than deleting on click.
+  function onClearConfig() {
+    setBankConfig(emptyBankConfig());
   }
 
   if (!isReady || !user) return null; // still checking localStorage, or redirecting to /login
@@ -274,58 +251,48 @@ export default function PlatformSettingsPage() {
             </form>
           </Card>
 
-          <Card title="Payment methods (AC-2)">
+          <Card title="Bank transfer details (the only payment method)">
             <p className="mb-3 text-xs text-gray-500">
-              Enabling/disabling a method affects the next checkout only — past orders keep the details active
-              at the time of that order.
+              Customers pay by bank transfer only: they transfer the exact PKR amount to this account and upload a receipt
+              that you approve under Payments. These details are shown on the customer&apos;s payment page and apply to the
+              very next page view — past orders keep their own amounts.
             </p>
-            <div className="space-y-2">
-              {PAYMENT_METHODS.map((method) => (
-                <label key={method} className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={!!paymentMethods[method]}
-                    onChange={(e) => setPaymentMethods((prev) => ({ ...prev, [method]: e.target.checked }))}
-                  />
-                  {method.replace('_', ' ')}
-                </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={bankEnabled} onChange={(e) => setBankEnabled(e.target.checked)} />
+              Show bank details to customers
+            </label>
+
+            <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-700">Account details</p>
+                <button type="button" onClick={onClearConfig} className="text-xs font-medium text-red-600 hover:underline">
+                  Clear details
+                </button>
+              </div>
+              {BANK_TRANSFER_FIELDS.map((field) => (
+                <FormField key={field.key} label={field.label} htmlFor={`bank_transfer-${field.key}`}>
+                  {field.multiline ? (
+                    <textarea
+                      id={`bank_transfer-${field.key}`}
+                      rows={3}
+                      className={inputClass}
+                      value={bankConfig[field.key] ?? ''}
+                      onChange={(e) => setBankConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    />
+                  ) : (
+                    <input
+                      id={`bank_transfer-${field.key}`}
+                      className={inputClass}
+                      value={bankConfig[field.key] ?? ''}
+                      onChange={(e) => setBankConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    />
+                  )}
+                </FormField>
               ))}
             </div>
 
-            {PAYMENT_METHODS.filter((method) => paymentMethods[method]).map((method) => (
-              <div key={method} className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-700">{method.replace('_', ' ')} details</p>
-                  <button
-                    type="button"
-                    onClick={() => onClearConfig(method)}
-                    className="text-xs font-medium text-red-600 hover:underline"
-                  >
-                    Clear details
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {method === 'bank_transfer'
-                    ? 'Shown to the customer at checkout so they know where to send the transfer — not secret.'
-                    : 'For your own reference only. Real API credentials (client id/secret, secret key) are configured separately via server environment variables, never here.'}
-                </p>
-                {PAYMENT_METHOD_FIELDS[method].map((field) => (
-                  <FormField key={field.key} label={field.label} htmlFor={`${method}-${field.key}`}>
-                    <input
-                      id={`${method}-${field.key}`}
-                      className={inputClass}
-                      value={paymentConfigs[method][field.key] ?? ''}
-                      onChange={(e) =>
-                        setPaymentConfigs((prev) => ({ ...prev, [method]: { ...prev[method], [field.key]: e.target.value } }))
-                      }
-                    />
-                  </FormField>
-                ))}
-              </div>
-            ))}
-
             <button type="button" onClick={onSavePaymentMethods} className={`${submitButtonClass} mt-3`}>
-              Save payment methods
+              Save bank details
             </button>
           </Card>
         </>

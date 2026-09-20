@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma, PlatformSettings } from '../generated/prisma';
+import { Prisma } from '../generated/prisma';
+import type { PlatformSettings } from '../generated/prisma';
 import { AuditLogService } from '../audit/audit-log.service';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +9,7 @@ import type { UpdateDomainDto } from './dto/update-domain.dto';
 import type { UpdateExperienceDto } from './dto/update-experience.dto';
 import type { UpdatePaymentMethodsDto } from './dto/update-payment-methods.dto';
 import type { UpdateSocialDto } from './dto/update-social.dto';
+import { sanitizeBankTransferConfig } from './bank-transfer-config.util';
 import { toPublicSettingsDto, toSettingsDto, type PublicSettingsDto, type SettingsDto } from './dto/settings.dto';
 
 const SETTINGS_ID = 1;
@@ -66,9 +68,9 @@ export class PlatformSettingsService {
     return this.applyUpdate({ domain: dto.domain }, admin);
   }
 
-  // AC-2 — updates take effect for the next checkout only; past order records are untouched
-  // because they're never re-read from this table (A-013 snapshots payment details at order
-  // time once that aspect exists — nothing here rewrites history).
+  // AC-2/AC-9 — the bank details customers transfer to. Updates apply to the very next page view
+  // (checkout / payment pages read them live; no deploy). Only the known bank fields are stored;
+  // amounts on past orders are untouched because they live on the order, not here.
   async updatePaymentMethods(dto: UpdatePaymentMethodsDto, admin: AccessTokenPayload): Promise<SettingsDto> {
     const before = await this.prisma.paymentMethodSetting.findMany();
 
@@ -76,8 +78,9 @@ export class PlatformSettingsService {
       dto.methods.map((entry) =>
         this.prisma.paymentMethodSetting.upsert({
           where: { method: entry.method },
-          create: { method: entry.method, isEnabled: entry.isEnabled, config: entry.config as Prisma.InputJsonValue | undefined },
-          update: { isEnabled: entry.isEnabled, config: entry.config as Prisma.InputJsonValue | undefined },
+          create: { method: entry.method, isEnabled: entry.isEnabled, config: (sanitizeBankTransferConfig(entry.config) ?? undefined) as Prisma.InputJsonValue | undefined },
+          // config omitted => keep the stored details; config sent (even empty) => replace them.
+          update: { isEnabled: entry.isEnabled, ...(entry.config === undefined ? {} : { config: (sanitizeBankTransferConfig(entry.config) ?? Prisma.DbNull) as Prisma.InputJsonValue }) },
         }),
       ),
     );

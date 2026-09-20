@@ -1,4 +1,5 @@
 import type { PaymentMethodSetting, PlatformSettings } from '../../generated/prisma';
+import { sanitizeBankTransferConfig } from '../bank-transfer-config.util';
 
 export interface SettingsDto {
   whatsappNumber: string | null;
@@ -32,7 +33,7 @@ export function toSettingsDto(settings: PlatformSettings, paymentMethods: Paymen
     paymentMethods: paymentMethods.map((m) => ({
       method: m.method,
       isEnabled: m.isEnabled,
-      config: (m.config as Record<string, unknown> | null) ?? null,
+      config: m.method === 'bank_transfer' ? sanitizeBankTransferConfig(m.config) : ((m.config as Record<string, unknown> | null) ?? null),
     })),
   };
 }
@@ -46,11 +47,11 @@ export interface PublicSettingsDto {
   social: SettingsDto['social'];
   domain: string | null;
   yearsOfExperience: number;
-  // docs/specs/2026-08-28-08-orders-payment-processing.md AC-3/AC-9 — the bank-transfer checkout
-  // page (apps/web/app/checkout/bank-transfer/[id]) needs Admin's non-secret display config (bank
-  // name/account title/account number for the customer to transfer to) with no deploy, but a
-  // customer has no business seeing every payment method's full admin config (SettingsDto.paymentMethods
-  // is intentionally admin-only) — this is that one method's config, and only when it's enabled.
+  // docs/specs/2026-08-28-08-orders-payment-processing.md AC-3/AC-9 — the bank account a customer
+  // transfers PKR into (bankName, accountTitle, accountNumber, iban, instructions), as configured by
+  // Admin in Settings. The bank-transfer payment page (apps/web/app/checkout/bank-transfer/[id]) reads
+  // it live, so an Admin change applies to the next page view with no deploy. Only that whitelisted
+  // set of fields is ever returned, and only while bank transfer is enabled.
   bankTransferConfig: Record<string, unknown> | null;
 }
 
@@ -66,6 +67,6 @@ export function toPublicSettingsDto(settings: PlatformSettings, paymentMethods: 
     social: dto.social,
     domain: dto.domain,
     yearsOfExperience: new Date().getFullYear() - settings.experienceStartYear,
-    bankTransferConfig: bankTransfer?.isEnabled ? ((bankTransfer.config as Record<string, unknown> | null) ?? null) : null,
+    bankTransferConfig: bankTransfer?.isEnabled ? sanitizeBankTransferConfig(bankTransfer.config) : null,
   };
 }

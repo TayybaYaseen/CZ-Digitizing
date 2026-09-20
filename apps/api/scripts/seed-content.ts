@@ -86,14 +86,14 @@ const FAQS: { topic: string; question: string; answer: string; taeboVisible?: bo
     topic: 'Payments',
     question: 'What payment methods do you accept?',
     answer:
-      'We currently accept PayPal and Bank Transfer. For bank transfer, you upload your payment receipt after checkout and we confirm it before releasing your files — you will be notified either way.',
+      'We accept Bank Transfer only. After checkout you transfer the exact amount in PKR to our bank account (shown on the payment page), then upload your payment receipt. We review it and confirm your payment before releasing your files — you will be notified either way.',
     taeboVisible: true,
   },
   {
     topic: 'Downloads',
     question: 'When can I download my purchased files?',
     answer:
-      'Files are released for download as soon as your payment is confirmed — instantly for PayPal, or once Admin verifies your uploaded bank-transfer receipt. Every download is logged against your account.',
+      'Files are released for download once your payment is confirmed — that is, once our team verifies the bank-transfer receipt you uploaded. Every download is logged against your account.',
     taeboVisible: true,
   },
   {

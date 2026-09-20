@@ -45,8 +45,10 @@ export class SubscribeDto {
   @IsString()
   planId!: string;
 
-  @IsIn(['paypal', 'stripe'])
-  paymentMethod!: 'paypal' | 'stripe';
+  // Bank transfer is the only payment method; any other value is rejected by validation.
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }
 
 // AC-9 — upgrade/downgrade mid-cycle.

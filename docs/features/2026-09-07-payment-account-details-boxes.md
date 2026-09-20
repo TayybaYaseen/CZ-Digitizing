@@ -1,5 +1,7 @@
 # Feature: Per-method payment account detail boxes in Admin Settings
 
+> **Superseded 2026-09-19 — bank transfer is now the only payment method.** The PayPal and credit-card detail boxes described below were removed; Admin Settings now has a single "Bank transfer details" card (bank name, account title, account number, IBAN, additional instructions). This page is kept as the historical record of the original change. See `docs/specs/2026-08-28-08-orders-payment-processing.md` §11.
+
 **Date shipped:** 2026-09-07
 **Spec:** [`docs/specs/2026-08-28-08-orders-payment-processing.md`](../specs/2026-08-28-08-orders-payment-processing.md)
 — AC-3 ("customer sees bank details and reference number at checkout"), AC-9 ("Admin changes bank

@@ -50,7 +50,6 @@ export default function QuotesAdminPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | 'stripe'>('bank_transfer');
   const [listError, setListError] = useState<ApiError | null>(null);
   const [actionError, setActionError] = useState<ApiError | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -115,7 +114,8 @@ export default function QuotesAdminPage() {
       const order = await apiFetch<{ id: string }>(`/api/quotes/${id}/convert`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ paymentMethod }),
+        // Bank transfer is the only payment method.
+        body: JSON.stringify({ paymentMethod: 'bank_transfer' }),
       });
       setSuccessMessage(`Quote #${id} converted to order #${order.id}.`);
       load();
@@ -198,11 +198,7 @@ export default function QuotesAdminPage() {
 
                     {quote.status === 'responded' && (
                       <div className="flex items-center gap-2 rounded-md bg-gray-50 p-3">
-                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)} className={`${inputClass} text-xs`}>
-                          <option value="bank_transfer">Bank transfer</option>
-                          <option value="paypal">PayPal</option>
-                          <option value="stripe">Stripe</option>
-                        </select>
+                        <span className="text-xs text-gray-600">Payment: bank transfer</span>
                         <Button size="sm" onClick={() => onConvert(quote.id)}>
                           Convert to order
                         </Button>

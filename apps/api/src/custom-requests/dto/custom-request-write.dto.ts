@@ -67,8 +67,10 @@ export class SendQuoteDto {
 
 // POST /api/custom-requests/:id/approve — customer accepts the quote, AC-4.
 export class ApproveQuoteDto {
-  @IsIn(['bank_transfer', 'paypal', 'stripe'])
-  paymentMethod!: 'bank_transfer' | 'paypal' | 'stripe';
+  // Bank transfer is the only payment method; any other value is rejected by validation.
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }
 
 // AC-8 — one chat message on the custom-request thread.

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { formatPkr } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 interface OrderDto {
@@ -15,6 +16,8 @@ interface OrderDto {
   paymentMethod: string;
   totalPkr: number;
   amountDuePkr: number;
+  amountOutstandingPkr: number;
+  filesUnlocked: boolean;
   creditsUsed: number;
   bankTransferReference: string | null;
 }
@@ -28,7 +31,7 @@ interface AuthorizedFileDto {
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
-  payment_pending: 'Awaiting payment confirmation',
+  payment_pending: 'Awaiting bank transfer confirmation',
   payment_confirmed: 'Payment confirmed',
   processing: 'Processing',
   ready: 'Ready',
@@ -38,7 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 // docs/specs/2026-08-28-08-orders-payment-processing.md §5 — "order confirmation screen with
-// order number, next steps, and (once confirmed) a link to purchased files".
+// order number, next steps, and (once confirmed) a link to purchased files". Bank transfer only.
 export default function OrderConfirmationPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -59,41 +62,10 @@ export default function OrderConfirmationPage() {
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
   }, [user, accessToken, params.id]);
 
-  // A-013 — returning from PayPal / the card form (or reloading): ask the SERVER to check the
-  // payment with the provider (it captures an approved PayPal order and confirms only after
-  // comparing amount/currency). Nothing on this page marks an order paid. Re-checks a few times
-  // because a card payment can still be settling for a moment.
-  const isProviderOrder = order?.paymentMethod === 'paypal' || order?.paymentMethod === 'stripe';
-  const awaitingProvider = Boolean(isProviderOrder && order?.status === 'payment_pending');
-  const [checkingPayment, setCheckingPayment] = useState(false);
-  useEffect(() => {
-    if (!awaitingProvider || !accessToken) return;
-    let cancelled = false;
-    let attempts = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const check = async () => {
-      attempts += 1;
-      setCheckingPayment(true);
-      try {
-        const updated = await apiFetch<OrderDto>(`/api/orders/${params.id}/verify-payment`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
-        if (!cancelled) setOrder(updated);
-        if (updated.status !== 'payment_pending') return;
-      } catch {
-        // Not approved / provider hiccup — the order simply stays "awaiting payment"; keep the
-        // customer on the page with a way back to the payment step (below).
-      } finally {
-        if (!cancelled) setCheckingPayment(false);
-      }
-      if (!cancelled && attempts < 8) timer = setTimeout(check, 3000);
-    };
-    void check();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [awaitingProvider, accessToken, params.id]);
-
-  const filesReady = order && ['payment_confirmed', 'processing', 'ready', 'completed'].includes(order.status);
+  // Files are only offered once the SERVER reports them unlocked — the order is 100% paid and confirmed by
+  // an Admin (or credits covered all of it) and nothing was refunded. This page merely reads that decision
+  // and can never mark an order paid itself; the download routes re-check it on every request anyway.
+  const filesReady = order?.filesUnlocked === true;
 
   // docs/specs/2026-08-28-05-private-file-management.md §3 (aspect A-007) — GET
   // /api/orders/:id/files (AC-4/5). Loaded only once files are actually releasable, same gate the
@@ -137,23 +109,16 @@ export default function OrderConfirmationPage() {
             Order <strong>#{order.id}</strong>
           </p>
           <p>Status: {STATUS_LABEL[order.status] ?? order.status}</p>
-          <p>Total: Rs {order.totalPkr}</p>
-          {order.paymentMethod === 'bank_transfer' && !filesReady && (
+          <p>Total: {formatPkr(order.totalPkr)}</p>
+          {order.creditsUsed > 0 && <p>Paid with credits: {formatPkr(order.creditsUsed)}</p>}
+          {order.status === 'payment_pending' && order.paymentStatus !== 'completed' && (
             <p className="text-amber-700">
-              We&apos;re waiting for your bank-transfer receipt to be reviewed.{' '}
+              Payment method: Bank Transfer — {formatPkr(order.amountOutstandingPkr)} still to be transferred and confirmed — your files unlock once the full amount is paid and confirmed.{' '}
               <Link href={`/checkout/bank-transfer/${order.id}`} className="underline">
-                Upload it here
-              </Link>{' '}
-              if you haven&apos;t already.
-            </p>
-          )}
-          {awaitingProvider && (
-            <div className="space-y-2 text-gray-600">
-              <p>{checkingPayment ? 'Checking your payment with the provider…' : 'We have not received a confirmed payment for this order yet.'}</p>
-              <Link href={`/checkout/pay/${order.id}`} className="inline-block rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50">
-                Continue to payment
+                See the bank details and upload your receipt
               </Link>
-            </div>
+              .
+            </p>
           )}
           {filesReady && (
             <div className="space-y-2">

@@ -21,7 +21,7 @@ configuration, or the auto-calculating "years of experience" value — and no wa
 data or review an audit trail of admin actions.
 
 **Who is affected:** Admin, who must be able to change WhatsApp number, bank details,
-PayPal/payment configuration, and social links globally, in one place, with the change propagating
+bank-transfer payment details (the only payment method), and social links globally, in one place, with the change propagating
 everywhere automatically; anyone doing bookkeeping/reporting, who needs filtered/complete data
 exports.
 
@@ -29,7 +29,7 @@ exports.
 code deploy — this spec is the settings backbone that makes every other feature's "Admin-configurable"
 requirement (payment methods, WhatsApp number, social links, experience counter) actually true.
 
-**Success looks like:** One update to WhatsApp/bank/PayPal/social settings instantly propagates to
+**Success looks like:** One update to WhatsApp/bank/social settings instantly propagates to
 every public location that displays it; the experience counter increments automatically each year
 with no manual edit; Admin can export named datasets (filtered or complete); every admin write is
 audit-logged.
@@ -41,7 +41,7 @@ audit-logged.
 | # | Criterion |
 |---|---|
 | AC-1 | **Given** Admin updates the WhatsApp number in Settings **When** saved **Then** every public location that displays it (footer, Contact page, purchased-file support icon, WhatsApp click-to-chat links) reflects the new number immediately |
-| AC-2 | **Given** Admin updates bank receiving details or PayPal/payment configuration **When** saved **Then** the next checkout uses the updated details, and past order records retain the details that were active at the time of that order (never rewritten retroactively) |
+| AC-2 | **Given** Admin updates the bank receiving details (bank name, account title, account number, IBAN, additional instructions — bank transfer is the only payment method, 2026-09-19) **When** saved **Then** the next checkout uses the updated details, and past order records retain the details that were active at the time of that order (never rewritten retroactively) |
 | AC-3 | **Given** Admin updates a social link (Facebook, Instagram, LinkedIn, X/Twitter, YouTube) **When** a link is left empty **Then** its icon is hidden everywhere it would otherwise appear |
 | AC-4 | **Given** the Experience Start Year stored in settings **When** the public site calculates "years of experience" **Then** it computes `current_year − experience_start_year` automatically each year with no Admin edit required |
 | AC-5 | **Given** Admin requests a data export **When** they choose a specific filtered dataset (e.g. date range) or "all" **Then** a separately named file is produced per dataset: `Customer_History`, `Orders`, `Payments`, `Downloads`, `Quotes`, `Custom_Requests`, `Notifications` |
@@ -94,7 +94,7 @@ export interface SettingsDto {
   social: { facebook?: string; instagram?: string; linkedIn?: string; xTwitter?: string; youTube?: string };
   experienceStartYear: number;
   domain: string;
-  paymentMethods: { paypalEnabled: boolean; bankTransferEnabled: boolean; bankDetails?: BankDetailsDto };
+  paymentMethods: { bankTransferEnabled: boolean; bankDetails?: BankDetailsDto };
 }
 
 export interface DashboardStatsDto {
@@ -129,7 +129,7 @@ Each export is produced in both CSV and XLSX, one file per dataset (AC-5):
 | Entity | Change | Notes |
 |---|---|---|
 | `platform_settings` *(new, proposed)* | proposed | single-row (or key/value) table: `id`, `whatsapp_number`, `contact_email`, `domain`, `facebook_url`, `instagram_url`, `linkedin_url`, `x_twitter_url`, `youtube_url`, `experience_start_year`, `updated_at`, `updated_by_admin_id` — nothing in the architecture DDL backs any of these Admin-configurable global values today |
-| `payment_method_settings` *(new, proposed)* | proposed | `id`, `method` enum(`paypal`,`bank_transfer`,`credit_card`), `is_enabled`, `config` JSONB (bank details, PayPal client config — secrets stored via the secrets manager, not this table, only non-secret display config lives here), `updated_at` |
+| `payment_method_settings` *(new, proposed)* | proposed | `id`, `method` enum(`bank_transfer`) (was `paypal`/`bank_transfer`/`credit_card` — reduced 2026-09-19), `is_enabled`, `config` JSONB (`bankName`, `accountTitle`, `accountNumber`, `iban`, `instructions` — customer-visible display config, not a secret), `updated_at` |
 | `data_export_jobs` *(new, proposed)* | proposed | `id`, `requested_by_admin_id`, `dataset` enum(`customer_history`,`orders`,`payments`,`downloads`,`quotes`,`custom_requests`,`notifications`), `filters` JSONB, `status` enum(`queued`,`processing`,`ready`,`failed`), `file_url` (private, signed access), `created_at`, `completed_at` |
 | `audit_logs` | existing | per architecture DDL; AC-6 requires every admin write path to call into this, which is a cross-cutting implementation concern, not a schema one |
 
@@ -210,7 +210,7 @@ payment-method configuration) has been folded into AC-9/AC-10 above.
 | # | Risk / question | Owner | Resolution |
 |---|---|---|---|
 | 1 | `platform_settings`, `payment_method_settings`, and `data_export_jobs` are all required by explicit SRS Admin modules but absent from the architecture DDL | Engineering | Open |
-| 2 | Where PayPal client secret / bank-account-number sensitive values live (secrets manager vs. encrypted DB column) — SRS explicitly says "Never expose API keys, payment secrets, bank credentials" but doesn't specify storage mechanism | Engineering | Open |
+| 2 | ~~Where PayPal client secret / bank-account-number sensitive values live~~ — **Resolved 2026-09-19:** there are no payment-provider secrets (bank transfer only); the bank account details are necessarily customer-visible display config stored in `payment_method_settings.config` | Engineering | Closed |
 | 3 | Freelancer/limited-admin permission enforcement (AC-7) depends on `admin_permissions` from the Auth spec being finalized first | Engineering | Open |
 | 4 | Live Preview's exact rendering mechanism (server-side render of the public app inside an Admin-authenticated frame vs. a dedicated read-only render path) is not specified beyond "reflects current published state, no mutation" — implementation detail to finalize in the PR. **Resolved as a stated limitation (2026-08-29):** an already-open Preview pane does not auto-refresh when content is edited in another tab — Admin must reload it (see AC-15). This is a deliberate scope limit (no auto-refresh mechanism is required by the SRS/architecture), not an unresolved ambiguity | Engineering | Open (mechanism) / Resolved (refresh behavior) |
 | 5 | Dashboard's `monthlyRevenuePkr` trailing window (e.g. last 6 months vs. 12 months) is not specified in the SRS/architecture | Admin | Open |

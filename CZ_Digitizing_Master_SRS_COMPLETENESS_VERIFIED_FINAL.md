@@ -817,12 +817,12 @@ files or all authorized files. Every download is logged.
 Private filenames, storage paths and direct URLs are never exposed.
 Server-side authorization checks customer/order/payment status.
 
-6.  Payment + Customer History  Initial payment methods are PayPal and
-    Bank Transfer. Admin can later add, disable, replace or change
-    payment methods.
+6.  Payment + Customer History  Payment method: BANK TRANSFER ONLY
+    (2026-09-19 business decision — PayPal removed, Stripe not used).
+    Admin can later add, disable, replace or change payment methods.
 
-Admin can add/change bank receiving details and PayPal/payment details
-from Settings. WhatsApp number is also centrally editable and updates
+Admin can add/change bank receiving details (bank name, account title,
+account number, IBAN, instructions) from Settings. WhatsApp number is also centrally editable and updates
 everywhere automatically.  Bank flow: checkout → instructions → receipt
 image/file → Admin notification → verify → Received/Confirmed or
 Pending/Rejected → customer notification → release authorized files. 
@@ -921,7 +921,7 @@ Customers; Customer History; Quotes; Custom Requests; Quote Q&A;
 Testimonials; Blog; Tips; FAQ; Taebo; Languages; Social/Contact;
 Notifications; Data Exports; Admin Users/Roles; Active Sessions;
 Security; Settings.  Admin can change WhatsApp, bank receiving details,
-PayPal/payment methods, social links, plans, credits, categories,
+social links, plans, credits, categories,
 designs, ads, FAQs and other routine content without code changes. 
 Customer pages never expose Admin controls or private file metadata.
 

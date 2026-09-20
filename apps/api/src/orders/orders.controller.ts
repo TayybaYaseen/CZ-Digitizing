@@ -62,6 +62,8 @@ export class OrdersController {
     return this.service.updateStatus(id, dto.status as OrderStatus);
   }
 
+  // AC-5 — Admin approves or rejects the latest pending bank-transfer receipt. Approval is the ONLY
+  // way an order becomes payment_confirmed (there is no provider, webhook or status edit that can).
   @Post(':id/payment-confirmation')
   @Roles('admin', 'freelancer', 'moderator')
   @RequiresPermission('orders', 'crud')
@@ -74,35 +76,6 @@ export class OrdersController {
   @RequiresPermission('orders', 'crud')
   refund(@Param('id') id: string, @Body() dto: RefundOrderDto, @CurrentUser() admin: AccessTokenPayload) {
     return this.service.refund(id, dto, admin);
-  }
-
-  // AC-1/AC-10 — starts (or restarts, after a reload / declined card / expired PayPal order) the
-  // provider payment for the caller's own unpaid PayPal/Stripe order: PayPal approval link, or
-  // Stripe client secret + publishable key. Confirms nothing.
-  @Post(':id/payment-session')
-  @Roles('customer')
-  @HttpCode(200)
-  paymentSession(@Param('id') id: string, @CurrentUser() user: AccessTokenPayload) {
-    return this.service.getPaymentSession(id, BigInt(user.sub));
-  }
-
-  // AC-1/AC-10 — called by the customer's browser when it returns from PayPal / Stripe. The client
-  // supplies nothing: the SERVER reads the payment's real state from the provider (capturing an
-  // approved PayPal order), checks amount/currency against the order, and only then confirms.
-  @Post(':id/verify-payment')
-  @Roles('customer')
-  @HttpCode(200)
-  verifyPayment(@Param('id') id: string, @CurrentUser() user: AccessTokenPayload) {
-    return this.service.verifyPayment(id, { customerId: BigInt(user.sub) });
-  }
-
-  // Same server-side verification, Admin-triggered for any provider order (e.g. a missed webhook).
-  @Post(':id/reverify-payment')
-  @Roles('admin', 'freelancer', 'moderator')
-  @RequiresPermission('orders', 'crud')
-  @HttpCode(200)
-  reverifyPayment(@Param('id') id: string) {
-    return this.service.verifyPayment(id, {});
   }
 
   // spec §3 — "POST /api/orders/:id/receipt (new, proposed)". memoryStorage: hashed/validated

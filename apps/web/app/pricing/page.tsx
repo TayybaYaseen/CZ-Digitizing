@@ -65,22 +65,15 @@ export default function PricingPage() {
     setActionError(null);
     setBusyId(planId);
     try {
-      const res = await apiFetch<{ approveUrl: string | null; clientSecret: string | null }>('/api/subscriptions/subscribe', {
+      // Bank transfer is the only payment method: subscribing creates an order for the exact PKR plan
+      // price; the customer then sees the bank details and uploads a receipt, and the subscription
+      // activates once an Admin approves it.
+      const order = await apiFetch<{ id: string }>('/api/subscriptions/subscribe', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ planId, paymentMethod: 'paypal' }),
+        body: JSON.stringify({ planId }),
       });
-      if (res.approveUrl) {
-        // PayPal subscription flow — hand off to PayPal's approval page (spec §8 risk #1 notes the
-        // exact recurring-billing mechanism is still open; this follows the same one-time-capture
-        // redirect shape as apps/web/app/checkout for consistency until that's resolved).
-        window.location.href = res.approveUrl;
-        return;
-      }
-      // Stripe clientSecret path: no Stripe Elements card form exists anywhere in apps/web yet
-      // (checkout page's "Stripe" option is also just a radio button, no card capture UI) — same
-      // deliberate simplification here. Confirming/paying the clientSecret is left as a follow-up.
-      router.push('/account/subscription');
+      router.push(`/checkout/bank-transfer/${order.id}`);
     } catch (err) {
       setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Subscribe failed.', traceId: '' });
     } finally {
@@ -96,16 +89,13 @@ export default function PricingPage() {
     setActionError(null);
     setBusyId(packageId);
     try {
-      const res = await apiFetch<{ approveUrl: string | null; clientSecret: string | null }>('/api/credits/purchase', {
+      // Same bank-transfer order flow: credits are added once an Admin approves the receipt.
+      const order = await apiFetch<{ id: string }>('/api/credits/purchase', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ packageId, paymentMethod: 'paypal' }),
+        body: JSON.stringify({ packageId }),
       });
-      if (res.approveUrl) {
-        window.location.href = res.approveUrl;
-        return;
-      }
-      router.push('/account/credits');
+      router.push(`/checkout/bank-transfer/${order.id}`);
     } catch (err) {
       setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Purchase failed.', traceId: '' });
     } finally {

@@ -7,14 +7,9 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
+import { formatPkr } from '@/lib/format';
 import { useLocale } from '@/lib/locale-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
-
-const PAYMENT_METHODS: { value: 'paypal' | 'stripe' | 'bank_transfer'; label: string }[] = [
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'stripe', label: 'Credit/Debit Card (Stripe)' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-];
 
 interface OrderDto {
   id: string;
@@ -25,16 +20,16 @@ interface OrderDto {
   bankTransferReference: string | null;
 }
 
-// docs/specs/2026-08-28-08-orders-payment-processing.md §3/§5 (aspect A-013) — checkout now
-// actually creates an order via POST /api/cart/checkout (CartService.checkout() ->
-// OrdersService.createFromCart()), instead of the ORDERS_NOT_AVAILABLE 501 stub this page used to
-// show. Loading state: submit button disabled + spinner while the order is created (spec §5).
+// docs/specs/2026-08-28-08-orders-payment-processing.md §3/§5/§11 (aspect A-013) — checkout creates
+// an order via POST /api/cart/checkout (CartService.checkout() -> OrdersService.createFromCart()).
+// BANK TRANSFER is the only payment method, so there is nothing to choose: the customer is sent to
+// /checkout/bank-transfer/:id to see the exact PKR amount and the bank details Admin configured, then
+// uploads a receipt. Loading state: submit button disabled + spinner while the order is created.
 export default function CheckoutPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
   const { cart, refresh } = useCart();
   const { t } = useLocale();
-  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('paypal');
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -85,19 +80,15 @@ export default function CheckoutPage() {
     try {
       const order = await apiFetch<OrderDto>('/api/cart/checkout', {
         method: 'POST',
-        body: JSON.stringify({ paymentMethod, creditsToApplyPkr }),
+        body: JSON.stringify({ paymentMethod: 'bank_transfer', creditsToApplyPkr }),
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       await refresh();
       if (order.paymentStatus === 'completed') {
         // Fully covered by credits — nothing left to transfer or pay.
         router.push(`/order-confirmation/${order.id}`);
-      } else if (paymentMethod === 'bank_transfer') {
-        router.push(`/checkout/bank-transfer/${order.id}`);
       } else {
-        // PayPal / card: the payment page starts the provider flow and confirms nothing itself —
-        // the server verifies the provider's own state before the order is ever marked paid.
-        router.push(`/checkout/pay/${order.id}`);
+        router.push(`/checkout/bank-transfer/${order.id}`);
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Checkout failed.', traceId: '' });
@@ -107,6 +98,8 @@ export default function CheckoutPage() {
   }
 
   if (!isReady || !user) return null;
+
+  const fullyCoveredByCredits = Boolean(cart && cart.totalPkr > 0 && creditsToApplyPkr >= cart.totalPkr && !creditsError);
 
   if (!cart || cart.items.length === 0) {
     return (
@@ -130,22 +123,22 @@ export default function CheckoutPage() {
             <span>
               {item.name} {item.sizeLabel ? `(${item.sizeLabel})` : ''} × {item.quantity}
             </span>
-            <span>Rs {item.unitPricePkr * item.quantity}</span>
+            <span>{formatPkr(item.unitPricePkr * item.quantity)}</span>
           </div>
         ))}
         <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-brand-navy">
           <span>Total</span>
-          <span>Rs {cart.totalPkr}</span>
+          <span>{formatPkr(cart.totalPkr)}</span>
         </div>
         {creditsToApplyPkr > 0 && !creditsError && (
           <>
             <div className="flex justify-between text-sm text-emerald-700">
               <span>Credits applied</span>
-              <span>− Rs {creditsToApplyPkr}</span>
+              <span>− {formatPkr(creditsToApplyPkr)}</span>
             </div>
             <div className="flex justify-between text-base font-semibold text-brand-navy">
-              <span>Amount due</span>
-              <span>Rs {Math.max(0, cart.totalPkr - creditsToApplyPkr)}</span>
+              <span>Amount to transfer</span>
+              <span>{formatPkr(Math.max(0, cart.totalPkr - creditsToApplyPkr))}</span>
             </div>
           </>
         )}
@@ -153,12 +146,12 @@ export default function CheckoutPage() {
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-brand-navy">Payment Method</h2>
-        {PAYMENT_METHODS.map((method) => (
-          <label key={method.value} className="flex items-center gap-2 text-sm">
-            <input type="radio" name="paymentMethod" checked={paymentMethod === method.value} onChange={() => setPaymentMethod(method.value)} />
-            {method.label}
-          </label>
-        ))}
+        <p className="text-sm font-medium" data-testid="payment-method">Bank Transfer</p>
+        <p className="text-sm text-gray-600">
+          {fullyCoveredByCredits
+            ? 'Your credits cover this whole order — no bank transfer or receipt is needed.'
+            : 'Transfer the exact amount to the bank account shown on the next step and upload your payment receipt. Your files are released once we confirm the payment.'}
+        </p>
       </div>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
@@ -177,7 +170,7 @@ export default function CheckoutPage() {
         </div>
         {creditsToApplyPkr > 0 && !creditsError && (
           <p className="text-sm text-emerald-700">
-            Rs {creditsToApplyPkr} in credits will be applied to this order
+            {formatPkr(creditsToApplyPkr)} in credits will be applied to this order
             {Number(creditsInput) > creditsToApplyPkr ? ` (that is all this order needs — the rest stays in your balance)` : ''}.
           </p>
         )}
