@@ -9,8 +9,10 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
 import { AdminAuthLayout } from '@/components/AdminAuthLayout';
+import { authCodeInputClass, authCodeInputErrorClass, authSubmitButtonClass } from '@/components/admin-auth-styles';
+import { ButtonSpinner } from '@/components/ButtonSpinner';
 import { ErrorBanner } from '@/components/ErrorBanner';
-import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { FormField } from '@/components/FormField';
 
 // Mirrors apps/web/app/verify-device/page.tsx — the admin login page only ever built the
 // role=admin mandatory-TOTP path (AC-5), but RolesGuard also lets freelancer/moderator staff into
@@ -82,11 +84,18 @@ function VerifyDeviceForm() {
         <input type="hidden" {...register('email')} />
 
         <FormField label="Verification code" htmlFor="code" error={errors.code}>
-          <input id="code" type="text" inputMode="numeric" maxLength={4} className={inputClass} {...register('code')} />
+          <input
+            id="code"
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            className={errors.code ? authCodeInputErrorClass : authCodeInputClass}
+            {...register('code')}
+          />
         </FormField>
 
-        <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Verifying…' : 'Verify'}
+        <button type="submit" disabled={isSubmitting} className={authSubmitButtonClass}>
+          {isSubmitting ? <ButtonSpinner label="Verifying…" /> : 'Verify'}
         </button>
       </form>
     </AdminAuthLayout>

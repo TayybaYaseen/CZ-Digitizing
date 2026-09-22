@@ -51,6 +51,7 @@ export class NotificationBatchingService {
         type: 'order_status_change',
         title: `Daily order status summary (${rows.length} update${rows.length === 1 ? '' : 's'})`,
         message: summary,
+        recipientRole: recipient.role,
       });
     }
 
@@ -78,6 +79,7 @@ export class NotificationBatchingService {
         type: 'new_registration',
         title: `${newCustomers} new registration${newCustomers === 1 ? '' : 's'} in the last hour`,
         message: null,
+        recipientRole: admin.role,
       });
     }
   }

@@ -88,6 +88,7 @@ export class NotificationDispatchService {
           type: notification.notificationType,
           title: notification.title,
           message: notification.message,
+          recipientRole: recipient.role,
         });
         return undefined;
       case 'whatsapp':
