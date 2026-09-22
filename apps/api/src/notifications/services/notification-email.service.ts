@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { NotificationType } from '../../generated/prisma';
+import type { NotificationType, Role } from '../../generated/prisma';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import type { Env } from '../../config/env.validation';
 import { EmailService } from '../../email/email.service';
@@ -13,6 +13,8 @@ export interface NotificationEmailInput {
   type: NotificationType;
   title: string;
   message: string | null;
+  // Recipient's role — staff (anything but customer) is routed as an Admin-site email.
+  recipientRole?: Role;
 }
 
 // AC-5 — HTML branded template + unsubscribe link "where applicable". Delegates the actual
@@ -43,6 +45,7 @@ export class NotificationEmailService {
       subject: input.title,
       text: input.message ?? input.title,
       html: wrapBrandedHtml({ title: input.title, message: input.message, unsubscribeUrl }),
+      ...(input.recipientRole && input.recipientRole !== 'customer' ? { audience: 'admin' as const } : {}),
     });
   }
 }

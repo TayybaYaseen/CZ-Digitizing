@@ -45,4 +45,23 @@ describe('NotificationEmailService (AC-5)', () => {
     const call = emailService.send.mock.calls[0][0];
     expect(call.html).not.toContain('Unsubscribe');
   });
+
+  it.each(['admin', 'moderator', 'freelancer'] as const)('routes a %s recipient as an Admin-audience email', async (recipientRole) => {
+    const emailService = { send: jest.fn().mockResolvedValue(undefined) };
+    const service = new NotificationEmailService(emailService as never, createFakeConfig() as never);
+
+    await service.send({ to: 'staff@example.com', userId: 1n, type: 'contact_message', title: 'New contact form submission', message: 'hi', recipientRole });
+
+    expect(emailService.send).toHaveBeenCalledWith(expect.objectContaining({ audience: 'admin', subject: 'New contact form submission' }));
+  });
+
+  it('does not mark a customer recipient (or an unspecified role) as Admin-audience', async () => {
+    const emailService = { send: jest.fn().mockResolvedValue(undefined) };
+    const service = new NotificationEmailService(emailService as never, createFakeConfig() as never);
+
+    await service.send({ to: 'c@example.com', userId: 10n, type: 'order_confirmed', title: 'Order confirmed', message: null, recipientRole: 'customer' });
+    await service.send({ to: 'c@example.com', userId: 10n, type: 'order_confirmed', title: 'Order confirmed', message: null });
+
+    for (const [arg] of emailService.send.mock.calls) expect(arg).not.toHaveProperty('audience');
+  });
 });

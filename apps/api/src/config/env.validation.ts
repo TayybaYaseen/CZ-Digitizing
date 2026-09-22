@@ -22,6 +22,19 @@ export const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().default('CZ Digitizing <no-reply@czdigitizing.com>'),
+  // Brevo Transactional Email API for the Admin site's staff emails (admin/moderator/freelancer
+  // recipients). Server-side only — never NEXT_PUBLIC_*. Needs a Brevo REST key ("xkeysib-",
+  // Brevo → SMTP & API → API keys); an "xsmtpsib-" SMTP key is rejected by the REST API. Active
+  // only when both the key and sender email are set; otherwise admin emails use the default transport.
+  BREVO_ADMIN_API_KEY: z.string().optional(),
+  BREVO_ADMIN_SENDER_EMAIL: z.string().optional(),
+  BREVO_ADMIN_SENDER_NAME: z.string().default('CZ Digitizing'),
+  // Brevo SMTP relay for the customer site's emails. Server-side only — never NEXT_PUBLIC_*.
+  // The key is a Brevo "xsmtpsib-" SMTP key (REST v3 rejects it), so it is used as the relay
+  // password alongside BREVO_CUSTOMER_SMTP_LOGIN (Brevo → SMTP & API → "Login"). When both are
+  // set they take precedence over SMTP_*; otherwise behaviour is unchanged.
+  BREVO_CUSTOMER_API_KEY: z.string().optional(),
+  BREVO_CUSTOMER_SMTP_LOGIN: z.string().optional(),
 
   // OAuth — optional per provider. A provider's routes 501 until its pair is set.
   GOOGLE_CLIENT_ID: z.string().optional(),

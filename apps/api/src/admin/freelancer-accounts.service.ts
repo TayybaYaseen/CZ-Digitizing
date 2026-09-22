@@ -67,6 +67,7 @@ export class FreelancerAccountsService {
       to: user.email,
       subject: 'Your CZ Digitizing account',
       text: `An admin created a ${dto.role} account for you. Set your password using code ${code} at the reset-password page (valid 10 minutes).`,
+      audience: 'admin',
     });
 
     await this.audit.record({
