@@ -11,6 +11,7 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { PasswordInput } from '@/components/PasswordInput';
 
 // Mirrors apps/api/src/auth/dto/register.dto.ts exactly (AC-1: bcrypt input limit is 72 bytes).
 const schema = z.object({
@@ -84,7 +85,7 @@ function RegisterForm() {
         </FormField>
 
         <FormField label="Password" htmlFor="password" error={errors.password}>
-          <input id="password" type="password" className={inputClass} {...register('password')} />
+          <PasswordInput id="password" {...register('password')} />
         </FormField>
 
         <FormField label="Display name (optional)" htmlFor="displayName" error={errors.displayName}>

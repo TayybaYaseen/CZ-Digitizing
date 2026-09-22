@@ -13,6 +13,7 @@ import { safeNextPath } from '@/lib/safe-redirect';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { PasswordInput } from '@/components/PasswordInput';
 
 const schema = z.object({
   email: z.string().email('email must be an email'),
@@ -116,7 +117,7 @@ function LoginForm() {
         </FormField>
 
         <FormField label="Password" htmlFor="password" error={errors.password}>
-          <input id="password" type="password" placeholder="••••••••" className={inputClass} {...register('password')} />
+          <PasswordInput id="password" placeholder="••••••••" {...register('password')} />
         </FormField>
 
         <div className="text-right text-sm">
