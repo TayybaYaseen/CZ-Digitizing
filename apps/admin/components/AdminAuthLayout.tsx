@@ -7,6 +7,11 @@ import { Logo } from './Logo';
 // that same split-panel pattern (navy brand panel + white card) using this app's own Logo and
 // navy-800/gold-500 tokens, which the rest of apps/admin already uses (Sidebar, FormField, the
 // dashboard). Reused by every admin authentication screen — same behavior/fields, visual shell only.
+//
+// 2026-09-22 admin-auth redesign (E1/E5): added the "ADMIN PORTAL" eyebrow + a restricted-access
+// security cue to the navy panel, and a compact md:hidden header (light-variant Logo, same asset,
+// no redraw) so the brand mark is still present once the navy panel itself is hidden below `md` —
+// previously the phone-width view showed no logo at all. Structure/props/behavior unchanged.
 export function AdminAuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-navy-900 px-4 py-10">
@@ -17,18 +22,28 @@ export function AdminAuthLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="z-10">
-            <div className="font-display text-[26px] font-bold leading-tight text-white">Manage · Track · Grow</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-500">Admin Portal</div>
+            <div className="mt-2 font-display text-[26px] font-bold leading-tight text-white">Manage · Track · Grow</div>
             <div className="mt-3 h-px w-10 bg-gold-500" />
             <p className="mt-4 text-[14px] leading-relaxed text-white/60">
               Operations console for orders, customers, designs, and platform settings.
             </p>
           </div>
 
-          <div className="z-10 text-xs text-white/40">&copy; {new Date().getFullYear()} CZ Digitizing. All rights reserved.</div>
+          <div className="z-10 space-y-1.5 text-xs text-white/40">
+            <p className="font-medium uppercase tracking-[0.1em] text-white/50">Restricted access · Authorized personnel only</p>
+            <p>&copy; {new Date().getFullYear()} CZ Digitizing. All rights reserved.</p>
+          </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-center bg-white px-8 py-12 sm:px-12">
-          <div className="w-full max-w-sm">{children}</div>
+        <div className="flex flex-1 items-center justify-center bg-white px-6 py-10 sm:px-12 sm:py-12">
+          <div className="w-full max-w-sm">
+            <div className="mb-8 flex flex-col items-center gap-2 text-center md:hidden">
+              <Logo variant="light" height={44} />
+              <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-gold-600">Admin Portal</div>
+            </div>
+            {children}
+          </div>
         </div>
       </div>
     </div>

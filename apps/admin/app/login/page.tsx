@@ -8,8 +8,11 @@ import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AdminAuthLayout } from '@/components/AdminAuthLayout';
+import { authInputClass, authInputErrorClass, authSubmitButtonClass } from '@/components/admin-auth-styles';
+import { ButtonSpinner } from '@/components/ButtonSpinner';
 import { ErrorBanner } from '@/components/ErrorBanner';
-import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { FormField } from '@/components/FormField';
+import { PasswordInput } from '@/components/PasswordInput';
 import { PENDING_2FA_STORAGE_KEY } from '@/lib/pending-2fa';
 
 const schema = z.object({
@@ -79,15 +82,15 @@ export default function AdminLoginPage() {
         <ErrorBanner error={apiError} />
 
         <FormField label="Email" htmlFor="email" error={errors.email}>
-          <input id="email" type="email" className={inputClass} {...register('email')} />
+          <input id="email" type="email" className={errors.email ? authInputErrorClass : authInputClass} {...register('email')} />
         </FormField>
 
         <FormField label="Password" htmlFor="password" error={errors.password}>
-          <input id="password" type="password" className={inputClass} {...register('password')} />
+          <PasswordInput id="password" className={errors.password ? authInputErrorClass : authInputClass} {...register('password')} />
         </FormField>
 
-        <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Continuing…' : 'Continue'}
+        <button type="submit" disabled={isSubmitting} className={authSubmitButtonClass}>
+          {isSubmitting ? <ButtonSpinner label="Continuing…" /> : 'Continue'}
         </button>
       </form>
     </AdminAuthLayout>

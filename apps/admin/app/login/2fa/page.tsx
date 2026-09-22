@@ -11,8 +11,10 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
 import { clearPendingTwoFactor, readPendingTwoFactor, type PendingTwoFactor } from '@/lib/pending-2fa';
 import { AdminAuthLayout } from '@/components/AdminAuthLayout';
+import { authCodeInputClass, authCodeInputErrorClass, authSubmitButtonClass } from '@/components/admin-auth-styles';
+import { ButtonSpinner } from '@/components/ButtonSpinner';
 import { ErrorBanner } from '@/components/ErrorBanner';
-import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { FormField } from '@/components/FormField';
 
 const schema = z.object({ code: z.string().length(6, 'code must be 6 digits') });
 type FormValues = z.infer<typeof schema>;
@@ -100,11 +102,18 @@ export default function TwoFactorPage() {
         <ErrorBanner error={apiError} />
 
         <FormField label="6-digit code" htmlFor="code" error={errors.code}>
-          <input id="code" type="text" inputMode="numeric" maxLength={6} className={inputClass} {...register('code')} />
+          <input
+            id="code"
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            className={errors.code ? authCodeInputErrorClass : authCodeInputClass}
+            {...register('code')}
+          />
         </FormField>
 
-        <button type="submit" disabled={isSubmitting || (pending.setupRequired && !setupData)} className={submitButtonClass}>
-          {isSubmitting ? 'Verifying…' : 'Verify'}
+        <button type="submit" disabled={isSubmitting || (pending.setupRequired && !setupData)} className={authSubmitButtonClass}>
+          {isSubmitting ? <ButtonSpinner label="Verifying…" /> : 'Verify'}
         </button>
       </form>
     </AdminAuthLayout>
