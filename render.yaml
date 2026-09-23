@@ -1,0 +1,89 @@
+# Render Blueprint for apps/api (the NestJS backend).
+#
+# Deploy: Render dashboard -> New -> Blueprint -> select this repo. Render reads this file and
+# proposes the web service + database + Redis instance below; env vars marked `sync: false` are
+# NOT stored here (no secrets in git) and must be filled in once, by hand, in the Render dashboard
+# after the blueprint creates the service.
+#
+# This deploys apps/api ONLY. apps/web and apps/admin stay on Vercel — nothing here touches them.
+services:
+  - type: web
+    name: cz-digitizing-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    # Runs from the repo root (not apps/api) because this is a pnpm workspace — `apps/api`
+    # depends on the sibling `@czd/shared-types` workspace package, which only resolves correctly
+    # when `pnpm install` runs at the monorepo root, not inside apps/api alone.
+    #
+    # Migrations run here, not via Render's Pre-Deploy Command: that feature needs a paid instance
+    # plan (Render docs: "available for paid web services, private services, and background
+    # workers") and this service stays on `plan: free`. `prisma migrate deploy` only applies the
+    # 31 already-committed migrations in apps/api/prisma/migrations/ — never `migrate dev`, never
+    # generates a new one. Running it here (once per deploy, build-time) rather than folded into
+    # startCommand avoids re-running it on every Free-tier cold start (idle Free services sleep
+    # and cold-start on the next request) and keeps a failed migration a clean failed *deploy*
+    # (old instance keeps serving) rather than a failed *boot* of the new one.
+    buildCommand: corepack enable && corepack prepare pnpm@9.12.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @czd/api exec prisma generate && pnpm --filter @czd/api exec prisma migrate deploy && pnpm --filter @czd/api build
+    startCommand: pnpm --filter @czd/api start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      # Auto-wired from the `cz-digitizing-db` database below — Render fills these in itself.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cz-digitizing-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: cz-digitizing-redis
+          type: redis
+          property: connectionString
+      # Everything below is a secret or deployment-specific value — set once by hand in the
+      # Render dashboard (Environment tab) after the blueprint creates this service. Generate
+      # fresh values for JWT_ACCESS_SECRET / JWT_REFRESH_SECRET / APP_ENCRYPTION_KEY for
+      # production; do NOT reuse the "dev-only-change-me" placeholders from local .env.
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: APP_ENCRYPTION_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: API_BASE_URL
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: BREVO_ADMIN_API_KEY
+        sync: false
+      - key: BREVO_ADMIN_SENDER_EMAIL
+        sync: false
+      - key: BREVO_ADMIN_SENDER_NAME
+        sync: false
+      - key: BREVO_CUSTOMER_API_KEY
+        sync: false
+      - key: BREVO_CUSTOMER_SMTP_LOGIN
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        sync: false
+
+  - type: redis
+    name: cz-digitizing-redis
+    plan: free
+    region: oregon
+    ipAllowList: []
+
+databases:
+  - name: cz-digitizing-db
+    plan: free
+    region: oregon
