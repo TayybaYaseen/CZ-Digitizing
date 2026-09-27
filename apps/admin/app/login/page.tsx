@@ -1,8 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ApiError } from '@czd/shared-types';
@@ -10,7 +11,7 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AdminAuthLayout } from '@/components/AdminAuthLayout';
 import { authInputClass, authInputErrorClass, authSubmitButtonClass } from '@/components/admin-auth-styles';
 import { ButtonSpinner } from '@/components/ButtonSpinner';
-import { ErrorBanner } from '@/components/ErrorBanner';
+import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField } from '@/components/FormField';
 import { PasswordInput } from '@/components/PasswordInput';
 import { PENDING_2FA_STORAGE_KEY } from '@/lib/pending-2fa';
@@ -30,7 +31,16 @@ interface PendingTwoFactorResult {
 }
 
 export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <AdminLoginForm />
+    </Suspense>
+  );
+}
+
+function AdminLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -78,6 +88,12 @@ export default function AdminLoginPage() {
         <p className="text-[14.5px] text-gray-500">Sign in to the CZ Digitizing operations console</p>
       </div>
 
+      {searchParams.get('reset') && (
+        <div className="mt-6">
+          <SuccessBanner message="Password reset — log in with your new password." />
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
@@ -88,6 +104,12 @@ export default function AdminLoginPage() {
         <FormField label="Password" htmlFor="password" error={errors.password}>
           <PasswordInput id="password" className={errors.password ? authInputErrorClass : authInputClass} {...register('password')} />
         </FormField>
+
+        <div className="-mt-2 flex justify-end">
+          <Link href="/login/forgot-password" className="text-[13px] font-medium text-navy-800 hover:text-gold-600 hover:underline">
+            Forgot password?
+          </Link>
+        </div>
 
         <button type="submit" disabled={isSubmitting} className={authSubmitButtonClass}>
           {isSubmitting ? <ButtonSpinner label="Continuing…" /> : 'Continue'}
