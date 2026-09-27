@@ -9,6 +9,7 @@ import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { API_URL } from '@/lib/api-url';
 
 interface OrderItemDto {
   id: string;
@@ -48,8 +49,6 @@ interface OrderDto {
   receipts: PaymentReceiptDto[];
   createdAt: string;
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 // A-013 (AC-4/AC-5) — Admin reviews the receipt BEFORE confirming or rejecting. The file is served
 // only to signed-in staff by GET /api/orders/:id/receipts/:receiptId/file (never a public URL), so

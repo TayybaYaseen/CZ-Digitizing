@@ -1,6 +1,5 @@
 import type { ApiError, ApiResponse } from '@czd/shared-types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { API_URL } from './api-url';
 
 // Mirrors auth-context.tsx's STORAGE_KEY/AuthState shape exactly — this module can't use the
 // useAuth() hook (it's not a component), so it reads/writes the same localStorage entry directly.

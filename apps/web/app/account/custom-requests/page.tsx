@@ -7,8 +7,7 @@ import type { ApiError, CustomRequestDto, CustomRequestFileDto, CustomRequestMes
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { API_URL } from '@/lib/api-url';
 
 const STATUS_LABEL: Record<string, string> = {
   new: 'Submitted',
