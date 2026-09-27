@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { Env } from '../config/env.validation';
 import type { CustomerSubscription, SubscriptionPlan } from '../generated/prisma';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import type { OrderDto } from '../orders/dto/order.dto';
 import { OrdersService } from '../orders/orders.service';
@@ -77,7 +78,7 @@ export class PurchasesService {
         ? `Your "${sub.plan.name}" subscription has lapsed after ${RENEWAL_MAX_RETRIES} missed renewal reminders. You can still pay renewal order #${order.id} or subscribe again any time.`
         : `Your "${sub.plan.name}" subscription renewal is due: transfer exactly ${formatPkr(order.amountDuePkr)} to our bank account and upload your receipt at ${payUrl} (reminder ${failedCount}/${RENEWAL_MAX_RETRIES}).`,
       relatedOrderId: order.id,
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.subscription_renewal_failed,
     });
   }
 

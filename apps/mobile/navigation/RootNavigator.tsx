@@ -27,6 +27,7 @@ import { PurchasedDesignsScreen } from '../screens/account/PurchasedDesignsScree
 import { CreditsScreen } from '../screens/account/CreditsScreen';
 import { SubscriptionScreen } from '../screens/account/SubscriptionScreen';
 import { NotificationsScreen } from '../screens/account/NotificationsScreen';
+import { NotificationSettingsScreen } from '../screens/account/NotificationSettingsScreen';
 import { LanguageSelectScreen } from '../screens/account/LanguageSelectScreen';
 import { ActivityScreen } from '../screens/account/ActivityScreen';
 import { MembersScreen } from '../screens/account/MembersScreen';
@@ -113,6 +114,7 @@ function AccountStackNavigator() {
       <AccountStack.Screen name="Credits" component={CreditsScreen} />
       <AccountStack.Screen name="Subscription" component={SubscriptionScreen} />
       <AccountStack.Screen name="Notifications" component={NotificationsScreen} />
+      <AccountStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ title: 'Notification Preferences' }} />
       <AccountStack.Screen name="LanguageSelect" component={LanguageSelectScreen} options={{ title: 'Language' }} />
       <AccountStack.Screen name="Activity" component={ActivityScreen} />
       <AccountStack.Screen name="Members" component={MembersScreen} options={{ title: 'Shared Account Members' }} />

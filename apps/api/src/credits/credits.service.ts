@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { CreditTransactionType, Prisma } from '../generated/prisma';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PagedResult } from '../designs/designs.service';
@@ -160,7 +161,7 @@ export class CreditsService {
       type: 'credit_purchase',
       title: 'You received a gift',
       message: `You received ${dto.amount} credits as a gift.`,
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.credit_purchase,
     });
 
     return this.getBalance(senderId);

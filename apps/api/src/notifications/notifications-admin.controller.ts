@@ -28,6 +28,12 @@ export class NotificationsAdminController {
     return { count: await this.service.unreadCount(BigInt(admin.sub)) };
   }
 
+  // Declared after 'unread-count' so that literal route still wins over this param route.
+  @Get(':id')
+  async get(@Param('id') id: string, @CurrentUser() admin: AccessTokenPayload) {
+    return this.service.get(BigInt(admin.sub), id);
+  }
+
   // AC-8 — marking read never touches the underlying business record; unread count updates
   // immediately since it's a live count query, not a cached value.
   @Put(':id/read')

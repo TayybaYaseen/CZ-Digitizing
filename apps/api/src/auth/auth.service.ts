@@ -4,6 +4,8 @@ import type { AdminPermission, User } from '../generated/prisma';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { Env } from '../config/env.validation';
 import { EmailService } from '../email/email.service';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
+import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthTokensDto, PendingTwoFactorDto, TwoFactorSetupDto } from './dto/auth-tokens.dto';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -34,6 +36,7 @@ function pendingToDevice(pending: PartialSessionTokenPayload): DeviceContext {
 @Injectable()
 export class AuthService {
   private readonly webBaseUrl: string;
+  private readonly registrationBatchEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -45,9 +48,11 @@ export class AuthService {
     private readonly oauth: OAuthService,
     private readonly magicLink: MagicLinkService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationService,
     config: ConfigService<Env, true>,
   ) {
     this.webBaseUrl = config.get('WEB_BASE_URL', { infer: true });
+    this.registrationBatchEnabled = config.get('NOTIFY_REGISTRATION_BATCH_ENABLED', { infer: true });
   }
 
   // --- Registration (AC-1) ---
@@ -80,7 +85,38 @@ export class AuthService {
     // this one-line update doesn't need a shared service to justify introducing it.
     await this.prisma.quote.updateMany({ where: { customerId: null, email: user.email }, data: { customerId: user.id } });
 
+    await this.notifyAdminsOfNewRegistration(user);
     return toUserProfileDto(user);
+  }
+
+  // docs/specs/2026-08-28-02-notifications-system.md AC-1/AC-2 — real-time per-registration Admin
+  // notification (a Notification row + email/in-app dispatch), called from every path that actually
+  // creates a new customer account (register() above, and completeOAuthLogin() below only when that
+  // OAuth sign-in just created the account rather than logging an existing one in — so those two
+  // paths can never double-fire for the same registration event).
+  //
+  // Gated on !registrationBatchEnabled — CZ_DIGITIZING_ARCHITECTURE.md's own trigger table
+  // describes this exact trigger as "Delay: Hourly batch (if enabled)", i.e. the hourly digest
+  // (NotificationBatchingService.sendRegistrationDigest(), same NOTIFY_REGISTRATION_BATCH_ENABLED
+  // flag) is the alternative delivery mode for this trigger, not an addition on top of it. Without
+  // this gate, an operator turning the batch flag on would get both this real-time entry per signup
+  // AND the hourly summary re-listing the same registrations — a genuine duplicate. When the flag
+  // is on, this method is a no-op and the digest is the sole Admin-facing signal, matching the
+  // architecture text; when it's off (default), this is the only signal, satisfying this spec's own
+  // AC-2 (registration in the Admin dashboard's chronological list) which the digest alone can never
+  // satisfy (it sends a raw summary email, no Notification row).
+  private async notifyAdminsOfNewRegistration(user: User): Promise<void> {
+    if (this.registrationBatchEnabled) return;
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin' } });
+    for (const admin of admins) {
+      await this.notifications.notify({
+        recipientUserId: admin.id.toString(),
+        type: 'new_registration',
+        title: 'New customer registration',
+        message: `${user.displayName ?? user.email} (${user.email}) just created an account.`,
+        channels: DEFAULT_CHANNELS.new_registration,
+      });
+    }
   }
 
   async verifyEmail(token: string): Promise<void> {
@@ -163,8 +199,34 @@ export class AuthService {
     });
     if (!pending) throw new ApiException('INVALID_OR_EXPIRED_CODE', 401, 'Invalid or expired code');
 
-    await this.codes.verifyDeviceCode(pending.id, dto.code); // AC-4
+    await this.codes.verifyDeviceCode(pending.id, dto.code); // AC-4 — checks the code, doesn't
+    // consume it, so two concurrent verify-new-device requests (retry/double-submit) can both pass
+    // this check for the same session. The conditional updateMany below is the actual atomic
+    // "claim" — only whichever request flips isVerified false->true first gets count > 0, so the
+    // new_device_login notification below can only ever fire once per real device-trust event, no
+    // matter how many concurrent requests raced on it. markVerifiedAndExtend still runs
+    // unconditionally after so every caller (winner or not) gets a valid extended session/tokens —
+    // this only gates the notification, not the login itself.
+    const { count: wonVerificationRace } = await this.prisma.session.updateMany({
+      where: { id: pending.id, isVerified: false },
+      data: { isVerified: true },
+    });
     const verified = await this.sessions.markVerifiedAndExtend(pending.id);
+
+    // docs/specs/2026-08-28-02-notifications-system.md AC-1 — fired once the device is actually
+    // confirmed/trusted (not on the earlier "verification required" branch in
+    // completeDeviceTrustLogin(), which is an unverified attempt, not a login yet). Customer-facing,
+    // not Admin — the account owner is the one who needs to know a new device just signed in.
+    if (wonVerificationRace > 0) {
+      await this.notifications.notify({
+        recipientUserId: user.id.toString(),
+        type: 'new_device_login',
+        title: 'New device signed in',
+        message: `Your account was just signed in from a new device${device.ipAddress ? ` (IP ${device.ipAddress})` : ''}. If this wasn't you, reset your password immediately.`,
+        channels: DEFAULT_CHANNELS.new_device_login,
+      });
+    }
+
     return this.issueTokens(user, verified.id, device.deviceId);
   }
 
@@ -280,9 +342,11 @@ export class AuthService {
     if (!profile.emailVerified) throw new ApiException('VALIDATION_ERROR', 401, 'OAuth account email is not verified');
 
     let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    const isNewRegistration = !user;
     user ??= await this.prisma.user.create({
       data: { email: profile.email, displayName: profile.displayName, role: 'customer', gmailVerified: true },
     });
+    if (isNewRegistration) await this.notifyAdminsOfNewRegistration(user);
 
     return this.completeCredentialCheck(user, device);
   }

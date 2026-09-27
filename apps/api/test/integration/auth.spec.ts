@@ -78,6 +78,23 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(stored.passwordHash).not.toBe('password123');
   });
 
+  // docs/specs/2026-08-28-02-notifications-system.md AC-1 — real-time Admin notification per
+  // registration, not just the (off-by-default) hourly digest.
+  it('notifies every admin of a new customer registration', async () => {
+    const admin = await prisma.user.create({
+      data: { email: 'admin-notify@example.com', passwordHash: await hashForTest('adminpass123'), role: 'admin' },
+    });
+
+    const res = await agent().post('/api/auth/register').send({ email: 'notifyme@example.com', password: 'password123' });
+    expect(res.status).toBe(201);
+
+    const notification = await prisma.notification.findFirstOrThrow({
+      where: { recipientUserId: admin.id, notificationType: 'new_registration' },
+    });
+    expect(notification.title).toBe('New customer registration');
+    expect(notification.message).toContain('notifyme@example.com');
+  });
+
   it('rejects registering an already-registered email (409 EMAIL_ALREADY_REGISTERED)', async () => {
     await agent().post('/api/auth/register').send({ email: 'dup@example.com', password: 'password123' });
     const res = await agent().post('/api/auth/register').send({ email: 'dup@example.com', password: 'password123' });
@@ -136,6 +153,47 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     const secondLogin = await client.post('/api/auth/login').send({ email: 'device@example.com', password: 'password123' });
     expect(secondLogin.status).toBe(200);
     expect(secondLogin.body.data.accessToken).toBeDefined();
+  });
+
+  // docs/specs/2026-08-28-02-notifications-system.md AC-1 — fired once the device is actually
+  // verified/trusted, to the account owner (not Admin).
+  it('notifies the customer once a new device is verified and trusted', async () => {
+    const client = agent();
+    await client.post('/api/auth/register').send({ email: 'devicenotify@example.com', password: 'password123' });
+    await client.post('/api/auth/login').send({ email: 'devicenotify@example.com', password: 'password123' });
+
+    const code = lastEmailCodeTo('devicenotify@example.com');
+    const verify = await client.post('/api/auth/verify-new-device').send({ email: 'devicenotify@example.com', code });
+    expect(verify.status).toBe(200);
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'devicenotify@example.com' } });
+    const notification = await prisma.notification.findFirstOrThrow({
+      where: { recipientUserId: user.id, notificationType: 'new_device_login' },
+    });
+    expect(notification.title).toBe('New device signed in');
+  });
+
+  // Notification-fix audit — verifyDeviceCode() checks the code but doesn't consume it, so two
+  // concurrent verify-new-device requests (double-submit/retry) can both pass that check for the
+  // same session before either's write commits. Without the atomic conditional claim in
+  // auth.service.ts, both would fire new_device_login — this proves only one notification is ever
+  // created even when both requests race for real against Postgres, while both still get a valid
+  // session (a race isn't an attack here, just a duplicate client request for the same login).
+  it('never creates duplicate new_device_login notifications when two verify-new-device requests race on the same session', async () => {
+    const client = agent();
+    await client.post('/api/auth/register').send({ email: 'devicerace@example.com', password: 'password123' });
+    await client.post('/api/auth/login').send({ email: 'devicerace@example.com', password: 'password123' });
+    const code = lastEmailCodeTo('devicerace@example.com');
+
+    const [first, second] = await Promise.all([
+      client.post('/api/auth/verify-new-device').send({ email: 'devicerace@example.com', code }),
+      client.post('/api/auth/verify-new-device').send({ email: 'devicerace@example.com', code }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 200]);
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'devicerace@example.com' } });
+    const notifications = await prisma.notification.findMany({ where: { recipientUserId: user.id, notificationType: 'new_device_login' } });
+    expect(notifications).toHaveLength(1);
   });
 
   it('rate-limits new-device verification after 3 wrong attempts in the window (AC-4)', async () => {

@@ -4,6 +4,7 @@ import { ApiException } from '../common/exceptions/api-exception';
 import { parseIdOr404 } from '../common/parse-id.util';
 import { orderAllowsFileAccess } from '../orders/order-state-machine';
 import { DesignFilesService } from '../files/design-files.service';
+import { ADMIN_NOTIFICATION_CHANNELS, DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toFileFormatRequestDto } from './dto/file-format-request.dto';
@@ -37,7 +38,9 @@ export class FileFormatRequestsService {
         title: 'New file-format request',
         message: `Order #${order.id} has a new request for an additional "${dto.requestedFormat}" file.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        // ADMIN_NOTIFICATION_CHANNELS, not DEFAULT_CHANNELS.file_format_available — that type's own
+        // routing table is customer-facing (includes whatsapp/push); Admin gets Dashboard/email only.
+        channels: ADMIN_NOTIFICATION_CHANNELS,
       });
     }
 
@@ -87,7 +90,7 @@ export class FileFormatRequestsService {
       title: 'Your requested file format is ready',
       message: `The "${request.requestedFormat}" file you requested for order #${order.id} is now available to download.`,
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.file_format_available,
     });
 
     return toFileFormatRequestDto(updated);

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { subscribeToUnreadCountDelta } from '@/lib/unread-count-bus';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -35,6 +36,10 @@ export function NotificationBell() {
       clearInterval(interval);
     };
   }, [user, accessToken]);
+
+  // AC-8 — the admin's own mark-read/delete on the notifications page updates this immediately;
+  // the 30s poll above remains the fallback for changes from another tab/admin/device.
+  useEffect(() => subscribeToUnreadCountDelta((delta) => setCount((prev) => (prev === null ? prev : Math.max(0, prev + delta)))), []);
 
   if (!user) return null;
 

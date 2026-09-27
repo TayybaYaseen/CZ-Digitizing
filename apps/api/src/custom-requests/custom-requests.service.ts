@@ -4,6 +4,7 @@ import type { AccessTokenPayload } from '../auth/token.types';
 import { ApiException } from '../common/exceptions/api-exception';
 import type { CustomRequestStatus } from '../generated/prisma';
 import { StorageService } from '../files/storage.service';
+import { ADMIN_NOTIFICATION_CHANNELS, DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertValidCustomRequestTransition, InvalidCustomRequestTransitionError } from './custom-request-state-machine';
@@ -204,11 +205,14 @@ export class CustomRequestsService {
   private async notifyAdmins(request: CustomRequestWithRelations, title: string, message: string) {
     const admins = await this.prisma.user.findMany({ where: { role: 'admin' } });
     for (const admin of admins) {
-      await this.notifications.notify({ recipientUserId: admin.id.toString(), type: 'custom_request_status_update', title, message, relatedCustomRequestId: request.id.toString(), channels: ['email', 'in_app'] });
+      // ADMIN_NOTIFICATION_CHANNELS, not DEFAULT_CHANNELS.custom_request_status_update — this
+      // recipient is Admin, and that type's own routing table is customer-facing (includes
+      // whatsapp/push); Admin gets Dashboard/email only regardless of which type label is reused.
+      await this.notifications.notify({ recipientUserId: admin.id.toString(), type: 'custom_request_status_update', title, message, relatedCustomRequestId: request.id.toString(), channels: ADMIN_NOTIFICATION_CHANNELS });
     }
   }
 
   private async notifyCustomer(request: CustomRequestWithRelations, title: string, message: string) {
-    await this.notifications.notify({ recipientUserId: request.customerId.toString(), type: 'custom_request_status_update', title, message, relatedCustomRequestId: request.id.toString(), channels: ['email', 'in_app'] });
+    await this.notifications.notify({ recipientUserId: request.customerId.toString(), type: 'custom_request_status_update', title, message, relatedCustomRequestId: request.id.toString(), channels: DEFAULT_CHANNELS.custom_request_status_update });
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ApiException } from '../common/exceptions/api-exception';
 import { CreditsService } from '../credits/credits.service';
 import type { BillingPeriod, CustomerSubscription, Prisma, SubscriptionPlan } from '../generated/prisma';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangePlanDto, SubscriptionPlanWriteDto } from './dto/subscription-write.dto';
@@ -157,7 +158,7 @@ export class SubscriptionsService {
           remaining === 0
             ? `You've used all ${limit} logo downloads on your "${sub.plan.name}" plan this cycle. Your allowance refreshes on renewal.`
             : `You have ${remaining} logo download${remaining === 1 ? '' : 's'} left on your "${sub.plan.name}" plan this cycle.`,
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.subscription_logo_limit_low,
       });
     }
 
@@ -240,7 +241,7 @@ export class SubscriptionsService {
       type: 'subscription_renewal',
       title: 'Subscription plan changed',
       message: `Your subscription is now "${newPlan.name}". ${proratedChargePkr > 0 ? `A prorated charge of ${proratedChargePkr} PKR applies for the rest of this cycle.` : ''}`,
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.subscription_renewal,
     });
 
     return { subscription: toCustomerSubscriptionDto(updated), proratedChargePkr };

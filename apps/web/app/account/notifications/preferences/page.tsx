@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
@@ -12,6 +13,9 @@ function humanize(value: string) {
 
 // AC-5 — target of the one-click unsubscribe link in notification emails. Public page: no login
 // required, the token in the URL is the authorization (mirrors the backend's @Public() route).
+// NOT the notification preference center (AC-9) despite the similar URL — that's the dedicated
+// /account/notifications/settings page this one links to below. Kept at this exact path since
+// notification-email.service.ts already points every sent unsubscribe link here.
 export default function UnsubscribePage() {
   return (
     <Suspense>
@@ -46,7 +50,16 @@ function UnsubscribeContent() {
       <h1 className="text-2xl font-bold">Email preferences</h1>
       {loading && <p className="text-sm text-gray-500">Updating your preferences…</p>}
       {!loading && result && (
-        <SuccessBanner message={`You've been unsubscribed from "${humanize(result.notificationType)}" emails. You can re-enable them any time from your account's notification preferences.`} />
+        <>
+          <SuccessBanner message={`You've been unsubscribed from "${humanize(result.notificationType)}" emails.`} />
+          <p className="text-sm text-gray-500">
+            You can re-enable them any time from your{' '}
+            <Link href="/account/notifications/settings" className="underline">
+              notification preferences
+            </Link>
+            .
+          </p>
+        </>
       )}
       {!loading && error && <ErrorBanner error={error} />}
     </div>

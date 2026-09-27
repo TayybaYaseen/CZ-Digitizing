@@ -2,12 +2,20 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logge
 import { randomUUID } from 'crypto';
 import type { Response } from 'express';
 import type { ApiError } from '@czd/shared-types';
+import { DEFAULT_CHANNELS } from '../../notifications/notifications.constants';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ApiException } from '../exceptions/api-exception';
 import type { RequestWithTraceId } from '../middleware/trace-id.middleware';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -20,9 +28,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(`[${traceId}] ${this.describe(exception)}`, (exception as Error)?.stack);
+      // docs/specs/2026-08-28-02-notifications-system.md AC-1 ("file/system errors" trigger) — only
+      // for genuine 5xx (never the 4xx/validation branch above), and never awaited: this response
+      // must ship on its own timing regardless of how long notify()'s email retry/backoff takes, and
+      // a failure here (e.g. the same outage that caused the 500 also makes Postgres unreachable)
+      // must never re-throw back into this filter or the request pipeline — it's logged and dropped.
+      this.notifySystemAlert(traceId, exception).catch((err: unknown) => {
+        this.logger.error(`Failed to dispatch system_alert for [${traceId}]: ${this.describe(err)}`);
+      });
     }
 
     res.status(status).json({ error } satisfies { error: ApiError });
+  }
+
+  private async notifySystemAlert(traceId: string, exception: unknown): Promise<void> {
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin' } });
+    const message = `[${traceId}] ${this.describe(exception)}`;
+    for (const admin of admins) {
+      await this.notifications.notify({
+        recipientUserId: admin.id.toString(),
+        type: 'system_alert',
+        title: 'Unexpected server error',
+        message,
+        channels: DEFAULT_CHANNELS.system_alert,
+      });
+    }
   }
 
   private resolve(exception: unknown): { status: number; body: Omit<ApiError, 'traceId'> } {

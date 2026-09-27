@@ -31,10 +31,10 @@ function makeQuote(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function createFakePrisma(quotes: ReturnType<typeof makeQuote>[], messages: Record<string, unknown>[] = []) {
+function createFakePrisma(quotes: ReturnType<typeof makeQuote>[], messages: Record<string, unknown>[] = [], admins: { id: bigint }[] = []) {
   return {
     service: { findUnique: jest.fn(async () => ({ id: 10n, type: 'embroidery_digitizing' })) },
-    user: { findUnique: jest.fn(async () => null), findMany: jest.fn(async () => []) },
+    user: { findUnique: jest.fn(async () => null), findMany: jest.fn(async () => admins) },
     quote: {
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
         const row = makeQuote({ id: BigInt(quotes.length + 1), ...data });
@@ -60,8 +60,8 @@ function createFakePrisma(quotes: ReturnType<typeof makeQuote>[], messages: Reco
   };
 }
 
-function createFakes(quotes: ReturnType<typeof makeQuote>[] = []) {
-  const prisma = createFakePrisma(quotes);
+function createFakes(quotes: ReturnType<typeof makeQuote>[] = [], admins: { id: bigint }[] = []) {
+  const prisma = createFakePrisma(quotes, [], admins);
   const audit = { record: jest.fn(async () => undefined) };
   const notify = jest.fn(async () => undefined);
   const emailSend = jest.fn(async (_message: { to: string; subject: string; text: string }) => undefined);
@@ -117,6 +117,18 @@ describe('QuotesService', () => {
     expect(notify).toHaveBeenCalledTimes(0); // no admin users seeded in this fake -> notifyAdmins loop is empty
     expect(emailSend).toHaveBeenCalledTimes(1);
     expect(emailSend.mock.calls[0][0]).toMatchObject({ to: 'jane@example.com' });
+  });
+
+  // Notification-fix audit regression guard — quote_submitted's own DEFAULT_CHANNELS is
+  // customer-facing (includes push); an Admin recipient reusing that type must still be capped to
+  // ADMIN_NOTIFICATION_CHANNELS (email/in_app only), never inheriting push.
+  it("AC-4: the Admin notification for a new quote never requests push (Admin's channels are capped, not the customer routing table)", async () => {
+    const quotes = [makeQuote({ id: 1n, name: 'Jane', email: 'jane@example.com', size: 'M', quantity: 2 })];
+    const { service, notify } = createFakes(quotes, [{ id: 1n }]);
+
+    await service.submit('1', { isStaff: false, accessToken: 'tok-1' });
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ recipientUserId: '1', type: 'quote_submitted', channels: ['email', 'in_app'] }));
   });
 
   it('cannot submit a quote that is not in draft status', async () => {

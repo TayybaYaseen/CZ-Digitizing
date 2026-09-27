@@ -44,6 +44,41 @@ describe('NotificationPushService (A-023 — real Expo send)', () => {
     );
   });
 
+  it('AC-7 — includes only the applicable deep-link identifiers in the Expo message data field', async () => {
+    const fetchMock = jest.fn(async (_url: string, _options: RequestInit) => ({
+      ok: true,
+      json: async () => ({ data: [{ status: 'ok', id: 'ticket-1' }] }),
+    }));
+    global.fetch = fetchMock as never;
+    const service = new NotificationPushService(createFakePushTokens([{ token: 'ExponentPushToken[abc123]', platform: 'ios' }]) as never);
+    await service.send({
+      userId: 10n,
+      title: 'Files ready',
+      message: 'Download now',
+      notificationId: '42',
+      notificationType: 'files_ready',
+      relatedOrderId: '7',
+    });
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse((options as { body: string }).body);
+    expect(body[0].data).toEqual({ notificationId: '42', notificationType: 'files_ready', relatedOrderId: '7' });
+    expect(body[0].data.relatedQuoteId).toBeUndefined();
+    expect(body[0].data.relatedCustomRequestId).toBeUndefined();
+  });
+
+  it('omits the data field entirely when no notificationId is given (backward compatible)', async () => {
+    const fetchMock = jest.fn(async (_url: string, _options: RequestInit) => ({
+      ok: true,
+      json: async () => ({ data: [{ status: 'ok', id: 'ticket-1' }] }),
+    }));
+    global.fetch = fetchMock as never;
+    const service = new NotificationPushService(createFakePushTokens([{ token: 'ExponentPushToken[abc123]', platform: 'ios' }]) as never);
+    await service.send({ userId: 10n, title: 'x', message: null });
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse((options as { body: string }).body);
+    expect(body[0].data).toBeUndefined();
+  });
+
   it('throws on a genuine Expo delivery error (not DeviceNotRegistered), so the caller\'s retry/backoff can handle it', async () => {
     const fetchMock = jest.fn(async () => ({
       ok: true,

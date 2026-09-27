@@ -52,6 +52,17 @@ export const ADMIN_ONLY_TYPES: readonly NotificationType[] = [
   'system_alert',
 ];
 
+// Architecture's Admin Notifications table is Dashboard/email only for every Admin trigger, with
+// no per-type variation — unlike DEFAULT_CHANNELS above, which is keyed by NotificationType, not
+// recipient. A handful of Admin-recipient notify() calls reuse a customer-facing NotificationType
+// (e.g. 'custom_request_status_update' for "new custom request", 'file_format_available' for "new
+// file-format request", 'quote_submitted' sent to Admin) because no distinct Admin-only type exists
+// for that specific event yet — those call sites must pass this constant explicitly instead of
+// DEFAULT_CHANNELS[type], or the admin recipient would inherit that type's customer channels
+// (whatsapp/push) that Admin notifications are never supposed to use. Search for this constant's
+// usages to find every such call site.
+export const ADMIN_NOTIFICATION_CHANNELS: NotificationChannel[] = ['email', 'in_app'];
+
 // AC-6 — WhatsApp is skipped in favor of email/in-app once the customer's last inbound message
 // is older than this (or they've never messaged in).
 export const WHATSAPP_FALLBACK_WINDOW_HOURS = 48;
