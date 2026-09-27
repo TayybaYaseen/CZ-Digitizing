@@ -18,8 +18,7 @@ import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { inputClass } from '@/components/FormField';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { API_URL } from '@/lib/api-url';
 
 const STATUS_TABS: { value: '' | CustomRequestStatus; label: string }[] = [
   { value: '', label: 'All' },

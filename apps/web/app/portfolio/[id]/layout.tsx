@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import type { ApiResponse } from '@czd/shared-types';
 import type { PortfolioItemDto } from '@czd/shared-types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { API_URL } from '@/lib/api-url';
 
 // docs/portfolio-spec.md §13 — per-item title/description for the detail route, fetched
 // server-side from the same public GET /api/portfolio/:id the client page also calls (no CV
