@@ -16,6 +16,7 @@ export interface NotifyInput {
   relatedOrderId?: string;
   relatedQuoteId?: string;
   relatedCustomRequestId?: string;
+  relatedContactMessageId?: string;
   channels: NotificationChannel[];
 }
 
@@ -43,7 +44,12 @@ export class NotificationService {
 
     // 'sms' is never part of a normal dispatch (see notifications.constants.ts) — it's added only
     // as a last-resort fallback below, after seeing whether email/WhatsApp actually succeeded.
-    let channels = (await this.preferences.resolveEnabledChannels(userId, input.type, input.channels)).filter((c) => c !== 'sms');
+    // Stripped from the *requested* list before resolution (not after) so callers that pass
+    // DEFAULT_CHANNELS[type] directly — which includes 'sms' for the 3 SMS-eligible types — don't
+    // trigger a pointless preference lookup for a channel this call immediately discards; the SMS
+    // fallback path below does its own dedicated resolveEnabledChannels(['sms']) check when needed.
+    const requestedChannels = input.channels.filter((c) => c !== 'sms');
+    let channels = await this.preferences.resolveEnabledChannels(userId, input.type, requestedChannels);
 
     // AC-6 — WhatsApp requires a recent inbound message; otherwise fall back to email/in-app
     // instead of silently failing. This overrides a per-user email/in_app opt-out specifically in
@@ -69,6 +75,7 @@ export class NotificationService {
         relatedOrderId: input.relatedOrderId ? BigInt(input.relatedOrderId) : undefined,
         relatedQuoteId: input.relatedQuoteId ? BigInt(input.relatedQuoteId) : undefined,
         relatedCustomRequestId: input.relatedCustomRequestId ? BigInt(input.relatedCustomRequestId) : undefined,
+        relatedContactMessageId: input.relatedContactMessageId ? BigInt(input.relatedContactMessageId) : undefined,
         expiresAt: isCustomerFacing ? addDays(new Date(), CUSTOMER_RETENTION_DAYS) : null,
       },
     });
@@ -102,6 +109,16 @@ export class NotificationService {
       this.prisma.notification.count({ where }),
     ]);
     return { items: rows.map(toNotificationDto), total };
+  }
+
+  // Backs the Admin notification detail view — used for types with no business page of their own
+  // (system_alert, admin_alert, …) so a click still opens the full message and trace id.
+  async get(userId: bigint, id: string): Promise<NotificationDto> {
+    // A non-numeric id would make BigInt() throw a 500 (which itself fires a system_alert).
+    if (!/^\d+$/.test(id)) throw new ApiException('NOTIFICATION_NOT_FOUND', 404, 'Notification not found');
+    const row = await this.prisma.notification.findFirst({ where: { id: BigInt(id), recipientUserId: userId } });
+    if (!row) throw new ApiException('NOTIFICATION_NOT_FOUND', 404, 'Notification not found');
+    return toNotificationDto(row);
   }
 
   async unreadCount(userId: bigint): Promise<number> {

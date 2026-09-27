@@ -33,6 +33,7 @@ export type AccountStackParamList = {
   Credits: undefined;
   Subscription: undefined;
   Notifications: undefined;
+  NotificationSettings: undefined;
   LanguageSelect: undefined;
   Activity: undefined;
   Members: undefined;
@@ -76,5 +77,7 @@ export type RootTabParamList = {
   // BankTransfer lives in the Cart stack; Pricing / Custom Request open it via CartTab -> BankTransfer.
   CartTab: NavigatorScreenParams<CartStackParamList> | undefined;
   MoreTab: undefined;
-  AccountTab: undefined;
+  // NavigatorScreenParams (rather than plain `undefined`) so a tapped push notification's deep
+  // link can jump straight to a nested Account-stack screen (lib/notification-deep-link.ts).
+  AccountTab: NavigatorScreenParams<AccountStackParamList> | undefined;
 };

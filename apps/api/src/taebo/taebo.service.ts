@@ -4,6 +4,7 @@ import { AuditLogService } from '../audit/audit-log.service';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { ApiException } from '../common/exceptions/api-exception';
 import { FaqService } from '../faq/faq.service';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { TaeboAnswerDto, TaeboChatDto } from './dto/taebo-chat.dto';
@@ -102,7 +103,7 @@ export class TaeboService {
         type: 'taebo_answered',
         title: 'Taebo has an answer for you',
         message: dto.answer,
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.taebo_answered,
       });
     }
 
@@ -152,7 +153,7 @@ export class TaeboService {
         type: 'taebo_waiting',
         title: 'Taebo needs help answering a question',
         message: questionText,
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.taebo_waiting,
       });
     }
   }

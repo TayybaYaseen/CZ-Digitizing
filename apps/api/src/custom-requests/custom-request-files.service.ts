@@ -4,6 +4,7 @@ import { ApiException } from '../common/exceptions/api-exception';
 import { parseIdOr404 } from '../common/parse-id.util';
 import { StorageService } from '../files/storage.service';
 import { orderAllowsFileAccess } from '../orders/order-state-machine';
+import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toCustomRequestFileDto } from './dto/custom-request.dto';
@@ -60,7 +61,7 @@ export class CustomRequestFilesService {
       title: 'Your files are ready',
       message: `The final files for your custom request #${request.requestNumber} are now available to download.`,
       relatedCustomRequestId: request.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.custom_request_status_update,
     });
 
     return updated.files.map(toCustomRequestFileDto);

@@ -6,6 +6,8 @@ import type { ApiError, NotificationDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { publishUnreadCountDelta } from '@/lib/unread-count-bus';
+import { getNotificationHref } from '@/lib/notification-link';
 
 const PAGE_SIZE = 20;
 
@@ -58,7 +60,11 @@ export default function AdminNotificationsPage() {
     loadNotifications(1);
   }, [isReady, user, loadNotifications, router]);
 
+  // AC-1 §5 "mark-as-read on open" — called both when a row is clicked/opened and from the
+  // explicit "Mark read" button below (kept: an unambiguous action some admins will still prefer
+  // over clicking the row itself). No-ops (and skips the badge decrement) if already read.
   async function onMarkRead(id: string) {
+    if (notifications?.find((n) => n.id === id)?.isRead) return;
     setActionError(null);
     try {
       await apiFetch(`/api/admin/notifications/${id}/read`, {
@@ -66,6 +72,7 @@ export default function AdminNotificationsPage() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       setNotifications((prev) => prev?.map((n) => (n.id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n)) ?? null);
+      publishUnreadCountDelta(-1); // AC-8 — badge updates immediately, not on the next 30s poll
     } catch (err) {
       setActionError(
         err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to mark as read.', traceId: '' },
@@ -74,6 +81,7 @@ export default function AdminNotificationsPage() {
   }
 
   async function onDelete(id: string) {
+    const wasUnread = notifications?.find((n) => n.id === id)?.isRead === false;
     setActionError(null);
     try {
       await apiFetch(`/api/admin/notifications/${id}`, {
@@ -82,11 +90,20 @@ export default function AdminNotificationsPage() {
       });
       setNotifications((prev) => prev?.filter((n) => n.id !== id) ?? null);
       setTotal((prev) => Math.max(0, prev - 1));
+      if (wasUnread) publishUnreadCountDelta(-1); // AC-8
     } catch (err) {
       setActionError(
         err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to delete.', traceId: '' },
       );
     }
+  }
+
+  // Opening a notification marks it read and takes the admin to the page it's about (the order,
+  // quotes, custom requests, …). The mark-read request isn't awaited so navigation feels instant;
+  // the badge bus lives in the layout, so its decrement still lands after this page unmounts.
+  function onOpen(n: NotificationDto) {
+    void onMarkRead(n.id);
+    router.push(getNotificationHref(n));
   }
 
   if (!isReady || !user) return null; // still checking localStorage, or redirecting to /login
@@ -104,7 +121,7 @@ export default function AdminNotificationsPage() {
       </div>
 
       <ErrorBanner error={actionError} />
-      <ErrorBanner error={listError} />
+      <ErrorBanner error={listError} onRetry={() => loadNotifications(page)} />
 
       {notifications === null && !listError ? (
         <ul className="space-y-2">
@@ -120,7 +137,11 @@ export default function AdminNotificationsPage() {
         <>
           <ul className="divide-y divide-gray-100 rounded-card border border-gray-200 bg-white shadow-cz-sm">
             {notifications.map((n) => (
-              <li key={n.id} className={`flex items-start justify-between gap-4 px-4 py-3 ${n.isRead ? '' : 'bg-gold-100/40'}`}>
+              <li
+                key={n.id}
+                onClick={() => onOpen(n)}
+                className={`flex items-start justify-between gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 ${n.isRead ? '' : 'bg-gold-100/40'}`}
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     {!n.isRead && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-gold-500" aria-label="unread" />}
@@ -134,14 +155,20 @@ export default function AdminNotificationsPage() {
                 <div className="flex flex-shrink-0 gap-2">
                   {!n.isRead && (
                     <button
-                      onClick={() => onMarkRead(n.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkRead(n.id);
+                      }}
                       className="rounded-field border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
                     >
                       Mark read
                     </button>
                   )}
                   <button
-                    onClick={() => onDelete(n.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(n.id);
+                    }}
                     className="rounded-field border border-status-redFg/30 px-3 py-1 text-xs text-status-redFg hover:bg-status-redBg"
                   >
                     Delete

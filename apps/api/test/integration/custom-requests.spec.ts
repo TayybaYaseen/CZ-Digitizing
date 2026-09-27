@@ -76,6 +76,12 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
 
     const notif = await prisma.notification.findFirst({ where: { recipientUserId: admin.id, notificationType: 'custom_request_status_update' } });
     expect(notif).not.toBeNull();
+
+    // Notification-fix audit regression guard — custom_request_status_update's own DEFAULT_CHANNELS
+    // is customer-facing (includes whatsapp/push); this recipient is Admin, so it must be capped to
+    // email/in_app only (ADMIN_NOTIFICATION_CHANNELS), never inheriting whatsapp/push.
+    const deliveryLogs = await prisma.notificationDeliveryLog.findMany({ where: { notificationId: notif!.id } });
+    expect(deliveryLogs.map((l) => l.channel).sort()).toEqual(['email', 'in_app']);
   });
 
   it('AC-2: rejects an illegal status jump (new -> completed) and applies the full happy-path chain otherwise', async () => {
@@ -130,6 +136,13 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
     const afterApprove = await prisma.customRequest.findUniqueOrThrow({ where: { id: req.id } });
     expect(afterApprove.status).toBe('approved');
     expect(afterApprove.orderId?.toString()).toBe(orderId);
+
+    // Notification-fix audit regression guard — this admin notification also reuses
+    // custom_request_status_update (customer-facing, includes whatsapp/push); capped to
+    // email/in_app only for this Admin recipient (see orders.service.ts's own notify() call here).
+    const adminApprovalNotif = await prisma.notification.findFirstOrThrow({ where: { recipientUserId: admin.id, notificationType: 'custom_request_status_update', title: 'Custom request quote approved' } });
+    const adminApprovalLogs = await prisma.notificationDeliveryLog.findMany({ where: { notificationId: adminApprovalNotif.id } });
+    expect(adminApprovalLogs.map((l) => l.channel).sort()).toEqual(['email', 'in_app']);
 
     // Confirm payment (bank-transfer path) — this is what advances the linked request to
     // in_production per OrdersService.releaseFilesAndNotify's custom-request hook. A-013: payment
@@ -196,6 +209,13 @@ describe('Custom Design Request System (docs/specs/2026-08-28-12-custom-design-r
       .expect(201);
     expect(created.body.data.status).toBe('pending');
     const requestId = created.body.data.id;
+
+    // Notification-fix audit regression guard — file_format_available's own DEFAULT_CHANNELS is
+    // customer-facing (includes whatsapp/push); the admin recipient of the "new file-format
+    // request" notification must be capped to email/in_app only, never inheriting whatsapp/push.
+    const adminNotif = await prisma.notification.findFirstOrThrow({ where: { recipientUserId: admin.id, notificationType: 'file_format_available' } });
+    const adminDeliveryLogs = await prisma.notificationDeliveryLog.findMany({ where: { notificationId: adminNotif.id } });
+    expect(adminDeliveryLogs.map((l) => l.channel).sort()).toEqual(['email', 'in_app']);
 
     const fulfilled = await request(app.getHttpServer())
       .post(`/api/file-format-requests/${requestId}/fulfill`)

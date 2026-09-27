@@ -3,7 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Env } from '../../config/env.validation';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DEFAULT_CHANNELS } from '../notifications.constants';
 import { NotificationEmailService } from './notification-email.service';
+import { NotificationService } from './notification.service';
 
 // docs/specs/2026-08-28-02-notifications-system.md §8 risk #3 — batching/scheduler mechanism.
 // Uses @nestjs/schedule in-process cron, not a queue (see notification.service.ts's sibling
@@ -18,6 +20,7 @@ export class NotificationBatchingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: NotificationEmailService,
+    private readonly notifications: NotificationService,
     config: ConfigService<Env, true>,
   ) {
     this.registrationBatchEnabled = config.get('NOTIFY_REGISTRATION_BATCH_ENABLED', { infer: true });
@@ -84,12 +87,33 @@ export class NotificationBatchingService {
     }
   }
 
-  // 1-day-before-expiry subscription reminder — genuinely blocked on A-015 (Subscriptions &
-  // Credits), which hasn't created a Subscription model yet (docs/specs/SPEC_INDEX.md: A-015 is
-  // `Blocked`). Stub with the same "not yet wired" seam pattern as NotificationPushService.
+  // CZ_DIGITIZING_ARCHITECTURE.md § Notifications System, trigger 8 ("Subscription Renewal...
+  // Delay: 1 day before expiry"). A-015 (Subscriptions & Credits) is now `Completed`
+  // (SPEC_INDEX.md) and CustomerSubscription.renewalDate already carries exactly the data this
+  // needs — the earlier TODO(A-015) blocker no longer applies. Routed through
+  // NotificationService.notify() (not a raw email like the two digests above) so this reminder
+  // gets a real Notification row too, not just an email. Dedup note: no separate
+  // "reminder already sent" flag is needed — this cron runs once daily, and a fixed renewalDate
+  // instant only ever falls inside a rolling [now, now+24h) window on one calendar day per cycle,
+  // the same one-cron-per-day simplification sendOrderStatusDigest's own comment above documents.
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sendSubscriptionRenewalReminders(): Promise<void> {
-    // TODO(A-015): query subscriptions expiring in 24h once the Subscription model exists, then
-    // call NotificationService.notify() with type 'subscription_renewal' per subscriber.
+    const windowStart = new Date();
+    const windowEnd = new Date(windowStart.getTime() + 24 * 60 * 60 * 1000);
+    const dueSoon = await this.prisma.customerSubscription.findMany({
+      where: { status: 'active', autoRenew: true, renewalDate: { gte: windowStart, lt: windowEnd } },
+      include: { plan: true },
+    });
+
+    for (const sub of dueSoon) {
+      await this.notifications.notify({
+        recipientUserId: sub.customerId.toString(),
+        type: 'subscription_renewal',
+        title: 'Your subscription renews tomorrow',
+        message: `Your "${sub.plan.name}" subscription will renew on ${sub.renewalDate.toDateString()}.`,
+        channels: DEFAULT_CHANNELS.subscription_renewal,
+      });
+    }
+    if (dueSoon.length > 0) this.logger.log(`Sent ${dueSoon.length} subscription-renewal reminder(s)`);
   }
 }

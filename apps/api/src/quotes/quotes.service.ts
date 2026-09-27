@@ -4,6 +4,7 @@ import type { AccessTokenPayload } from '../auth/token.types';
 import { ApiException } from '../common/exceptions/api-exception';
 import { EmailService } from '../email/email.service';
 import { StorageService } from '../files/storage.service';
+import { ADMIN_NOTIFICATION_CHANNELS, DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Quote } from '../generated/prisma';
@@ -175,13 +176,15 @@ export class QuotesService {
   private async notifyAdmins(quote: Quote, type: 'quote_submitted', title: string, message: string) {
     const admins = await this.prisma.user.findMany({ where: { role: 'admin' } });
     for (const admin of admins) {
-      await this.notifications.notify({ recipientUserId: admin.id.toString(), type, title, message, relatedQuoteId: quote.id.toString(), channels: ['email', 'in_app'] });
+      // ADMIN_NOTIFICATION_CHANNELS, not DEFAULT_CHANNELS[type] — quote_submitted's own routing
+      // table is customer-facing (includes push); Admin gets Dashboard/email only.
+      await this.notifications.notify({ recipientUserId: admin.id.toString(), type, title, message, relatedQuoteId: quote.id.toString(), channels: ADMIN_NOTIFICATION_CHANNELS });
     }
   }
 
   private async notifyCustomer(quote: Quote, type: 'quote_submitted' | 'quote_response', title: string, message: string) {
     if (quote.customerId) {
-      await this.notifications.notify({ recipientUserId: quote.customerId.toString(), type, title, message, relatedQuoteId: quote.id.toString(), channels: ['email', 'in_app'] });
+      await this.notifications.notify({ recipientUserId: quote.customerId.toString(), type, title, message, relatedQuoteId: quote.id.toString(), channels: DEFAULT_CHANNELS[type] });
     } else if (quote.email) {
       await this.email.send({ to: quote.email, subject: title, text: message });
     }

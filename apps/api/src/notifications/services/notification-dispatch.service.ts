@@ -37,17 +37,19 @@ export class NotificationDispatchService {
     return outcomes;
   }
 
-  // AC-5 — email retries with exponential backoff on transient failure (target 99.9% delivery).
+  // AC-5 — email retries with *exponential* backoff on transient failure (target 99.9% delivery):
+  // delay doubles each retry from a fixed base (500ms, 1000ms, ...), not a flat/arbitrary schedule.
   // Other channels don't carry that AC and stay single-attempt, matching their own dedicated ACs
   // (AC-6/AC-10 describe fallback-to-another-channel, not retry-the-same-channel).
-  private static readonly RETRY_BACKOFF_MS = [500, 2000];
+  private static readonly EMAIL_RETRY_ATTEMPTS = 2;
+  private static readonly EMAIL_RETRY_BASE_MS = 500;
 
   private async dispatchOne(notification: Notification, recipient: User, channel: NotificationChannel): Promise<boolean> {
     const log = await this.prisma.notificationDeliveryLog.create({
       data: { notificationId: notification.id, channel, status: 'queued' },
     });
 
-    const maxAttempts = channel === 'email' ? NotificationDispatchService.RETRY_BACKOFF_MS.length + 1 : 1;
+    const maxAttempts = channel === 'email' ? NotificationDispatchService.EMAIL_RETRY_ATTEMPTS + 1 : 1;
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -69,7 +71,8 @@ export class NotificationDispatchService {
           data: { status: isLastAttempt ? 'failed' : 'retried' },
         });
         if (!isLastAttempt) {
-          await new Promise((resolve) => setTimeout(resolve, NotificationDispatchService.RETRY_BACKOFF_MS[attempt - 1]));
+          const delayMs = NotificationDispatchService.EMAIL_RETRY_BASE_MS * 2 ** (attempt - 1);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
     }
@@ -98,7 +101,16 @@ export class NotificationDispatchService {
         if (!recipient.phone) throw new Error('recipient has no phone on file');
         return this.smsService.send({ to: recipient.phone, title: notification.title, message: notification.message });
       case 'push':
-        return this.pushService.send({ userId: recipient.id, title: notification.title, message: notification.message });
+        return this.pushService.send({
+          userId: recipient.id,
+          title: notification.title,
+          message: notification.message,
+          notificationId: notification.id.toString(),
+          notificationType: notification.notificationType,
+          relatedOrderId: notification.relatedOrderId?.toString(),
+          relatedQuoteId: notification.relatedQuoteId?.toString(),
+          relatedCustomRequestId: notification.relatedCustomRequestId?.toString(),
+        });
     }
   }
 }

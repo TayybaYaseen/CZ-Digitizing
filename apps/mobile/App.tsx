@@ -8,6 +8,8 @@ import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { Montserrat_400Regular, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { AuthProvider } from './lib/auth-context';
 import { LocaleProvider } from './lib/locale-context';
+import { useNotificationTapHandler } from './lib/use-notification-tap-handler';
+import { navigationRef } from './navigation/navigation-ref';
 import { RootNavigator } from './navigation/RootNavigator';
 
 // docs/specs/2026-08-29-18-mobile-app-android-ios.md (aspect A-023) — app shell entry point.
@@ -27,6 +29,9 @@ export default function App() {
     Montserrat_600SemiBold,
   });
 
+  // AC-7 — deep-links a tapped push notification once the nav tree (navigationRef below) is mounted.
+  useNotificationTapHandler();
+
   const onRootViewLayout = useCallback(async () => {
     if (fontsLoaded) {
       await SplashScreen.hideAsync();
@@ -41,7 +46,7 @@ export default function App() {
     <SafeAreaProvider onLayout={onRootViewLayout}>
       <AuthProvider>
         <LocaleProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <StatusBar style="auto" />
             <RootNavigator />
           </NavigationContainer>

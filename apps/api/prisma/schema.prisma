@@ -230,6 +230,8 @@ model ContactMessage {
   message   String
   createdAt DateTime @default(now()) @map("created_at")
 
+  notifications Notification[]
+
   @@map("contact_messages")
 }
 
@@ -364,12 +366,15 @@ model Notification {
   // (Orders & Payment Processing), A-016 (Smart Get a Quote), and A-017 (Custom Design Requests)
   // respectively once their models existed, per this field's own former TODO(A-013)/TODO(A-016)/
   // TODO(A-017) comments.
-  relatedOrderId         BigInt?        @map("related_order_id")
-  order                  Order?         @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
-  relatedQuoteId         BigInt?        @map("related_quote_id")
-  quote                  Quote?         @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
-  relatedCustomRequestId BigInt?        @map("related_custom_request_id")
-  customRequest          CustomRequest? @relation(fields: [relatedCustomRequestId], references: [id], onDelete: SetNull)
+  relatedOrderId          BigInt?         @map("related_order_id")
+  order                   Order?          @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+  relatedQuoteId          BigInt?         @map("related_quote_id")
+  quote                   Quote?          @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
+  relatedCustomRequestId  BigInt?         @map("related_custom_request_id")
+  customRequest           CustomRequest?  @relation(fields: [relatedCustomRequestId], references: [id], onDelete: SetNull)
+  // Set on contact_message notifications so clicking one opens that submission in Admin.
+  relatedContactMessageId BigInt?         @map("related_contact_message_id")
+  contactMessage          ContactMessage? @relation(fields: [relatedContactMessageId], references: [id], onDelete: SetNull)
 
   isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")

@@ -77,10 +77,22 @@ export interface CustomerSubscriptionDto {
 
 export interface NotificationDto {
   id: string;
+  notificationType: string;
   title: string;
   message: string | null;
+  relatedOrderId: string | null;
+  relatedQuoteId: string | null;
+  relatedCustomRequestId: string | null;
   isRead: boolean;
   createdAt: string;
+}
+
+// Mirrors apps/api/src/notifications/dto (via @czd/shared-types NotificationPreferenceDto) —
+// docs/specs/2026-08-28-02-notifications-system.md AC-9.
+export interface NotificationPreferenceDto {
+  notificationType: string;
+  channel: string;
+  enabled: boolean;
 }
 
 // Mirrors apps/api/src/services/dto/service.dto.ts's ServiceSummaryDto/ServiceDetailDto.

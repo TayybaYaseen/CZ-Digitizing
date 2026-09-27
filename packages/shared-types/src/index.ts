@@ -8,3 +8,4 @@ export * from './quotes';
 export * from './custom-requests';
 export * from './i18n';
 export * from './taebo';
+export * from './contact';

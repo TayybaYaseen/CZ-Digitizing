@@ -17,7 +17,7 @@ describe('NotificationBatchingService', () => {
       },
     };
     const emailService = { send: jest.fn().mockResolvedValue(undefined) };
-    const service = new NotificationBatchingService(prisma as never, emailService as never, createFakeConfig() as never);
+    const service = new NotificationBatchingService(prisma as never, emailService as never, {} as never, createFakeConfig() as never);
 
     await service.sendOrderStatusDigest();
 
@@ -31,7 +31,7 @@ describe('NotificationBatchingService', () => {
   it('sends nothing when there are no pending order_status_change notifications', async () => {
     const prisma = { notification: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() } };
     const emailService = { send: jest.fn() };
-    const service = new NotificationBatchingService(prisma as never, emailService as never, createFakeConfig() as never);
+    const service = new NotificationBatchingService(prisma as never, emailService as never, {} as never, createFakeConfig() as never);
 
     await service.sendOrderStatusDigest();
 
@@ -42,7 +42,7 @@ describe('NotificationBatchingService', () => {
   it('skips the hourly registration digest when NOTIFY_REGISTRATION_BATCH_ENABLED is not set (architecture: "if enabled")', async () => {
     const prisma = { user: { findMany: jest.fn(), count: jest.fn() } };
     const emailService = { send: jest.fn() };
-    const service = new NotificationBatchingService(prisma as never, emailService as never, createFakeConfig({ NOTIFY_REGISTRATION_BATCH_ENABLED: false }) as never);
+    const service = new NotificationBatchingService(prisma as never, emailService as never, {} as never, createFakeConfig({ NOTIFY_REGISTRATION_BATCH_ENABLED: false }) as never);
 
     await service.sendRegistrationDigest();
 
@@ -58,10 +58,46 @@ describe('NotificationBatchingService', () => {
       },
     };
     const emailService = { send: jest.fn().mockResolvedValue(undefined) };
-    const service = new NotificationBatchingService(prisma as never, emailService as never, createFakeConfig({ NOTIFY_REGISTRATION_BATCH_ENABLED: true }) as never);
+    const service = new NotificationBatchingService(prisma as never, emailService as never, {} as never, createFakeConfig({ NOTIFY_REGISTRATION_BATCH_ENABLED: true }) as never);
 
     await service.sendRegistrationDigest();
 
     expect(emailService.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'admin@example.com', title: expect.stringContaining('3 new registrations') }));
+  });
+
+  // CZ_DIGITIZING_ARCHITECTURE.md § Notifications System, trigger 8 — 1-day-before-expiry reminder.
+  // Previously a TODO(A-015) stub; A-015 is now Completed and CustomerSubscription.renewalDate
+  // already exists, so this is no longer blocked.
+  describe('sendSubscriptionRenewalReminders', () => {
+    it('notifies a customer whose active, auto-renewing subscription renews within the next 24h', async () => {
+      const prisma = {
+        customerSubscription: {
+          findMany: jest.fn().mockResolvedValue([
+            { customerId: 5n, renewalDate: new Date(), plan: { name: 'Pro' } },
+          ]),
+        },
+      };
+      const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
+      const service = new NotificationBatchingService(prisma as never, {} as never, notifications as never, createFakeConfig() as never);
+
+      await service.sendSubscriptionRenewalReminders();
+
+      expect(prisma.customerSubscription.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'active', autoRenew: true }) }),
+      );
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ recipientUserId: '5', type: 'subscription_renewal' }),
+      );
+    });
+
+    it('notifies no one when nothing renews in the next 24h', async () => {
+      const prisma = { customerSubscription: { findMany: jest.fn().mockResolvedValue([]) } };
+      const notifications = { notify: jest.fn() };
+      const service = new NotificationBatchingService(prisma as never, {} as never, notifications as never, createFakeConfig() as never);
+
+      await service.sendSubscriptionRenewalReminders();
+
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
   });
 });

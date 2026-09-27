@@ -39,6 +39,7 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/portfolio', label: 'Portfolio' },
   { section: 'Support' }, // A-020 (docs/specs/2026-08-28-15-taebo-chatbot.md)
   { href: '/taebo/unanswered', label: 'Taebo — Waiting for Admin' },
+  { href: '/contact-messages', label: 'Contact Messages' }, // A-010
   { section: 'System' },
   { href: '/reports', label: 'Reports' }, // TODO(A-005e)
   { href: '/settings/platform', label: 'Settings' },

@@ -7,6 +7,7 @@ import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
 import { CreditsService } from '../credits/credits.service';
 import type { CreditPackage, Order, OrderPaymentStatus, OrderStatus, PaymentMethod, PaymentTransactionType, Prisma, SubscriptionPlan } from '../generated/prisma';
+import { ADMIN_NOTIFICATION_CHANNELS, DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../files/storage.service';
@@ -158,7 +159,7 @@ export class OrdersService {
         title: 'Order received',
         message: `Your order #${order.id} has been received. Transfer exactly ${formatPkr(amountDuePkr)} to our bank account and upload your payment receipt so we can confirm it.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.order_confirmed,
       });
     }
 
@@ -213,7 +214,7 @@ export class OrdersService {
       message: `Your quote #${quote.id} has been converted into order #${order.id}. Transfer exactly ${formatPkr(totalPkr)} to our bank account and upload your payment receipt.`,
       relatedOrderId: order.id.toString(),
       relatedQuoteId: quote.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.order_confirmed,
     });
 
     this.logger.log(`Order ${order.id} created from quote ${quote.id} by admin ${admin.sub}`);
@@ -270,7 +271,10 @@ export class OrdersService {
         message: `Custom request #${request.requestNumber} was approved and order #${order.id} created (${formatPkr(totalPkr)}), awaiting the customer's bank transfer.`,
         relatedOrderId: order.id.toString(),
         relatedCustomRequestId: request.id.toString(),
-        channels: ['email', 'in_app'],
+        // ADMIN_NOTIFICATION_CHANNELS, not DEFAULT_CHANNELS.custom_request_status_update — this
+        // recipient is Admin, and that type's own routing table is customer-facing (includes
+        // whatsapp/push); Admin gets Dashboard/email only regardless of which type label is reused.
+        channels: ADMIN_NOTIFICATION_CHANNELS,
       });
     }
 
@@ -359,7 +363,7 @@ export class OrdersService {
       title: 'Order received',
       message: `${lead} Transfer exactly ${formatPkr(totalPkr)} to our bank account and upload your payment receipt so we can confirm it.`,
       relatedOrderId: orderId.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.order_confirmed,
     });
   }
 
@@ -494,7 +498,7 @@ export class OrdersService {
         title: 'Payment receipt uploaded',
         message: `Order #${order.id} has a new bank-transfer receipt awaiting review (${formatPkr(outstanding)} outstanding).`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.receipt_uploaded,
       });
     }
 
@@ -620,7 +624,7 @@ export class OrdersService {
           `We confirmed ${formatPkr(outcome.confirmedAmount)} of your payment for order #${order.id}, but ${formatPkr(outcome.outstandingAfter)} is still outstanding. ` +
           `Your files stay locked until the full amount has been paid and confirmed. Transfer the remaining ${formatPkr(outcome.outstandingAfter)} and upload the new receipt.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.order_status_change,
       });
     } else {
       await this.notifications.notify({
@@ -631,7 +635,7 @@ export class OrdersService {
           ? `Your payment receipt for order #${order.id} was rejected: ${rejectionReason}. Please upload a new receipt.`
           : `Your payment receipt for order #${order.id} was rejected. Please upload a new receipt.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.order_status_change,
       });
     }
 
@@ -747,7 +751,7 @@ export class OrdersService {
         // Any refund, partial included, means the order is no longer fully paid: its files are locked again.
         ' The downloadable files for this order are now locked.',
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.order_status_change,
     });
 
     return toOrderDto(await this.reload(order.id));
@@ -811,7 +815,7 @@ export class OrdersService {
       title: 'Order status updated',
       message: `Order #${order.id} is now "${nextStatus}".${returnCredits ? ` The ${formatPkr(creditsUsed)} of credits you used on it were returned to your balance.` : ''}`,
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.order_status_change,
     });
 
     return toOrderDto(updated);
@@ -869,7 +873,7 @@ export class OrdersService {
         message: `Payment for custom request #${linkedCustomRequest.requestNumber} has been confirmed. Your request is now in production.`,
         relatedOrderId: order.id.toString(),
         relatedCustomRequestId: linkedCustomRequest.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.custom_request_status_update,
       });
       return;
     }
@@ -905,7 +909,7 @@ export class OrdersService {
       title: 'Payment confirmed',
       message: `Payment for order #${order.id} has been confirmed. Your files are ready to download.`,
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.payment_received,
     });
     await this.notifications.notify({
       recipientUserId: order.customerId.toString(),
@@ -913,7 +917,7 @@ export class OrdersService {
       title: 'Files ready',
       message: `The files for order #${order.id} are now available in your account.`,
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.files_ready,
     });
   }
 
@@ -924,7 +928,7 @@ export class OrdersService {
       title: 'Payment confirmed',
       message: `Your bank transfer for order #${order.id} (${formatPkr(Number(order.totalPkr))}) has been confirmed.`,
       relatedOrderId: order.id.toString(),
-      channels: ['email', 'in_app'],
+      channels: DEFAULT_CHANNELS.payment_received,
     });
     if (fulfilment.kind === 'credits') {
       await this.notifications.notify({
@@ -933,7 +937,7 @@ export class OrdersService {
         title: 'Credits purchased',
         message: `${fulfilment.credits} credits have been added to your account.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.credit_purchase,
       });
     } else {
       await this.notifications.notify({
@@ -942,7 +946,7 @@ export class OrdersService {
         title: fulfilment.isRenewal ? 'Subscription renewed' : 'Subscription activated',
         message: `Your "${fulfilment.planName}" subscription is now active. Next renewal: ${fulfilment.renewalDate.toDateString()}.`,
         relatedOrderId: order.id.toString(),
-        channels: ['email', 'in_app'],
+        channels: DEFAULT_CHANNELS.subscription_renewal,
       });
     }
   }

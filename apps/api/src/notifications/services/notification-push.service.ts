@@ -1,10 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { NotificationType } from '../../generated/prisma';
 import { PushTokensService } from '../../users/push-tokens/push-tokens.service';
 
 export interface NotificationPushInput {
   userId: bigint;
   title: string;
   message: string | null;
+  // AC-7 deep-linking — carried through to the Expo message's `data` field so the mobile app can
+  // navigate to the relevant screen/entity on tap (see notification-dispatch.service.ts's send()).
+  // Optional/omitted fields are simply left out of `data`, never sent as empty strings.
+  notificationId?: string;
+  notificationType?: NotificationType;
+  relatedOrderId?: string;
+  relatedQuoteId?: string;
+  relatedCustomRequestId?: string;
 }
 
 interface ExpoPushTicket {
@@ -56,7 +65,25 @@ export class NotificationPushService {
     });
     if (validTokens.length === 0) return undefined;
 
-    const messages = validTokens.map(({ token }) => ({ to: token, title: input.title, body: input.message ?? undefined, sound: 'default' }));
+    // Only ever include the identifiers that actually apply to this notification (never a
+    // relatedOrderId on a custom-request notification, etc.) — see NotificationPushInput above.
+    const data: Record<string, string> | undefined = input.notificationId
+      ? {
+          notificationId: input.notificationId,
+          ...(input.notificationType ? { notificationType: input.notificationType } : {}),
+          ...(input.relatedOrderId ? { relatedOrderId: input.relatedOrderId } : {}),
+          ...(input.relatedQuoteId ? { relatedQuoteId: input.relatedQuoteId } : {}),
+          ...(input.relatedCustomRequestId ? { relatedCustomRequestId: input.relatedCustomRequestId } : {}),
+        }
+      : undefined;
+
+    const messages = validTokens.map(({ token }) => ({
+      to: token,
+      title: input.title,
+      body: input.message ?? undefined,
+      sound: 'default',
+      ...(data ? { data } : {}),
+    }));
 
     // Expo's HTTP push endpoint call; a rejected/failed request here is a transport failure,
     // propagated to the caller (NotificationDispatchService) so its existing retry/backoff handles

@@ -12,6 +12,7 @@ export function toNotificationDto(notification: Notification): NotificationDto {
     relatedOrderId: notification.relatedOrderId?.toString() ?? null,
     relatedQuoteId: notification.relatedQuoteId?.toString() ?? null,
     relatedCustomRequestId: notification.relatedCustomRequestId?.toString() ?? null,
+    relatedContactMessageId: notification.relatedContactMessageId?.toString() ?? null,
     isRead: notification.isRead,
     readAt: notification.readAt?.toISOString() ?? null,
     createdAt: notification.createdAt.toISOString(),

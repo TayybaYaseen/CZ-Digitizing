@@ -35,6 +35,7 @@ export interface NotificationDto {
   relatedOrderId: string | null;
   relatedQuoteId: string | null;
   relatedCustomRequestId: string | null;
+  relatedContactMessageId: string | null;
   isRead: boolean;
   readAt: string | null;
   createdAt: string;
