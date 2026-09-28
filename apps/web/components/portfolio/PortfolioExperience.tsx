@@ -6,11 +6,10 @@ import { PortfolioSectionHeading } from './PortfolioSectionHeading';
 
 const COLLAPSED_COUNT = 6;
 
-// docs/portfolio-spec.md §5.5/§7 — full, per-employer attributed responsibility lists (no
-// cross-employer suppression, §2.4 row 9). Longer lists (Vogue Vesture: 13 bullets, ZDigitizing:
-// 8) collapse to the first 6 with a real, keyboard-accessible expand control (§7's "premium
-// timeline, not a dense bullet dump" note; §14's "real <button aria-expanded>, not a bare
-// <div onClick>" requirement).
+// docs/portfolio-spec.md §5.5/§7, revised 2026-09-18 — a single consolidated "Freelancer" entry,
+// no employer names or per-employer responsibility lists. The expand control (§14's real
+// <button aria-expanded>, not a bare <div onClick>) is kept for any future entry long enough to
+// need it, though the current single entry stays under the collapse threshold.
 function ExperienceCard({ employer, title, dates, bullets }: { employer: string; title: string; dates: string; bullets: string[] }) {
   const [expanded, setExpanded] = useState(false);
   const needsToggle = bullets.length > COLLAPSED_COUNT;

@@ -9,20 +9,27 @@ import { PortfolioProfile } from '@/components/portfolio/PortfolioProfile';
 import { PortfolioCoreExpertise } from '@/components/portfolio/PortfolioCoreExpertise';
 import { PortfolioSoftwareExpertise } from '@/components/portfolio/PortfolioSoftwareExpertise';
 import { PortfolioExperience } from '@/components/portfolio/PortfolioExperience';
-import { PortfolioTextileExpertise } from '@/components/portfolio/PortfolioTextileExpertise';
-import { PortfolioAuditExpertise } from '@/components/portfolio/PortfolioAuditExpertise';
 import { PortfolioSkills } from '@/components/portfolio/PortfolioSkills';
 import { PortfolioEducation } from '@/components/portfolio/PortfolioEducation';
-import { PortfolioAdditionalExperience } from '@/components/portfolio/PortfolioAdditionalExperience';
 import { PortfolioCategoryFilter } from '@/components/portfolio/PortfolioCategoryFilter';
 import { PortfolioCard } from '@/components/portfolio/PortfolioCard';
 import { PortfolioCta } from '@/components/portfolio/PortfolioCta';
 import { PortfolioSectionHeading } from '@/components/portfolio/PortfolioSectionHeading';
 
-// docs/portfolio-spec.md §5 — final 12-section order (business-owner approved 2026-09-16):
-// Hero → Profile → Core Embroidery Expertise → Software Expertise → Professional Experience →
-// Textile & Sourcing Expertise → Internal Audit Expertise → Key Skills → Education →
-// Earlier/Additional Experience → Real Portfolio Work Samples → Professional CTA.
+// docs/portfolio-spec.md §5 — section order, revised 2026-09-18/2026-09-28 (business-owner
+// decisions): Hero → Profile → Core Embroidery Expertise → Software Expertise → Professional
+// Experience (single consolidated Freelancer entry, no employer names/responsibilities) → Key
+// Skills → Education → Real Portfolio Work Samples → Professional CTA. The Earlier/Additional
+// Experience, Textile & Sourcing Expertise, and Internal Audit/Operational Expertise sections are
+// all removed — no employer name or per-employer responsibility list appears anywhere on the page.
+//
+// The "Home Page Logos" title is a reserved, exact-match title (case-insensitive): an admin work
+// sample created with this title is pinned as the last Work Samples card regardless of category
+// filter or sort order, and its gallery images are used to hold every logo the admin wants shown
+// there — clicking it opens the existing detail page, which already renders every gallery image
+// as a thumbnail grid with lightbox navigation (no separate "logos" model needed).
+const HOME_PAGE_LOGOS_TITLE = 'home page logos';
+
 export default function PortfolioPage() {
   const [items, setItems] = useState<PortfolioItemDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -34,15 +41,23 @@ export default function PortfolioPage() {
       .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load the portfolio.', traceId: '' }));
   }, []);
 
+  const logosItem = useMemo(() => {
+    if (!items) return null;
+    return items.find((i) => i.title.trim().toLowerCase() === HOME_PAGE_LOGOS_TITLE) ?? null;
+  }, [items]);
+
   const categories = useMemo(() => {
     if (!items) return [];
-    return Array.from(new Set(items.map((i) => i.category).filter((c): c is string => !!c))).sort();
-  }, [items]);
+    return Array.from(new Set(items.filter((i) => i !== logosItem).map((i) => i.category).filter((c): c is string => !!c))).sort();
+  }, [items, logosItem]);
 
   const visibleItems = useMemo(() => {
     if (!items) return null;
-    return category ? items.filter((i) => i.category === category) : items;
-  }, [items, category]);
+    const rest = items.filter((i) => i !== logosItem);
+    return category ? rest.filter((i) => i.category === category) : rest;
+  }, [items, category, logosItem]);
+
+  const hasNoResults = visibleItems && visibleItems.length === 0 && !logosItem;
 
   return (
     <div className="space-y-16 sm:space-y-20">
@@ -51,11 +66,8 @@ export default function PortfolioPage() {
       <PortfolioCoreExpertise />
       <PortfolioSoftwareExpertise />
       <PortfolioExperience />
-      <PortfolioTextileExpertise />
-      <PortfolioAuditExpertise />
       <PortfolioSkills />
       <PortfolioEducation />
-      <PortfolioAdditionalExperience />
 
       {/* Real Portfolio Work Samples — the only admin-authored section on the page (§5.11). */}
       <section className="mx-auto max-w-6xl px-1">
@@ -71,7 +83,7 @@ export default function PortfolioPage() {
               <div key={i} className="aspect-[4/3] animate-pulse rounded-card bg-gray-100" />
             ))}
           </div>
-        ) : visibleItems && visibleItems.length === 0 ? (
+        ) : hasNoResults ? (
           <p className="mt-6 rounded-card border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
             No portfolio items yet — check back soon.
           </p>
@@ -80,6 +92,7 @@ export default function PortfolioPage() {
             {visibleItems?.map((item) => (
               <PortfolioCard key={item.id} item={item} />
             ))}
+            {logosItem && <PortfolioCard key={logosItem.id} item={logosItem} />}
           </div>
         )}
       </section>

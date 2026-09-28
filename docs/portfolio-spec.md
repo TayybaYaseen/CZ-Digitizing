@@ -35,6 +35,35 @@ spec](specs/2026-09-02-01-brand-visual-identity.md), `.claude/skills/cz-digitizi
 > extension** of A-012f, not a parallel or replacement system. See §20 for the governance boundary
 > this document deliberately does not cross.
 
+> **Revision note (2026-09-18, business-owner decision, post-implementation).** Two changes to the
+> already-implemented page, superseding the affected parts of §5/§6/§22/§23 below (the §2.4
+> CV-traceability log itself is unchanged — this is a *publication* decision, §2.5, not a change to
+> what was preserved from the CV):
+> 1. **Professional Experience (§5.5) and Earlier/Additional Experience (§5.10) no longer publish
+>    individual employer names or per-employer responsibility bullets.** The public page now shows
+>    a single consolidated **"Freelancer"** entry with a summary point about partnering with
+>    companies, instead of naming Vogue Vesture, ZDigitizing, or Nagina Group of Industries. The
+>    Earlier/Additional Experience section and its `PortfolioAdditionalExperience.tsx` component are
+>    removed entirely. AC-16 and AC-18 (below) are superseded by this note. *(At the time of this
+>    2026-09-18 note, Textile Sourcing Expertise and Audit Expertise were explicitly kept unchanged —
+>    see the 2026-09-28 note below, which reverses that.)*
+> 2. **A reserved "Home Page Logos" work sample is added to §5.11.** An admin work-sample item
+>    titled exactly "Home Page Logos" (case-insensitive) is always pinned as the last card in the
+>    Work Samples grid, regardless of category filter or sort order; its gallery (`mediaUrls`) holds
+>    every client/brand logo the admin wants shown, and clicking the card reuses the existing
+>    `/portfolio/[id]` detail page + `PortfolioLightbox.tsx` to show all of them — no schema change,
+>    no new admin screen.
+
+> **Revision note (2026-09-28, business-owner decision).** Extends the 2026-09-18 note above:
+> **Textile & Sourcing Expertise (§5.6, Us Apparel) and Internal Audit/Operational Expertise (§5.7,
+> Cross Stitch) are now also removed from the public page**, for the same reason — no employer name
+> or per-employer responsibility list appears anywhere on `/portfolio`. `PortfolioTextileExpertise.tsx`
+> and `PortfolioAuditExpertise.tsx` are deleted; §5 is now a 9-section page (Hero → Profile → Core
+> Embroidery Expertise → Software Expertise → Professional Experience → Key Skills → Education →
+> Real Portfolio Work Samples → Professional CTA). AC-12 is superseded by this note. The CV facts
+> for Us Apparel and Cross Stitch remain preserved in §2.4 rows 4, 5, 10 — this is a publication
+> decision (§2.5), not a change to the CV-preservation record.
+
 ---
 
 ## 1. Purpose
@@ -197,37 +226,35 @@ specific WhatsApp number or email — those already come from `/admin/settings/p
 4. **Software Expertise** — Wilcom Embroidery Software and Pulse Tajima Embroidery Software given
    top, large-format billing (primary); Oracle ERP and Microsoft Excel/Word/PowerPoint listed as a
    smaller "also proficient in" line beneath (secondary) — one section, internally hierarchical.
-5. **Professional Experience** — the full embroidery-related job timeline, each employer showing
-   its complete, independently-documented responsibilities with no cross-employer suppression:
-   - **Vogue Vesture — Embroidery Digitizer** (Mar 2019–Feb 2022, §2.4 row 7/8): all 7 bullets from
-     the CV 1 section's Vogue Vesture entry **plus** all 6 bullets from the CV 2 section's Vogue
-     Vesture entry (13 total, §2.4 row 9).
-   - **ZDigitizing — Quality Checker** (Apr 2021–Present, §2.4 row 6, CV 1 section only): all 8
-     documented bullets, including the "improving output accuracy by 20%" stat.
-   - **Freelance — Freelance Embroidery Digitizer** (Apr 2021–Present, §2.4 row 12, CV 1 section
-     only): all 5 documented bullets.
-
-   Per §2.4 row 9's resolution, several bullets read very similarly between the Vogue Vesture and
-   ZDigitizing entries — this is shown as-is, not hidden or reconciled, because the source documents
-   them separately under each employer.
-6. **Textile & Sourcing Expertise** — the Us Apparel role in full (§2.4 row 10): fabric sourcing,
-   purchase-order/vendor/LC coordination, ERP-based documentation, sample development — secondary
-   but real, substantiated, presented in full.
-7. **Internal Audit / Operational Expertise** — the Cross Stitch role (§2.4 rows 4–5, combined
-   bullet set, dates from the CV 1 section), presented as secondary expertise reinforcing the same
-   quality-control discipline the embroidery QC content already demonstrates.
+5. **Professional Experience** — ~~the full embroidery-related job timeline, each employer showing
+   its complete, independently-documented responsibilities with no cross-employer suppression~~
+   **superseded by the 2026-09-18 revision note above.** The public page now shows a single
+   consolidated **Freelancer** entry (Apr 2021–Present) with a summary point about partnering with
+   companies; Vogue Vesture and ZDigitizing are no longer named or itemized on the public page. The
+   original per-employer disposition (§2.4 rows 6–9) remains the CV-preservation record, not the
+   publication decision.
+6. ~~**Textile & Sourcing Expertise** — the Us Apparel role in full (§2.4 row 10)~~ **removed by
+   the 2026-09-28 revision note above.** The Us Apparel facts remain preserved in §2.4 row 10 as a
+   CV-preservation record only.
+7. ~~**Internal Audit / Operational Expertise** — the Cross Stitch role (§2.4 rows 4–5)~~ **removed
+   by the 2026-09-28 revision note above.** The Cross Stitch facts remain preserved in §2.4 rows 4–5
+   as a CV-preservation record only.
 8. **Key Skills** — the 7-item union list (§2.4 row 2).
 9. **Education** — BBA (Arid University), FSc, Matriculation, **and** MBA, Marketing (Leads
    University, Lahore) presented as a completed credential — no "ongoing"/"continue"/"last
    semester" language anywhere on the public page (§2.4 row 13, §2.5).
-10. **Earlier Experience / Additional Experience** — the Nagina Group of Industries internship
-    (§2.4 row 11), rendered with visibly smaller/lighter typographic treatment than §5.5's
-    Professional Experience timeline, explicitly marked **undated** rather than assigned invented
-    dates.
+10. ~~**Earlier Experience / Additional Experience** — the Nagina Group of Industries internship
+    (§2.4 row 11)~~ **removed by the 2026-09-18 revision note above** — no employer-named section
+    remains besides the consolidated Freelancer entry in §5.5. The Nagina Group facts remain
+    preserved in §2.4 row 11 as a CV-preservation record only.
 11. **Real Portfolio Work Samples** — the actual admin-managed gallery: category filter + grid of
     real, published `PortfolioItem` rows (unchanged concept/data source from prior drafts). This is
     the **only** admin-authored section on the page. If no work samples are published yet, the
     existing "No portfolio items yet." empty state is shown — never a stock/fake substitute (§9).
+    **Added 2026-09-18 (revision note above):** an item titled exactly "Home Page Logos" is always
+    pinned as the last card, independent of category filter/sort order, holding every admin-added
+    client/brand logo in its gallery; clicking it reuses the existing detail page + lightbox to show
+    all of them.
 12. **Professional CTA** — Get a Quote / Custom Request / WhatsApp/email, with the WhatsApp and
     email links built live from `GET /api/settings/public`'s `whatsappNumber`/`contactEmail`
     (§10.4) — the same source `Footer.tsx` already reads, never a hardcoded or CV-derived value.
@@ -253,13 +280,13 @@ components, matching §5's structure:
 | `PortfolioProfile.tsx` | §5.2 | Static (§10.2) | — |
 | `PortfolioCoreExpertise.tsx` | §5.3 | Static (§10.2) | Synthesized summary, not full bullets |
 | `PortfolioSoftwareExpertise.tsx` | §5.4 | Static (§10.2) | Primary/secondary tools, one section |
-| `PortfolioExperience.tsx` | §5.5 | Static (§10.2) | Renders each employer's full, independently-attributed bullet list — no cross-employer dedup logic |
-| `PortfolioTextileExpertise.tsx` | §5.6 | Static (§10.2) | Secondary weight |
-| `PortfolioAuditExpertise.tsx` | §5.7 | Static (§10.2) | Secondary weight |
+| `PortfolioExperience.tsx` | §5.5 | Static (§10.2) | Revised 2026-09-18: renders a single consolidated "Freelancer" entry, no employer names |
+| ~~`PortfolioTextileExpertise.tsx`~~ | ~~§5.6~~ | — | Removed 2026-09-28, along with §5.6 |
+| ~~`PortfolioAuditExpertise.tsx`~~ | ~~§5.7~~ | — | Removed 2026-09-28, along with §5.7 |
 | `PortfolioSkills.tsx` | §5.8 | Static (§10.2) | — |
 | `PortfolioEducation.tsx` | §5.9 | Static (§10.2) | Leads University shown as completed |
-| `PortfolioAdditionalExperience.tsx` | §5.10 | Static (§10.2) | Secondary, visually condensed |
-| `PortfolioCard.tsx` / `PortfolioLightbox.tsx` / `PortfolioDetail.tsx` | §5.11 | `GET /api/portfolio` — existing admin-managed API | Unchanged |
+| ~~`PortfolioAdditionalExperience.tsx`~~ | ~~§5.10~~ | — | Removed 2026-09-18, along with §5.10 |
+| `PortfolioCard.tsx` / `PortfolioLightbox.tsx` / `PortfolioDetail.tsx` | §5.11 | `GET /api/portfolio` — existing admin-managed API | Unchanged, plus the 2026-09-18 "Home Page Logos" pinned-title convention in `apps/web/app/portfolio/page.tsx` |
 | `PortfolioCta.tsx` | §5.12 | `GET /api/settings/public` (existing endpoint, §10.4) | **Not** static — the one CV-content-adjacent component that must fetch, because contact info must stay live |
 
 CV-content components (all except `PortfolioCta.tsx`) read only from static content; no admin form
@@ -272,10 +299,11 @@ Unchanged design-token base from prior drafts (`font-display`/Montserrat, navy/g
 with gold reserved for one primary CTA, `rounded-card`/`rounded-field`/`shadow-cz-*`,
 `DesignCard.tsx`/`Hero.tsx` treatments, logo never redrawn).
 
-Unchanged hierarchy requirement: embroidery/digitizing content (§5.3–§5.5) must be **visually
-dominant** — larger type scale, first position, more generous spacing — while textile/sourcing and
-internal-audit content (§5.6–§5.7, §5.10) is **present in full, never trimmed for space**, but
-rendered at a visibly secondary scale.
+Embroidery/digitizing content (§5.3–§5.5) must be **visually dominant** — larger type scale, first
+position, more generous spacing. ~~Textile/sourcing and internal-audit content (§5.6–§5.7, §5.10) is
+present in full, never trimmed for space, but rendered at a visibly secondary scale~~ — **moot as of
+the 2026-09-18/2026-09-28 revision notes above**, since §5.6, §5.7, and §5.10 no longer exist on the
+public page.
 
 **New note for this revision:** §5.5's Professional Experience section now carries more raw text
 than earlier drafts assumed (13 bullets under Vogue Vesture, 8 under ZDigitizing, several
@@ -490,15 +518,18 @@ if implemented as expandable/collapsible on mobile (§7, §8), must use a real
   "Continue"/"Last semester" wording is preserved in the traceability record but not published, per
   business-owner decision; this is a preservation-vs-publication distinction (§2.5), not an
   invented fact, since the degree name itself ("MBA Marketing") comes directly from the source.
-- **Employer attribution is never suppressed or merged for privacy or tidiness reasons** — per §2.4
-  row 9, both ZDigitizing and Vogue Vesture publish their own full, independently documented
-  responsibilities, even where the wording is very similar.
+- ~~**Employer attribution is never suppressed or merged for privacy or tidiness reasons**~~
+  **Superseded 2026-09-18** by explicit business-owner decision (revision note near the top of this
+  document): the Professional Experience/Additional Experience employer names and per-employer
+  responsibility lists are now intentionally consolidated into a single "Freelancer" entry on the
+  public page.
 - **No client PII** anywhere — none of the CV content names a specific client, and the existing
   work-sample `projectNotes` field (§10.1) remains admin-only/internal.
-- **Education/employer institution names are not private information** and are published as
-  professional background (Arid University of Rawalpindi, Superior Group of Colleges, Universal
-  Public High School, Leads University; ZDigitizing, Vogue Vesture, Us Apparel, Cross Stitch,
-  Nagina Group of Industries).
+- **Education institution names are not private information** and are published as professional
+  background (Arid University of Rawalpindi, Superior Group of Colleges, Universal Public High
+  School, Leads University). ~~Employer names (ZDigitizing, Vogue Vesture, Us Apparel, Cross Stitch,
+  Nagina Group of Industries)~~ are no longer published anywhere on the page, per the 2026-09-18 and
+  2026-09-28 revision notes above — a publication choice, not a privacy requirement.
 - Role/permission model unchanged (`@RequiresPermission('portfolio','crud')`), including the
   pre-existing image-upload permission gap noted in prior drafts, still unfixed by this spec.
 
@@ -569,15 +600,17 @@ publish-reflect, alt-text enforcement) still apply. Updated/new criteria for thi
 
 | # | Criterion |
 |---|---|
-| AC-12 | Given a customer visits `/portfolio`, the page renders all 12 §5 sections in order, with embroidery/digitizing content (§5.3–§5.5) visually dominant and textile/sourcing/audit content (§5.6–§5.7, §5.10) fully present but visibly secondary in scale. |
+| AC-12 | ~~Given a customer visits `/portfolio`, the page renders all 12 §5 sections in order...~~ **Superseded 2026-09-28:** the page renders the current 9-section §5 order; §5.6, §5.7, and §5.10 no longer exist, so there is no textile/sourcing/audit content to render at any scale. |
 | AC-13 | Given the admin Portfolio screen, no field accepts biography, experience, education, skills, software-expertise, or contact-info text — its fields match exactly §10.1's work-sample metadata. |
 | AC-14 | Given any fact rendered in the CV-content sections, it traces to a specific §2.4 row — no invented employer, client, statistic, certification, date, or qualification appears anywhere on the page. |
 | AC-15 | Given the page publishes, the Hero identifies the person as "M. Suleman Yaseen"; no residential address and no personal phone/email from `M.Suleman_CV.md` appears anywhere in the rendered HTML. |
-| AC-16 | Given §5.5's Professional Experience section, ZDigitizing and Vogue Vesture each display their own complete, independently documented responsibilities — none suppressed, merged, or reassigned to the other employer, even where wording is near-identical. |
+| AC-16 | ~~Given §5.5's Professional Experience section, ZDigitizing and Vogue Vesture each display their own complete, independently documented responsibilities...~~ **Superseded 2026-09-18:** §5.5 displays a single consolidated Freelancer entry; no employer name or per-employer responsibility list is displayed anywhere in Professional Experience. |
 | AC-17 | Given the public Education section (§5.9), the Leads University MBA (Marketing) entry appears and is presented as completed — no "ongoing," "continue," or "last semester" wording anywhere on the public page. |
-| AC-18 | Given the Earlier/Additional Experience section (§5.10), the Nagina Group entry appears with no invented dates and with visibly lighter/smaller treatment than the Professional Experience section (§5.5). |
+| AC-18 | ~~Given the Earlier/Additional Experience section (§5.10)...~~ **Superseded 2026-09-18:** §5.10 and its section/component are removed; the Nagina Group entry no longer appears anywhere on the public page. |
+| AC-21 | Given the Real Portfolio Work Samples section (§5.11), an item titled exactly "Home Page Logos" (case-insensitive) always renders as the last card regardless of the selected category filter or the item's `sortOrder`, and its detail page shows every image in its gallery. |
 | AC-19 | Given the Professional CTA (§5.12), its email and WhatsApp links resolve to whatever `GET /api/settings/public` currently returns for `contactEmail`/`whatsappNumber` — changing those values in `/admin/settings/platform` changes the Portfolio's contact links with no code change and no separate Portfolio setting involved. |
 | AC-20 | Given no real work samples are published yet, the Real Portfolio Work Samples section (§5.11) shows the existing empty state — never a stock image or invented project presented as real work. |
+| AC-22 | Given a customer visits `/portfolio`, no employer/company name ("Vogue Vesture," "ZDigitizing," "Nagina Group of Industries," "Us Apparel," "Cross Stitch") or per-employer responsibility bullet appears anywhere in the rendered HTML — the only professional-history content is the single "Freelancer" entry in §5.5. |
 
 ## 23. Risks and edge cases
 
