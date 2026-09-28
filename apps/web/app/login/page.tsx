@@ -100,7 +100,7 @@ function LoginForm() {
 
       {searchParams.get('registered') && (
         <div className="mt-6">
-          <SuccessBanner message="Account created — check your email to verify it, then log in." />
+          <SuccessBanner message="Account created — you can now log in." />
         </div>
       )}
       {searchParams.get('reset') && (

@@ -20,6 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { MagicLinkRequestDto } from './dto/magic-link-request.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendDeviceCodeDto } from './dto/resend-device-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
@@ -113,6 +114,16 @@ export class AuthController {
   @HttpCode(200)
   verifyNewDevice(@Body() dto: VerifyNewDeviceDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.auth.verifyNewDevice(dto, this.resolveDevice(req, res));
+  }
+
+  // Same answer whether or not anything was sent — see AuthService.resendDeviceCode().
+  @Public()
+  @RateLimit(DEVICE_CODE_MAX_ATTEMPTS, 15 * 60)
+  @Post('resend-device-code')
+  @HttpCode(200)
+  async resendDeviceCode(@Body() dto: ResendDeviceCodeDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.auth.resendDeviceCode(dto.email, this.resolveDevice(req, res));
+    return { requested: true };
   }
 
   // @Public() skips the global JwtAuthGuard's full-access-token requirement — these routes are
