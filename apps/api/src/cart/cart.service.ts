@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Cart, PaymentMethod, Prisma } from '../generated/prisma';
+import { Prisma } from '../generated/prisma';
+import type { Cart, PaymentMethod } from '../generated/prisma';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { ActivityService } from '../activity/activity.service';
 import { BundlesService } from '../bundles/bundles.service';
@@ -44,14 +45,22 @@ export class CartService {
   }
 
   private async resolveCart(actor: CartActor): Promise<Cart> {
-    if (actor.customerId !== undefined) {
-      const existing = await this.prisma.cart.findUnique({ where: { customerId: actor.customerId } });
-      if (existing) return existing;
-      return this.prisma.cart.create({ data: { customerId: actor.customerId } });
-    }
-    const existing = await this.prisma.cart.findUnique({ where: { guestSessionId: actor.guestSessionId } });
+    const where = actor.customerId !== undefined ? { customerId: actor.customerId } : { guestSessionId: actor.guestSessionId };
+    const existing = await this.prisma.cart.findUnique({ where });
     if (existing) return existing;
-    return this.prisma.cart.create({ data: { guestSessionId: actor.guestSessionId } });
+    try {
+      return await this.prisma.cart.create({ data: where });
+    } catch (err) {
+      // Right after sign-in apps/web fires POST /api/cart/merge and a cart read at the same
+      // moment — both can see "no cart yet" and both insert. The loser hits the unique constraint
+      // (P2002) and simply takes the row the winner just created. Not an upsert: its update
+      // branch would bump updatedAt on every read, which CartCleanupService's staleness sweep
+      // keys off.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        return this.prisma.cart.findUniqueOrThrow({ where });
+      }
+      throw err;
+    }
   }
 
   private async loadCartWithItems(cartId: bigint): Promise<CartWithItems> {
