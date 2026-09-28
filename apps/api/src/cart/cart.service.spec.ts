@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma';
 import { CartService } from './cart.service';
 
 interface FakeDesign {
@@ -74,6 +75,11 @@ function createFakePrisma() {
         if (!row) return null;
         if (!include) return row;
         return { ...row, items: [...cartItems.values()].filter((i) => i.cartId === row.id).map(hydrateItem) };
+      }),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: Partial<FakeCart> }) => {
+        const row = [...carts.values()].find((c) => matches(c as unknown as Record<string, unknown>, where as Record<string, unknown>));
+        if (!row) throw new Error('No Cart found');
+        return row;
       }),
       create: jest.fn(async ({ data }: { data: { customerId?: bigint; guestSessionId?: string } }) => {
         const row: FakeCart = { id: nextId++, customerId: data.customerId ?? null, guestSessionId: data.guestSessionId ?? null, updatedAt: new Date() };
@@ -429,6 +435,26 @@ describe('CartService (AC-1/2/3/4/5/6/8)', () => {
 
     expect(cart.items).toHaveLength(1);
     expect(cart.items[0].quantity).toBe(4); // 1 + 1 + 2
+  });
+
+  it('a customer cart created concurrently by another request (unique-constraint P2002) is reused, not a 500', async () => {
+    const prisma = createFakePrisma();
+    const service = new CartService(prisma as never, fakeBundles(prisma) as never, fakeOrders() as never, fakeCredits() as never, fakeActivity() as never);
+    const realCreate = prisma.cart.create.getMockImplementation()!;
+    // Right after sign-in, cart/merge and a cart read race: both see "no cart", the other request
+    // wins the insert, and this one's insert hits the unique constraint on customer_id.
+    prisma.cart.create.mockImplementationOnce(async (args) => {
+      await realCreate(args);
+      throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed on the fields: (`customer_id`)', {
+        code: 'P2002',
+        clientVersion: 'test',
+      });
+    });
+
+    const cart = await service.getCart({ customerId: 7n, guestSessionId: GUEST });
+
+    expect(cart.items).toEqual([]);
+    expect(prisma.cart.findUniqueOrThrow).toHaveBeenCalledWith({ where: { customerId: 7n } });
   });
 
   it('checkout rejects an empty cart', async () => {
