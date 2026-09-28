@@ -34,6 +34,11 @@ services:
         value: production
       - key: PORT
         value: 4000
+      # Render's load balancer is exactly one proxy hop in front of the app — trust that one
+      # X-Forwarded-For entry so req.ip is the real client and IP-keyed rate limits (login,
+      # verify-new-device, forgot-password…) apply per customer, not to everyone at once.
+      - key: TRUST_PROXY_HOPS
+        value: 1
       # Auto-wired from the `cz-digitizing-db` database below — Render fills these in itself.
       - key: DATABASE_URL
         fromDatabase:

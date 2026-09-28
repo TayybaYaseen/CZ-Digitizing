@@ -8,6 +8,12 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   CORS_ORIGINS: z.string().default(''),
+  // Number of reverse-proxy hops in front of the API whose X-Forwarded-For entry is trusted for
+  // req.ip (Express "trust proxy"). 0 = direct connections (local dev). Render = 1. Without it,
+  // every request behind a proxy shares the proxy's IP, so IP-keyed rate limits (RateLimitGuard)
+  // lump all users together. Never trust more hops than really exist — the extra entries are
+  // client-supplied and would let anyone spoof their IP past those limits.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
 
   // Auth (docs/specs/2026-08-28-01-auth-account-security.md)
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
