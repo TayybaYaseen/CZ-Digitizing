@@ -299,6 +299,10 @@ export default function PortfolioAdminPage() {
         <div className="space-y-4">
           <FormField label="Title" htmlFor="title">
             <input id="title" className={inputClass} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+            <p className="mt-1 text-xs text-gray-400">
+              Tip: title an item exactly "Home Page Logos" and add every client/brand logo to its gallery images below — it's automatically pinned as
+              the last card in the public Work Samples grid, and customers see every logo when they click it.
+            </p>
           </FormField>
           <FormField label="Description" htmlFor="description">
             <textarea id="description" rows={2} className={inputClass} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
