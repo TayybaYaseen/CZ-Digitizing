@@ -7,6 +7,7 @@ import { EmailService } from '../email/email.service';
 import { DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DEVICE_CODE_TTL_MS, RESET_CODE_TTL_MS } from './auth.constants';
 import type { AuthTokensDto, PendingTwoFactorDto, TwoFactorSetupDto } from './dto/auth-tokens.dto';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto';
 import type { LoginDto } from './dto/login.dto';
@@ -23,6 +24,12 @@ import { type DeviceContext, SessionService } from './services/session.service';
 import { TokenService } from './services/token.service';
 import { TotpService } from './services/totp.service';
 import { VerificationCodeService } from './services/verification-code.service';
+import {
+  renderPasswordResetEmail,
+  renderVerificationCodeEmail,
+  renderWelcomeEmail,
+  type VerificationEmailContact,
+} from './templates/verification-code-email.template';
 import type { AccessTokenPayload, PartialSessionTokenPayload } from './token.types';
 
 function isPendingTwoFactor(result: AuthTokensDto | PendingTwoFactorDto): result is PendingTwoFactorDto {
@@ -66,16 +73,17 @@ export class AuthService {
       data: { email: dto.email, passwordHash, displayName: dto.displayName, role: 'customer' },
     });
 
-    const token = this.tokens.signEmailVerificationToken(user.id);
-    const code = await this.codes.issueEmailCode(user.id);
+    // A welcome email only — registration no longer issues an email-verification code or link.
+    // The verify-email / verify-email-code endpoints stay, so links and codes already sent (and
+    // older app builds) keep working. Ownership of the address is still proven on first sign-in:
+    // every new device must enter the code emailed by the new-device check.
     await this.email.send({
       to: user.email,
-      subject: 'Verify your CZ Digitizing account',
-      // apps/web verifies via the link; apps/mobile (aspect A-023) has no deep-link handler back
-      // into the app, so it verifies via the code instead — both open the same underlying account.
-      // Code listed first: the JWT link token's own digits can otherwise satisfy a naive
-      // "first 4-digit run" scan (see test/integration/auth.spec.ts's lastEmailCodeTo helper).
-      text: `Your verification code: ${code}\n\nOr verify via link: ${this.webBaseUrl}/verify-email?token=${encodeURIComponent(token)}`,
+      ...renderWelcomeEmail({
+        name: user.displayName,
+        webBaseUrl: this.webBaseUrl,
+        contact: await this.loadEmailContact(),
+      }),
     });
 
     // AC-8 (Customer Account & Purchase History, aspect A-019) — retroactively link any guest
@@ -117,6 +125,34 @@ export class AuthService {
         channels: DEFAULT_CHANNELS.new_registration,
       });
     }
+  }
+
+  // Footer contact/social details for the auth emails — the same platform_settings values
+  // (Admin → Settings → Contact / Social) the public site footer shows, so nothing is hard-coded.
+  private async loadEmailContact(): Promise<VerificationEmailContact> {
+    const settings = await this.prisma.platformSettings.findUnique({
+      where: { id: 1 },
+      select: {
+        contactEmail: true,
+        whatsappNumber: true,
+        facebookUrl: true,
+        instagramUrl: true,
+        linkedinUrl: true,
+        xTwitterUrl: true,
+        youtubeUrl: true,
+      },
+    });
+    return {
+      contactEmail: settings?.contactEmail ?? null,
+      whatsappNumber: settings?.whatsappNumber ?? null,
+      social: [
+        { label: 'Facebook', url: settings?.facebookUrl },
+        { label: 'Instagram', url: settings?.instagramUrl },
+        { label: 'LinkedIn', url: settings?.linkedinUrl },
+        { label: 'X', url: settings?.xTwitterUrl },
+        { label: 'YouTube', url: settings?.youtubeUrl },
+      ].filter((link): link is { label: string; url: string } => !!link.url),
+    };
   }
 
   async verifyEmail(token: string): Promise<void> {
@@ -170,12 +206,7 @@ export class AuthService {
     }
 
     const pending = await this.sessions.createUnverifiedSession(user.id, device);
-    const code = await this.codes.issueDeviceCode(pending.id);
-    await this.email.send({
-      to: user.email,
-      subject: 'Verify this new device',
-      text: `Your verification code is ${code}. It expires in 15 minutes.`,
-    });
+    await this.sendDeviceCode(user, pending.id);
 
     const others = await this.sessions.listOtherTrustedSessions(user.id, device.deviceId);
     if (others.length > 0) {
@@ -187,6 +218,39 @@ export class AuthService {
     }
 
     throw new ApiException('NEW_DEVICE_VERIFICATION_REQUIRED', 401, 'Verification code sent to your email');
+  }
+
+  // Issues a fresh code on the pending session (replacing any earlier one, attempts reset, new
+  // expiry) and emails it — shared by the login branch above and resendDeviceCode() below.
+  private async sendDeviceCode(user: User, sessionId: string): Promise<void> {
+    const code = await this.codes.issueDeviceCode(sessionId);
+    await this.email.send({
+      to: user.email,
+      ...renderVerificationCodeEmail({
+        code,
+        expiresInMinutes: DEVICE_CODE_TTL_MS / 60_000,
+        webBaseUrl: this.webBaseUrl,
+        contact: await this.loadEmailContact(),
+      }),
+    });
+  }
+
+  // "Resend code" on the verify-device page. Only re-sends for a pending session that already
+  // exists for this exact device (same device-id cookie/header), i.e. one created by a login
+  // that passed the password check on this device — so it grants nothing a second password login
+  // wouldn't. Silent no-op for an unknown email or no pending session, so the response never
+  // reveals whether an account exists. Does not repeat the "new login attempt" alert.
+  async resendDeviceCode(email: string, device: DeviceContext): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return;
+
+    const pending = await this.prisma.session.findFirst({
+      where: { userId: user.id, deviceId: device.deviceId, isVerified: false, revokedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!pending) return;
+
+    await this.sendDeviceCode(user, pending.id);
   }
 
   async verifyNewDevice(dto: VerifyNewDeviceDto, device: DeviceContext): Promise<AuthTokensDto> {
@@ -284,8 +348,13 @@ export class AuthService {
     const code = await this.codes.issueResetCode(user.id);
     await this.email.send({
       to: user.email,
-      subject: 'Reset your CZ Digitizing password',
-      text: `Your password reset code is ${code}. It expires in 10 minutes.`,
+      ...renderPasswordResetEmail({
+        code,
+        expiresInMinutes: RESET_CODE_TTL_MS / 60_000,
+        name: user.displayName,
+        webBaseUrl: this.webBaseUrl,
+        contact: await this.loadEmailContact(),
+      }),
     });
   }
 

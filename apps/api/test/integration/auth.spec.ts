@@ -8,6 +8,7 @@ import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RedisService } from '../../src/redis/redis.service';
 import { EmailService } from '../../src/email/email.service';
+import { VerificationCodeService } from '../../src/auth/services/verification-code.service';
 
 // Requires a real Postgres + Redis reachable via the DATABASE_URL/REDIS_URL in apps/api/.env
 // (docker-compose.yml — `docker compose up -d`) with `prisma migrate dev` already applied.
@@ -78,6 +79,17 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(stored.passwordHash).not.toBe('password123');
   });
 
+  it('sends a welcome email after registration — no verification code or link', async () => {
+    await agent().post('/api/auth/register').send({ email: 'welcome@example.com', password: 'password123', displayName: 'Ayesha' });
+
+    const emails = sendMock.mock.calls.map((c) => c[0]).filter((m) => m.to === 'welcome@example.com');
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toBe('Welcome to CZ Digitizing — Your Embroidery Design Partner');
+    expect(emails[0].html).toContain('Hello Ayesha,');
+    expect(emails[0].text).not.toMatch(/verification code|verify-email/i);
+    expect(await redis.client.exists(`auth:emailverify:${(await prisma.user.findUniqueOrThrow({ where: { email: 'welcome@example.com' } })).id}`)).toBe(0);
+  });
+
   // docs/specs/2026-08-28-02-notifications-system.md AC-1 — real-time Admin notification per
   // registration, not just the (off-by-default) hourly digest.
   it('notifies every admin of a new customer registration', async () => {
@@ -102,10 +114,13 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
     expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
   });
 
-  // aspect A-023 — code counterpart to the link-based verify-email flow, for apps/mobile
-  it('verifies an email via the register email\'s 4-digit code (mobile flow)', async () => {
+  // aspect A-023 — code counterpart to the link-based verify-email flow. Registration no longer
+  // issues this code (it sends a welcome email instead), but the endpoint stays for codes already
+  // sent and older app builds, so the code is issued directly here.
+  it('verifies an email via a 4-digit email-verification code', async () => {
     await agent().post('/api/auth/register').send({ email: 'codeverify@example.com', password: 'password123' });
-    const code = lastEmailCodeTo('codeverify@example.com');
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'codeverify@example.com' } });
+    const code = await app.get(VerificationCodeService).issueEmailCode(user.id);
 
     const res = await agent().post('/api/auth/verify-email-code').send({ email: 'codeverify@example.com', code });
     expect(res.status).toBe(200);
@@ -127,6 +142,8 @@ describe('Auth API (docs/specs/2026-08-28-01-auth-account-security.md)', () => {
 
   it('rate-limits repeated wrong email-verification codes (429 RATE_LIMITED after 3 attempts)', async () => {
     await agent().post('/api/auth/register').send({ email: 'ratecode@example.com', password: 'password123' });
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'ratecode@example.com' } });
+    await app.get(VerificationCodeService).issueEmailCode(user.id);
     const client = agent();
     let last;
     for (let i = 0; i < 3; i++) {
