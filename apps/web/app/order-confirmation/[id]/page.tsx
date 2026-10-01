@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth-context';
 import { formatPkr } from '@/lib/format';
+import { useOrderAccess } from '@/lib/order-access';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { GuestOrderUnavailable } from '@/components/GuestOrderUnavailable';
 import { clientError } from '@/i18n/api-errors';
 import { useLocale } from '@/lib/locale-context';
 
@@ -35,25 +36,26 @@ interface AuthorizedFileDto {
 // docs/specs/2026-08-28-08-orders-payment-processing.md §5 — "order confirmation screen with
 // order number, next steps, and (once confirmed) a link to purchased files". Bank transfer only.
 export default function OrderConfirmationPage() {
-  const router = useRouter();
   const params = useParams<{ id: string }>();
-  const { user, accessToken, isReady } = useAuth();
+  // Signed in: the account's order routes. Not signed in: guest checkout's cookie-scoped routes —
+  // the same order, payment gate and download rules, reached through the browser's guest key.
+  const access = useOrderAccess();
   const { t, tOr, rich } = useLocale();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [files, setFiles] = useState<AuthorizedFileDto[] | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<ApiError | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
-    if (isReady && !user) router.replace('/login');
-  }, [isReady, user, router]);
-
-  useEffect(() => {
-    if (!user || !accessToken) return;
-    apiFetch<OrderDto>(`/api/orders/${params.id}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!access.ready) return;
+    apiFetch<OrderDto>(`${access.base}/${params.id}`, { headers: access.headers })
       .then(setOrder)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrderFailed')));
-  }, [user, accessToken, params.id]);
+      .catch((err) => {
+        if (access.guest && err instanceof ApiClientError && err.error.code === 'RESOURCE_NOT_FOUND') setUnavailable(true);
+        else setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrderFailed'));
+      });
+  }, [access.ready, access.base, access.headers, access.guest, params.id]);
 
   // Files are only offered once the SERVER reports them unlocked — the order is 100% paid and confirmed by
   // an Admin (or credits covered all of it) and nothing was refunded. This page merely reads that decision
@@ -64,13 +66,14 @@ export default function OrderConfirmationPage() {
   // /api/orders/:id/files (AC-4/5). Loaded only once files are actually releasable, same gate the
   // backend itself enforces (PAYMENT_NOT_CONFIRMED otherwise).
   useEffect(() => {
-    if (!filesReady || !accessToken) return;
-    apiFetch<AuthorizedFileDto[]>(`/api/orders/${params.id}/files`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!filesReady || !access.ready) return;
+    apiFetch<AuthorizedFileDto[]>(`${access.base}/${params.id}/files`, { headers: access.headers })
       .then(setFiles)
       .catch(() => setFiles([]));
-  }, [filesReady, accessToken, params.id]);
+  }, [filesReady, access.ready, access.base, access.headers, params.id]);
 
-  if (!isReady || !user) return null;
+  if (!access.ready) return null;
+  if (unavailable) return <GuestOrderUnavailable />;
 
   // AC-6/AC-12 (Customer Account & Purchase History, aspect A-019) — requests/confirms download
   // authorization via the real signed-token endpoint (which also records the DOWNLOADED activity
@@ -78,11 +81,10 @@ export default function OrderConfirmationPage() {
   // signed token — same honest, documented gap as the custom-requests page's own download button
   // (A-007's own frontend/streaming endpoint is a follow-up, not something this spec invents).
   async function downloadFile(fileId: string) {
-    if (!accessToken) return;
     try {
-      await apiFetch<{ downloadUrl: string; expiresAt: string }>(`/api/orders/${params.id}/files/${fileId}/download`, {
+      await apiFetch<{ downloadUrl: string; expiresAt: string }>(`${access.base}/${params.id}/files/${fileId}/download`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: access.headers,
       });
       setDownloaded((prev) => ({ ...prev, [fileId]: true }));
     } catch (err) {
@@ -129,17 +131,28 @@ export default function OrderConfirmationPage() {
                   ))}
                 </ul>
               )}
-              <Link href="/account/purchased-designs" className="inline-block text-xs text-brand-navy underline">
-                {t('orders.viewAllPurchased')}
-              </Link>
+              {!access.guest && (
+                <Link href="/account/purchased-designs" className="inline-block text-xs text-brand-navy underline">
+                  {t('orders.viewAllPurchased')}
+                </Link>
+              )}
             </div>
           )}
         </div>
       )}
 
-      <Link href="/account/orders" className="inline-block text-sm text-brand-navy underline">
-        {t('orders.viewHistory')}
-      </Link>
+      {access.guest ? (
+        <div className="space-y-2">
+          <Link href="/" className="inline-block text-sm text-brand-navy underline">
+            {t('homeOrders.title')}
+          </Link>
+          <p className="text-xs text-gray-500">{t('homeOrders.savedOnBrowser')}</p>
+        </div>
+      ) : (
+        <Link href="/account/orders" className="inline-block text-sm text-brand-navy underline">
+          {t('orders.viewHistory')}
+        </Link>
+      )}
     </div>
   );
 }

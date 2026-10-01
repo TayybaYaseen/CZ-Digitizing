@@ -5,6 +5,7 @@ import { CreditsModule } from '../credits/credits.module';
 import { FilesModule } from '../files/files.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { GuestOrdersController } from './guest-orders.controller';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
@@ -16,7 +17,7 @@ import { OrdersService } from './orders.service';
 // routes that CREATE credit/subscription orders live in PurchasesModule, which sits above all three).
 @Module({
   imports: [BundlesModule, FilesModule, PaymentsModule, CreditsModule, SubscriptionsModule, ActivityModule],
-  controllers: [OrdersController],
+  controllers: [OrdersController, GuestOrdersController],
   providers: [OrdersService],
   exports: [OrdersService],
 })

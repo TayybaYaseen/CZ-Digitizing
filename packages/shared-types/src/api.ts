@@ -72,4 +72,8 @@ export type ApiErrorCode =
   // Custom Design Request System spec (docs/specs/2026-08-28-12-custom-design-requests.md §3)
   | 'INVALID_CUSTOM_REQUEST_TRANSITION'
   | 'CUSTOM_REQUEST_NOT_QUOTED'
-  | 'FILE_FORMAT_REQUEST_ALREADY_FULFILLED';
+  | 'FILE_FORMAT_REQUEST_ALREADY_FULFILLED'
+  // Guest checkout (POST /api/cart/guest-checkout): the email belongs to a staff or disabled account,
+  // or the caller is already signed in and should use the normal checkout.
+  | 'GUEST_CHECKOUT_SIGN_IN_REQUIRED'
+  | 'GUEST_CHECKOUT_SIGNED_IN';

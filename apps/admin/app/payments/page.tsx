@@ -22,6 +22,10 @@ interface QueueRow {
   bankTransferReference: string | null;
   createdAt: string;
   latestReceipt: { id: string; uploadedAt: string; reviewStatus: string; contentType: string | null } | null;
+  // Guest checkout — placed without signing in; the contact is what the buyer typed at checkout.
+  placedAsGuest: boolean;
+  guestContactName: string | null;
+  guestContactWhatsapp: string | null;
 }
 
 // docs/specs/2026-08-28-08-orders-payment-processing.md (aspect A-013, AC-4/AC-5) — the bank-transfer
@@ -86,8 +90,16 @@ export default function PaymentsPage() {
                   <tr key={row.id}>
                     <td className="py-2 pr-4 font-semibold">#{row.id}</td>
                     <td className="py-2 pr-4">
-                      <div>{row.customerDisplayName ?? row.customerEmail}</div>
-                      {row.customerDisplayName && <div className="text-xs text-gray-500">{row.customerEmail}</div>}
+                      <div>
+                        {(row.placedAsGuest ? row.guestContactName : null) ?? row.customerDisplayName ?? row.customerEmail}
+                        {row.placedAsGuest && (
+                          <span className="ml-2">
+                            <Badge tone="neutral">Guest</Badge>
+                          </span>
+                        )}
+                      </div>
+                      {(row.placedAsGuest ? row.guestContactName : row.customerDisplayName) && <div className="text-xs text-gray-500">{row.customerEmail}</div>}
+                      {row.placedAsGuest && row.guestContactWhatsapp && <div className="text-xs text-gray-500">WhatsApp: {row.guestContactWhatsapp}</div>}
                     </td>
                     <td className="py-2 pr-4 font-mono text-xs">{row.bankTransferReference ?? '—'}</td>
                     <td className="py-2 pr-4">PKR {row.amountOutstandingPkr}</td>

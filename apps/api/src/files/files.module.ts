@@ -14,6 +14,8 @@ import { ZipService } from './zip.service';
   imports: [ActivityModule],
   controllers: [FileFormatController, DesignFilesController, CustomerFilesController],
   providers: [StorageService, FileFormatService, DesignFilesService, CustomerFilesService, WatermarkService, ZipService],
-  exports: [StorageService, ZipService, DesignFilesService],
+  // CustomerFilesService is exported for GuestOrdersController (OrdersModule): a guest's file list and
+  // download go through the very same payment gate and .EMB exclusion as a signed-in customer's.
+  exports: [StorageService, ZipService, DesignFilesService, CustomerFilesService],
 })
 export class FilesModule {}

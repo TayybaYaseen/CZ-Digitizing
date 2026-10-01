@@ -1,16 +1,21 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../common/decorators/current-user.decorator';
+import { ApiException } from '../common/exceptions/api-exception';
+import { RateLimit } from '../common/rate-limit/rate-limit.decorator';
+import { generateGuestAccessKey, hashGuestAccessKey, readGuestAccessKey, setGuestAccessCookie } from '../orders/guest-access-key.util';
 import type { RequestWithCartSession } from './cart-session.middleware';
 import { CartService, type CartActor } from './cart.service';
-import { AddCartItemDto, ApplyCreditsDto, CheckoutDto, UpdateCartItemDto } from './dto/cart-write.dto';
+import { AddCartItemDto, ApplyCreditsDto, CheckoutDto, GuestCheckoutDto, UpdateCartItemDto } from './dto/cart-write.dto';
 
 type CartRequest = AuthenticatedRequest & RequestWithCartSession;
 
 // docs/specs/2026-08-28-07-shopping-cart-checkout.md §3 (aspect A-011). Every route is @Public()
-// (guest-or-authenticated) except merge/checkout, which require a real customer — CartSessionMiddleware
+// (guest-or-authenticated) except merge/checkout/credits, which require a real customer (guest
+// checkout is its own @Public() route, guest-checkout) — CartSessionMiddleware
 // (registered on 'api/cart*' in app.module.ts) has already minted/read the guest cookie into
 // req.guestCartSessionId regardless of auth state by the time these handlers run.
 @ApiTags('cart')
@@ -90,5 +95,25 @@ export class CartController {
   @HttpCode(201)
   checkout(@Body() dto: CheckoutDto, @Req() req: CartRequest) {
     return this.service.checkout(req.user, dto.paymentMethod ?? 'bank_transfer', dto.creditsToApplyPkr);
+  }
+
+  // Guest checkout — buy without an account. Places the order from this browser's guest cart, and
+  // only AFTER the order exists sets (or refreshes) the httpOnly czd_guest_orders cookie holding the
+  // browser's guest access key; the order stores just the key's SHA-256. A browser that already has
+  // a key keeps it, so every guest order it places stays visible together. The order is ordinary and
+  // unpaid at this point (bank transfer: receipt upload, then Admin confirmation) — the cookie gives
+  // the browser sight of the order, never its files, which stay locked until payment is confirmed.
+  @Post('guest-checkout')
+  @Public()
+  @RateLimit(10, 60)
+  @HttpCode(201)
+  async guestCheckout(@Body() dto: GuestCheckoutDto, @Req() req: CartRequest, @Res({ passthrough: true }) res: Response) {
+    if (req.user?.role === 'customer') {
+      throw new ApiException('GUEST_CHECKOUT_SIGNED_IN', 409, 'You are signed in — please use the normal checkout');
+    }
+    const key = readGuestAccessKey(req) ?? generateGuestAccessKey();
+    const order = await this.service.guestCheckout(req.guestCartSessionId, dto, hashGuestAccessKey(key));
+    setGuestAccessCookie(res, key);
+    return order;
   }
 }

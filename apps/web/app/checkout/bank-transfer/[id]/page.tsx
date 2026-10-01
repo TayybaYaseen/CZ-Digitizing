@@ -4,9 +4,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth-context';
 import { formatPkr } from '@/lib/format';
+import { useOrderAccess } from '@/lib/order-access';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
+import { GuestOrderUnavailable } from '@/components/GuestOrderUnavailable';
 import { clientError } from '@/i18n/api-errors';
 import { useLocale } from '@/lib/locale-context';
 
@@ -28,10 +29,15 @@ interface OrderDto {
 // live from the public settings endpoint, never hardcoded here, so a change applies at once), the
 // order's unique reference, and the receipt upload. A rejected receipt shows Admin's reason and asks for
 // a new one. The order is confirmed only when an Admin approves the receipt — nothing here can do it.
+// Guest checkout: a visitor who isn't signed in reaches this same page for an order their browser
+// placed (useOrderAccess -> /api/guest-orders, authorized by the browser's guest cookie).
 export default function BankTransferCheckoutPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const { user, accessToken, isReady } = useAuth();
+  // Signed in: the account's order routes. Not signed in: guest checkout's cookie-scoped routes.
+  const access = useOrderAccess();
+  // A guest browser asked for an order it doesn't hold the key to (never revealed whether it exists).
+  const [unavailable, setUnavailable] = useState(false);
   const { t, tOr, rich } = useLocale();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [bankConfig, setBankConfig] = useState<Record<string, string> | null>(null);
@@ -51,10 +57,6 @@ export default function BankTransferCheckoutPage() {
   // Bumped after every upload so the order (and its receipt list) is reloaded from the server.
   const [reload, setReload] = useState(0);
 
-  useEffect(() => {
-    if (isReady && !user) router.replace('/login');
-  }, [isReady, user, router]);
-
   // Already paid (e.g. credits covered the whole order): there is nothing to transfer and no
   // receipt to upload — go straight to the confirmation.
   useEffect(() => {
@@ -62,10 +64,13 @@ export default function BankTransferCheckoutPage() {
   }, [order, router]);
 
   useEffect(() => {
-    if (!user || !accessToken) return;
-    apiFetch<OrderDto>(`/api/orders/${params.id}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!access.ready) return;
+    apiFetch<OrderDto>(`${access.base}/${params.id}`, { headers: access.headers })
       .then(setOrder)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrderFailed')));
+      .catch((err) => {
+        if (access.guest && err instanceof ApiClientError && err.error.code === 'RESOURCE_NOT_FOUND') setUnavailable(true);
+        else setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrderFailed'));
+      });
     apiFetch<{ bankTransferConfig: Record<string, string> | null }>('/api/settings/public')
       .then((s) => {
         setBankConfig(s.bankTransferConfig ?? null);
@@ -75,7 +80,7 @@ export default function BankTransferCheckoutPage() {
         setBankConfigLoadFailed(true);
         setBankConfigLoaded(true);
       });
-  }, [user, accessToken, params.id, reload]);
+  }, [access.ready, access.base, access.headers, access.guest, params.id, reload]);
 
   async function onUpload() {
     if (!file) return;
@@ -84,7 +89,7 @@ export default function BankTransferCheckoutPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      await apiFetch(`/api/orders/${params.id}/receipt`, { method: 'POST', body: form, headers: { Authorization: `Bearer ${accessToken}` } });
+      await apiFetch(`${access.base}/${params.id}/receipt`, { method: 'POST', body: form, headers: access.headers });
       setUploaded(true);
       setFile(null);
       setReload((n) => n + 1);
@@ -95,7 +100,9 @@ export default function BankTransferCheckoutPage() {
     }
   }
 
-  if (!isReady || !user) return null;
+  if (!access.ready) return null;
+  if (unavailable) return <GuestOrderUnavailable />;
+  if (!order && error) return <div className="mx-auto max-w-lg"><ErrorBanner error={error} /></div>;
   if (!order) return <p className="mx-auto max-w-lg text-center text-sm text-gray-500">{t('orders.loadingOrder')}</p>;
   if (order.paymentStatus === 'completed') return null; // redirecting to the confirmation
 
@@ -106,6 +113,11 @@ export default function BankTransferCheckoutPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <h1 className="text-2xl font-bold">{t('checkout.bankTransfer')}</h1>
+      {access.guest && (
+        <p className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700" data-testid="guest-order-saved">
+          {t('orders.orderId', { id: order.id })} · {t('checkout.guestOrderSaved')}
+        </p>
+      )}
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-sm">
         <p>{t('bankTransfer.intro')}</p>

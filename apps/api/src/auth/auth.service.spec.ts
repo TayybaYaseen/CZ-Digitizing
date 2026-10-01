@@ -15,6 +15,7 @@ function createFakes(registrationBatchEnabled: boolean) {
   const prisma = {
     user: {
       findUnique: jest.fn(async () => null),
+      findFirst: jest.fn(async () => null), // no guest-checkout identity to claim for this email
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         id: 99n,
         email: data.email,

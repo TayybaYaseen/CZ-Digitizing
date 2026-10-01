@@ -119,6 +119,8 @@ const CODE_KEYS: Record<string, string> = {
   ORDER_NOT_ELIGIBLE_FOR_REVIEW: 'apiErrors.orderNotReviewable',
   CUSTOM_REQUEST_NOT_QUOTED: 'apiErrors.customRequestNotQuoted',
   FILE_FORMAT_REQUEST_ALREADY_FULFILLED: 'apiErrors.fileFormatAlreadyFulfilled',
+  GUEST_CHECKOUT_SIGN_IN_REQUIRED: 'apiErrors.guestCheckoutSignInRequired',
+  GUEST_CHECKOUT_SIGNED_IN: 'apiErrors.guestCheckoutSignedIn',
   CONFLICT: 'apiErrors.conflict',
   INTERNAL_ERROR: 'apiErrors.generic',
   SERVICE_UNAVAILABLE: 'apiErrors.generic',

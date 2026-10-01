@@ -10,6 +10,7 @@ import type { CreditPackage, Order, OrderPaymentStatus, OrderStatus, PaymentMeth
 import { ADMIN_NOTIFICATION_CHANNELS, DEFAULT_CHANNELS } from '../notifications/notifications.constants';
 import { NotificationService } from '../notifications/services/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NOT_EMB_FILE } from '../files/emb-policy';
 import { StorageService } from '../files/storage.service';
 import { SubscriptionsService, type SubscriptionActivation } from '../subscriptions/subscriptions.service';
 import { generateBankTransferReference } from './bank-transfer-reference.util';
@@ -18,9 +19,11 @@ import { assertValidOrderTransition, isPaymentGatedStatus, orderAllowsFileAccess
 import { amountDuePkr, confirmedReceiptsTotalPkr, outstandingPkr, roundMoney } from './order-payment.util';
 import {
   toAdminOrderSummaryDto,
+  toGuestOrderDto,
   toOrderDto,
   toOrderSummaryDto,
   type AdminOrderSummaryDto,
+  type GuestOrderDto,
   type OrderDto,
   type OrderSummaryDto,
   type OrderWithCustomer,
@@ -42,6 +45,18 @@ const ADMIN_ORDER_INCLUDE = {
 } satisfies Prisma.OrderInclude;
 
 const PAYABLE_PAYMENT_STATUSES: OrderPaymentStatus[] = ['pending', 'failed'];
+
+// Guest checkout — what CartService.guestCheckout hands createFromCart: the SHA-256 of the browser's
+// guest access key (see guest-access-key.util.ts) and the contact details typed at checkout.
+export interface GuestOrderContext {
+  accessKeyHash: string;
+  contactName: string;
+  contactWhatsapp: string | null;
+}
+
+// A guest browser's home-page list is capped: it is a "your recent orders" card strip, not a history
+// page, and the cap bounds the work an anonymous request can trigger.
+const GUEST_ORDER_LIST_LIMIT = 20;
 
 // What approving a receipt did for an order that IS its own deliverable (no downloadable files): the
 // credits it added, or the subscription it activated. Decided inside the approval transaction and
@@ -77,7 +92,19 @@ export class OrdersService {
   // OrderItem, clears those active lines (saved-for-later lines are left untouched), and returns
   // the created order. transactionType is always 'purchase' here; subscription renewals create their
   // own 'renewal' order (createFromSubscriptionPlan).
-  async createFromCart(actor: AccessTokenPayload, cart: CartWithItems, paymentMethod: PaymentMethod, creditsToApplyPkr = 0): Promise<OrderDto> {
+  //
+  // Guest checkout (CartService.guestCheckout) comes through here too, with `guest` set: actor.sub
+  // is then the guest customer identity, the order carries the browser's guest-key hash and contact
+  // snapshot, and credits are never applied — a visitor who hasn't signed in can't spend an account's
+  // balance even when the email they typed belongs to one.
+  async createFromCart(
+    actor: Pick<AccessTokenPayload, 'sub'>,
+    cart: CartWithItems,
+    paymentMethod: PaymentMethod,
+    creditsToApplyPkr = 0,
+    guest?: GuestOrderContext,
+  ): Promise<OrderDto> {
+    if (guest) creditsToApplyPkr = 0;
     const active = cart.items.filter((i) => i.status === 'active');
 
     // Bundle lines need computeBundleTotal() (their price is the sum of member designs' possibly-
@@ -123,6 +150,9 @@ export class OrdersService {
           totalPkr: grandTotalPkr,
           creditsUsed: creditsApplied,
           bankTransferReference,
+          ...(guest
+            ? { guestAccessKeyHash: guest.accessKeyHash, guestContactName: guest.contactName, guestContactWhatsapp: guest.contactWhatsapp }
+            : {}),
           items: {
             create: active.map((item) => ({
               designId: item.designId,
@@ -419,6 +449,27 @@ export class OrdersService {
     return toOrderDto(order as OrderWithRelations);
   }
 
+  // ---- Guest checkout reads (GET /api/guest-orders[/:id]) -------------------------------------------
+  // The browser's guest-key hash is part of the same query as the order id: a guest can only ever
+  // reach orders placed with its own key. A wrong key, a missing key and a non-existent order all
+  // look identical (404 / empty list), so probing ids reveals nothing.
+
+  async listForGuest(guestAccessKeyHash: string | null): Promise<OrderSummaryDto[]> {
+    if (!guestAccessKeyHash) return [];
+    const rows = await this.prisma.order.findMany({
+      where: { guestAccessKeyHash },
+      include: ORDER_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      take: GUEST_ORDER_LIST_LIMIT,
+    });
+    return (rows as OrderWithRelations[]).map(toOrderSummaryDto);
+  }
+
+  async getForGuest(orderId: string, guestAccessKeyHash: string | null): Promise<GuestOrderDto> {
+    const order = await this.findGuestOwned(orderId, guestAccessKeyHash);
+    return toGuestOrderDto(await this.reload(order.id));
+  }
+
   // GET /api/orders/user/history — AC-7.
   async listHistory(customerId: bigint, page: number, pageSize: number, currencyCode?: string): Promise<PagedResult<OrderSummaryDto>> {
     const where = { customerId };
@@ -468,6 +519,19 @@ export class OrdersService {
   // only while the order is still awaiting payment, and only one receipt may await review at a time.
   async uploadReceipt(orderId: string, customerId: bigint, file: Express.Multer.File): Promise<OrderDto> {
     const order = await this.findOwned(orderId, customerId);
+    await this.storeReceipt(order, file);
+    return this.getForAdmin(orderId);
+  }
+
+  // Guest checkout — POST /api/guest-orders/:id/receipt. Same checks, locking and Admin notification
+  // as a signed-in customer's upload; only the ownership test differs (the browser's guest key).
+  async uploadReceiptForGuest(orderId: string, guestAccessKeyHash: string | null, file: Express.Multer.File): Promise<GuestOrderDto> {
+    const order = await this.findGuestOwned(orderId, guestAccessKeyHash);
+    await this.storeReceipt(order, file);
+    return toGuestOrderDto(await this.reload(order.id));
+  }
+
+  private async storeReceipt(order: Order, file: Express.Multer.File): Promise<void> {
     this.assertReceiptUploadable(order);
 
     const contentType = detectReceiptContentType(file.buffer);
@@ -501,8 +565,6 @@ export class OrdersService {
         channels: DEFAULT_CHANNELS.receipt_uploaded,
       });
     }
-
-    return this.getForAdmin(orderId);
   }
 
   // Nothing is owed (and no receipt may be uploaded) once an order is paid — including one credits
@@ -781,6 +843,13 @@ export class OrdersService {
     return order;
   }
 
+  private async findGuestOwned(orderId: string, guestAccessKeyHash: string | null): Promise<Order> {
+    if (!guestAccessKeyHash) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Order not found');
+    const order = await this.prisma.order.findFirst({ where: { id: this.toId(orderId), guestAccessKeyHash } });
+    if (!order) throw new ApiException('RESOURCE_NOT_FOUND', 404, 'Order not found');
+    return order;
+  }
+
   private async reload(orderId: bigint): Promise<OrderWithRelations> {
     return (await this.prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: ORDER_INCLUDE })) as OrderWithRelations;
   }
@@ -894,9 +963,15 @@ export class OrdersService {
       }
     }
 
-    if (targets.length > 0) {
+    // private-file-management AC-1 — an .EMB file is never authorized for a customer, whichever
+    // design or bundle it came through (CustomerFilesService also refuses one at read time).
+    const releasable = targets.length
+      ? await this.prisma.designFile.findMany({ where: { id: { in: targets.map((t) => t.designFileId) }, ...NOT_EMB_FILE }, select: { id: true } })
+      : [];
+
+    if (releasable.length > 0) {
       await this.prisma.customerAuthorizedFile.createMany({
-        data: targets.map((t) => ({ orderId: order.id, customerId: order.customerId, designFileId: t.designFileId })),
+        data: releasable.map((f) => ({ orderId: order.id, customerId: order.customerId, designFileId: f.id })),
         skipDuplicates: true,
       });
     } else {
