@@ -7,6 +7,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface CategoryDto {
   id: string;
@@ -27,6 +29,7 @@ interface SubcategoryDto {
 // endpoint exists — small enough list not to need one).
 export default function CategoryDesignsPage() {
   const params = useParams<{ slug: string }>();
+  const { t } = useLocale();
   const [category, setCategory] = useState<CategoryDto | null | undefined>(undefined);
   const [subcategories, setSubcategories] = useState<SubcategoryDto[]>([]);
   const [designs, setDesigns] = useState<DesignSummaryDto[] | null>(null);
@@ -43,12 +46,12 @@ export default function CategoryDesignsPage() {
           apiFetch<SubcategoryDto[]>(`/api/categories/${match.id}/subcategories`).then(setSubcategories),
         ]);
       })
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load category.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadCategoryFailed')));
   }, [params.slug]);
 
   if (error) return <ErrorBanner error={error} />;
   if (category === undefined) return <div className="mx-auto max-w-6xl"><div className="h-8 w-48 animate-pulse rounded bg-gray-100" /></div>;
-  if (category === null) return <p className="text-sm text-gray-500">Category not found.</p>;
+  if (category === null) return <p className="text-sm text-gray-500">{t('products.categoryNotFound')}</p>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -73,7 +76,7 @@ export default function CategoryDesignsPage() {
           ))}
         </div>
       ) : designs.length === 0 ? (
-        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">No designs in this category yet.</p>
+        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">{t('products.emptyCategory')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {designs.map((design) => (

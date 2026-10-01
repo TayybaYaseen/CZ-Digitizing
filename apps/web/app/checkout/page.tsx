@@ -10,6 +10,7 @@ import { useCart } from '@/lib/cart-context';
 import { formatPkr } from '@/lib/format';
 import { useLocale } from '@/lib/locale-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
 
 interface OrderDto {
   id: string;
@@ -67,7 +68,7 @@ export default function CheckoutPage() {
         })
         .catch((err) => {
           setCreditsToApplyPkr(0);
-          setCreditsError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not validate credits.', traceId: '' });
+          setCreditsError(err instanceof ApiClientError ? err.error : clientError('errors.validateCreditsFailed'));
         })
         .finally(() => setCheckingCredits(false));
     }, 250);
@@ -91,7 +92,7 @@ export default function CheckoutPage() {
         router.push(`/checkout/bank-transfer/${order.id}`);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Checkout failed.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.checkoutFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -104,9 +105,9 @@ export default function CheckoutPage() {
   if (!cart || cart.items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 text-center">
-        <p className="text-sm text-gray-500">Your cart is empty.</p>
+        <p className="text-sm text-gray-500">{t('cart.empty')}</p>
         <Link href="/designs" className="inline-block rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy">
-          Continue Shopping
+          {t('cart.continueShopping')}
         </Link>
       </div>
     );
@@ -117,7 +118,7 @@ export default function CheckoutPage() {
       <h1 className="text-2xl font-bold">{t('checkout.title')}</h1>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-brand-navy">Order Summary</h2>
+        <h2 className="text-sm font-semibold text-brand-navy">{t('checkout.orderSummary')}</h2>
         {cart.items.map((item) => (
           <div key={item.id} className="flex justify-between text-sm">
             <span>
@@ -127,17 +128,17 @@ export default function CheckoutPage() {
           </div>
         ))}
         <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-brand-navy">
-          <span>Total</span>
+          <span>{t('cart.total')}</span>
           <span>{formatPkr(cart.totalPkr)}</span>
         </div>
         {creditsToApplyPkr > 0 && !creditsError && (
           <>
             <div className="flex justify-between text-sm text-emerald-700">
-              <span>Credits applied</span>
+              <span>{t('checkout.creditsApplied')}</span>
               <span>− {formatPkr(creditsToApplyPkr)}</span>
             </div>
             <div className="flex justify-between text-base font-semibold text-brand-navy">
-              <span>Amount to transfer</span>
+              <span>{t('checkout.amountToTransfer')}</span>
               <span>{formatPkr(Math.max(0, cart.totalPkr - creditsToApplyPkr))}</span>
             </div>
           </>
@@ -145,17 +146,13 @@ export default function CheckoutPage() {
       </div>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-brand-navy">Payment Method</h2>
-        <p className="text-sm font-medium" data-testid="payment-method">Bank Transfer</p>
-        <p className="text-sm text-gray-600">
-          {fullyCoveredByCredits
-            ? 'Your credits cover this whole order — no bank transfer or receipt is needed.'
-            : 'Transfer the exact amount to the bank account shown on the next step and upload your payment receipt. Your files are released once we confirm the payment.'}
-        </p>
+        <h2 className="text-sm font-semibold text-brand-navy">{t('checkout.paymentMethod')}</h2>
+        <p className="text-sm font-medium" data-testid="payment-method">{t('checkout.bankTransfer')}</p>
+        <p className="text-sm text-gray-600">{fullyCoveredByCredits ? t('checkout.coveredByCredits') : t('checkout.bankTransferInfo')}</p>
       </div>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-brand-navy">Apply Credits</h2>
+        <h2 className="text-sm font-semibold text-brand-navy">{t('checkout.applyCredits')}</h2>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -163,15 +160,17 @@ export default function CheckoutPage() {
             value={creditsInput}
             onChange={(e) => setCreditsInput(e.target.value)}
             placeholder="0"
+            aria-label={t('checkout.creditsBalanceSuffix')}
             className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
-          <span className="text-sm text-gray-500">PKR of your credit balance</span>
-          {checkingCredits && <span className="text-xs text-gray-400">Checking…</span>}
+          <span className="text-sm text-gray-500">{t('checkout.creditsBalanceSuffix')}</span>
+          {checkingCredits && <span className="text-xs text-gray-400">{t('common.checking')}</span>}
         </div>
         {creditsToApplyPkr > 0 && !creditsError && (
           <p className="text-sm text-emerald-700">
-            {formatPkr(creditsToApplyPkr)} in credits will be applied to this order
-            {Number(creditsInput) > creditsToApplyPkr ? ` (that is all this order needs — the rest stays in your balance)` : ''}.
+            {Number(creditsInput) > creditsToApplyPkr
+              ? t('checkout.creditsWillApplyCapped', { amount: formatPkr(creditsToApplyPkr) })
+              : t('checkout.creditsWillApply', { amount: formatPkr(creditsToApplyPkr) })}
           </p>
         )}
         <ErrorBanner error={creditsError} />

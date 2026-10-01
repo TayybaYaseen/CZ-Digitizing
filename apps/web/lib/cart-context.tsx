@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { clientError } from '@/i18n/api-errors';
 
 // Mirrors apps/api/src/cart/dto/cart.dto.ts's CartItemDto/CartDto.
 export interface CartItemDto {
@@ -48,7 +49,7 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 function toError(err: unknown): ApiError {
-  return err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Something went wrong with your cart.', traceId: '' };
+  return err instanceof ApiClientError ? err.error : clientError('errors.cartFailed');
 }
 
 // docs/specs/2026-08-28-07-shopping-cart-checkout.md AC-1/AC-3 (aspect A-011) — the header badge

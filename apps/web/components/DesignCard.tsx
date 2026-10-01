@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/designs/dto/design.dto.ts's DesignSummaryDto.
 export interface DesignSummaryDto {
@@ -65,6 +66,7 @@ function loadSubcategoryNames(): Promise<Map<string, string>> {
 export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
   const { user, accessToken } = useAuth();
   const { addItem } = useCart();
+  const { t, errorMessage } = useLocale();
   const [design, setDesign] = useState(initial);
   const [flipped, setFlipped] = useState(false);
   const [backDetail, setBackDetail] = useState<DesignBackDetail | null>(null);
@@ -132,7 +134,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
     } catch (err) {
-      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+      setAddError(err instanceof ApiClientError ? errorMessage(err.error) : t('products.addToCartFailed'));
     } finally {
       setAdding(false);
     }
@@ -188,22 +190,22 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
           <img src={frontImage} alt={design.name} className="h-40 w-full object-cover" />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold text-brand-navy">{design.name}</p>
-              <button onClick={onToggleFavorite} aria-label="Favorite" className={`text-lg ${design.isFavorited ? 'text-red-500' : 'text-gray-300'}`}>
+              <p dir="auto" className="text-sm font-semibold text-brand-navy">{design.name}</p>
+              <button onClick={onToggleFavorite} aria-label={t('products.favorite')} aria-pressed={design.isFavorited} className={`text-lg ${design.isFavorited ? 'text-red-500' : 'text-gray-300'}`}>
                 ♥
               </button>
             </div>
             {tagName && (
-              <span className="w-fit rounded-full bg-brand-lightGray px-2 py-0.5 text-[10px] font-medium text-brand-navy">{tagName}</span>
+              <span dir="auto" className="w-fit rounded-full bg-brand-lightGray px-2 py-0.5 text-[10px] font-medium text-brand-navy">{tagName}</span>
             )}
             {hasDualMedia && (
               <div className="flex gap-1 text-[10px] text-gray-400">
                 <button onClick={(e) => onSelectMedia(e, false)} className={showingEmbroidery ? '' : 'font-semibold text-brand-navy'}>
-                  Vector
+                  {t('products.mediaVector')}
                 </button>
                 ·
                 <button onClick={(e) => onSelectMedia(e, true)} className={showingEmbroidery ? 'font-semibold text-brand-navy' : ''}>
-                  Embroidery
+                  {t('products.mediaEmbroidery')}
                 </button>
               </div>
             )}
@@ -227,7 +229,7 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
                 }}
                 className="rounded-field bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy transition hover:brightness-105"
               >
-                Add to Cart
+                {t('products.addToCart')}
               </button>
             </div>
           </div>
@@ -239,25 +241,25 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
           style={{ transform: 'rotateY(180deg)' }}
         >
           {!backDetail ? (
-            <p className="text-gray-400">Loading…</p>
+            <p className="text-gray-400">{t('common.loading')}</p>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-brand-navy">{design.name}</p>
-              {backDetail.description && <p>{backDetail.description}</p>}
+              <p dir="auto" className="text-sm font-semibold text-brand-navy">{design.name}</p>
+              {backDetail.description && <p dir="auto">{backDetail.description}</p>}
               <div>
-                <p className="font-medium">Sizes</p>
+                <p className="font-medium">{t('products.sizes')}</p>
                 <ul className="list-inside list-disc">
                   {backDetail.sizes.map((s) => (
                     <li key={s.id}>
-                      {s.label}: {s.widthMm}×{s.heightMm}mm
+                      {t('products.sizeDimensions', { label: s.label, width: s.widthMm, height: s.heightMm })}
                     </li>
                   ))}
                 </ul>
               </div>
-              {backDetail.stitchCount !== null && <p>Stitch count: {backDetail.stitchCount}</p>}
-              {backDetail.threadColorCount !== null && <p>Thread colors: {backDetail.threadColorCount}</p>}
-              {backDetail.threadColorChanges !== null && <p>Thread color changes: {backDetail.threadColorChanges}</p>}
-              {design.tags.length > 0 && <p className="text-gray-400">Tags: {design.tags.join(', ')}</p>}
+              {backDetail.stitchCount !== null && <p>{t('products.stitchCount', { count: backDetail.stitchCount })}</p>}
+              {backDetail.threadColorCount !== null && <p>{t('products.threadColors', { count: backDetail.threadColorCount })}</p>}
+              {backDetail.threadColorChanges !== null && <p>{t('products.threadColorChanges', { count: backDetail.threadColorChanges })}</p>}
+              {design.tags.length > 0 && <p className="text-gray-400">{t('products.tags', { tags: design.tags.join(', ') })}</p>}
 
               {backDetail.sizes.length > 0 && (
                 <select
@@ -277,14 +279,14 @@ export function DesignCard({ design: initial }: { design: DesignSummaryDto }) {
 
               <div className="flex items-center justify-between pt-2">
                 <Link href={`/designs/${design.id}`} onClick={(e) => e.stopPropagation()} className="text-brand-navy underline">
-                  View details
+                  {t('products.viewDetails')}
                 </Link>
                 <button
                   onClick={onAddToCart}
                   disabled={adding || !selectedSizeId}
                   className="rounded-field bg-brand-gold px-2 py-1 text-xs font-semibold text-brand-navy transition hover:brightness-105 disabled:opacity-50"
                 >
-                  {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
+                  {added ? t('products.added') : adding ? t('products.adding') : t('products.addToCart')}
                 </button>
               </div>
             </div>

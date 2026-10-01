@@ -6,6 +6,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthTokens, useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // AC-12 — lands here from the login link MagicLinkService emails
 // (apps/api/src/auth/services/magic-link.service.ts): GET /api/auth/magic-link/verify?token=...
@@ -38,12 +40,15 @@ function MagicLinkContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
+  const { t } = useLocale();
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
     const token = searchParams.get('token');
     if (!token) {
-      setError({ code: 'VALIDATION_ERROR', message: 'Missing login link token.', traceId: '' });
+      // Not VALIDATION_ERROR: ErrorBanner deliberately hides that code (it's for inline field
+      // errors), which left this page with a heading and no explanation.
+      setError(clientError('errors.missingLoginToken'));
       return;
     }
 
@@ -52,7 +57,7 @@ function MagicLinkContent() {
         if ('pendingTwoFactorToken' in result) {
           // Only reachable if this email belongs to an admin account — mirrors login page's
           // handling: the customer site has no 2FA UI.
-          setError({ code: 'FORBIDDEN', message: 'This account requires the Admin portal to log in.', traceId: '' });
+          setError(clientError('errors.adminPortalRequired', 'FORBIDDEN'));
           return;
         }
         login(result);
@@ -64,17 +69,17 @@ function MagicLinkContent() {
           router.push(`/verify-device${email ? `?email=${encodeURIComponent(email)}` : ''}`);
           return;
         }
-        setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Something went wrong.', traceId: '' });
+        setError(err instanceof ApiClientError ? err.error : clientError('errors.generic'));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="mx-auto max-w-sm space-y-4 text-center">
-      {!error && <p className="text-sm text-gray-600">Logging you in…</p>}
+      {!error && <p className="text-sm text-gray-600">{t('auth.loggingYouIn')}</p>}
       {error && (
         <>
-          <h1 className="text-2xl font-bold">Couldn&apos;t log you in</h1>
+          <h1 className="text-2xl font-bold">{t('auth.couldNotLogIn')}</h1>
           <ErrorBanner error={error} />
         </>
       )}

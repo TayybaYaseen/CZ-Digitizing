@@ -9,6 +9,8 @@ import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { publishUnreadCountDelta } from '@/lib/unread-count-bus';
 import { getNotificationHref } from '@/lib/notification-link';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 const PAGE_SIZE = 20;
 
@@ -16,13 +18,13 @@ function humanize(value: string) {
   return value.replace(/_/g, ' ');
 }
 
-function formatTimestamp(iso: string) {
-  return new Date(iso).toLocaleString();
-}
-
+// i18n (A-021): each notification's title/message are written by the API when the event happens and
+// stored as-is (English), so they're shown verbatim — see docs/i18n.md. The type label and every
+// piece of surrounding UI chrome here are translated.
 export default function NotificationsPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
+  const { t, tOr, formatDateTime } = useLocale();
 
   const [notifications, setNotifications] = useState<NotificationDto[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -46,7 +48,7 @@ export default function NotificationsPage() {
         setListError(
           err instanceof ApiClientError
             ? err.error
-            : { code: 'INTERNAL_ERROR', message: 'Failed to load notifications.', traceId: '' },
+            : clientError('errors.loadNotificationsFailed'),
         );
       }
     },
@@ -77,7 +79,7 @@ export default function NotificationsPage() {
       publishUnreadCountDelta(-1); // AC-8 — badge updates immediately, not on the next 30s poll
     } catch (err) {
       setActionError(
-        err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to mark as read.', traceId: '' },
+        err instanceof ApiClientError ? err.error : clientError('errors.markReadFailed'),
       );
     }
   }
@@ -99,8 +101,8 @@ export default function NotificationsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="mt-1 text-sm text-gray-500">Order updates, payments, files ready, and quote responses.</p>
+          <h1 className="text-2xl font-bold">{t('notifications.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('notifications.subtitle')}</p>
         </div>
         {/* AC-9 — dedicated preference center, kept separate from the unsubscribe landing page at
             /account/notifications/preferences (see that page's own doc comment). */}
@@ -108,7 +110,7 @@ export default function NotificationsPage() {
           href="/account/notifications/settings"
           className="flex-shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
         >
-          Notification preferences
+          {t('account.notificationPreferences')}
         </Link>
       </div>
 
@@ -123,7 +125,7 @@ export default function NotificationsPage() {
         </ul>
       ) : notifications === null ? null : notifications.length === 0 ? (
         <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-gray-500">
-          You&apos;re all caught up.
+          {t('notifications.allCaughtUp')}
         </p>
       ) : (
         <>
@@ -138,12 +140,12 @@ export default function NotificationsPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    {!n.isRead && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-navy" aria-label="unread" />}
-                    <p className="truncate text-sm font-medium text-gray-900">{n.title}</p>
+                    {!n.isRead && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-navy" aria-label={t('notifications.unread')} />}
+                    <p dir="auto" className="truncate text-sm font-medium text-gray-900">{n.title}</p>
                   </div>
-                  {n.message && <p className="mt-0.5 text-sm text-gray-600">{n.message}</p>}
+                  {n.message && <p dir="auto" className="mt-0.5 text-sm text-gray-600">{n.message}</p>}
                   <p className="mt-1 text-xs text-gray-400">
-                    {humanize(n.notificationType)} — {formatTimestamp(n.createdAt)}
+                    {tOr(`notificationType.${n.notificationType}`, humanize(n.notificationType))} — {formatDateTime(n.createdAt)}
                   </p>
                 </div>
                 {!n.isRead && (
@@ -154,7 +156,7 @@ export default function NotificationsPage() {
                     }}
                     className="flex-shrink-0 rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
                   >
-                    Mark read
+                    {t('notifications.markRead')}
                   </button>
                 )}
               </li>
@@ -168,17 +170,15 @@ export default function NotificationsPage() {
                 onClick={() => loadNotifications(page - 1)}
                 className="rounded-lg border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Previous
+                {t('common.previous')}
               </button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
+              <span>{t('common.pageOf', { page, total: totalPages })}</span>
               <button
                 disabled={page >= totalPages}
                 onClick={() => loadNotifications(page + 1)}
                 className="rounded-lg border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Next
+                {t('common.next')}
               </button>
             </div>
           )}

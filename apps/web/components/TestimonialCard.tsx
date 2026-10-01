@@ -17,19 +17,19 @@ export function TestimonialCard({ t }: { t: TestimonialDto }) {
           </div>
         )}
         <div>
-          <p className="text-sm font-semibold text-brand-navy">{t.customerName}</p>
-          <p className="text-xs text-gray-500">
+          <p dir="auto" className="text-sm font-semibold text-brand-navy">{t.customerName}</p>
+          <p dir="auto" className="text-xs text-gray-500">
             {t.country}
             {t.business ? ` · ${t.business}` : ''}
           </p>
         </div>
       </div>
-      <p className="mt-2 text-xs text-gold-600">
+      <p className="mt-2 text-xs text-gold-600" aria-label={`${t.rating}/5`}>
         {'★'.repeat(t.rating)}
         {'☆'.repeat(5 - t.rating)}
       </p>
-      <p className="mt-2 text-sm text-gray-700">{t.feedback}</p>
-      <p className="mt-2 text-xs font-medium text-gray-400">{t.serviceUsed}</p>
+      <p dir="auto" className="mt-2 text-sm text-gray-700">{t.feedback}</p>
+      <p dir="auto" className="mt-2 text-xs font-medium text-gray-400">{t.serviceUsed}</p>
     </div>
   );
 }

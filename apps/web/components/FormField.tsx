@@ -1,4 +1,7 @@
+'use client';
+
 import type { FieldError } from 'react-hook-form';
+import { useLocale } from '@/lib/locale-context';
 
 export function FormField({
   label,
@@ -11,13 +14,14 @@ export function FormField({
   error?: FieldError;
   children: React.ReactNode;
 }) {
+  const { fieldError } = useLocale();
   return (
     <div className="space-y-1.5">
       <label htmlFor={htmlFor} className="block text-[13px] font-medium text-slate-700">
         {label}
       </label>
       {children}
-      {error && <p className="text-sm text-red-600">{error.message}</p>}
+      {error && <p className="text-sm text-red-600">{fieldError(error.message)}</p>}
     </div>
   );
 }

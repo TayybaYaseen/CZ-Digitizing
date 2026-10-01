@@ -7,6 +7,9 @@ import type { ApiError, NotificationPreferenceDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
+import { BackArrow } from '@/components/DirectionalArrow';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 function humanize(value: string) {
   return value.replace(/_/g, ' ');
@@ -21,10 +24,11 @@ function humanize(value: string) {
 export default function NotificationSettingsPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
+  const { t, tOr } = useLocale();
 
   const [preferences, setPreferences] = useState<NotificationPreferenceDto[] | null>(null);
   const [prefError, setPrefError] = useState<ApiError | null>(null);
-  const [prefSuccess, setPrefSuccess] = useState<string | null>(null);
+  const [prefSuccess, setPrefSuccess] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
   const loadPreferences = useCallback(async () => {
@@ -37,7 +41,7 @@ export default function NotificationSettingsPage() {
       setPreferences(matrix);
     } catch (err) {
       setPrefError(
-        err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load preferences.', traceId: '' },
+        err instanceof ApiClientError ? err.error : clientError('errors.loadPreferencesFailed'),
       );
     }
   }, [accessToken]);
@@ -61,17 +65,17 @@ export default function NotificationSettingsPage() {
     if (!preferences) return;
     setSavingPrefs(true);
     setPrefError(null);
-    setPrefSuccess(null);
+    setPrefSuccess(false);
     try {
       await apiFetch('/api/notifications/preferences', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ preferences }),
       });
-      setPrefSuccess('Preferences saved.');
+      setPrefSuccess(true);
     } catch (err) {
       setPrefError(
-        err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to save preferences.', traceId: '' },
+        err instanceof ApiClientError ? err.error : clientError('errors.savePreferencesFailed'),
       );
     } finally {
       setSavingPrefs(false);
@@ -92,26 +96,26 @@ export default function NotificationSettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Link href="/account/notifications" className="text-sm text-slate-500 hover:underline">
-          &larr; Back to notifications
+          <BackArrow /> {t('notifications.backToNotifications')}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Notification preferences</h1>
-        <p className="mt-1 text-sm text-gray-500">Choose which channels you want to hear from us on, per notification type.</p>
+        <h1 className="mt-2 text-2xl font-bold">{t('account.notificationPreferences')}</h1>
+        <p className="mt-1 text-sm text-gray-500">{t('notifications.preferencesSubtitle')}</p>
       </div>
 
-      {prefSuccess && <SuccessBanner message={prefSuccess} />}
+      {prefSuccess && <SuccessBanner message={t('notifications.preferencesSaved')} />}
       <ErrorBanner error={prefError} onRetry={preferences === null ? loadPreferences : undefined} />
 
       {preferences === null && !prefError ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p className="text-sm text-gray-500">{t('common.loading')}</p>
       ) : preferences === null ? null : (
         <div className="space-y-2">
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase text-gray-500">
-                  <th className="px-4 py-2">Type</th>
-                  <th className="px-4 py-2">Channel</th>
-                  <th className="px-4 py-2">Enabled</th>
+                  <th className="px-4 py-2 text-start">{t('notifications.colType')}</th>
+                  <th className="px-4 py-2 text-start">{t('notifications.colChannel')}</th>
+                  <th className="px-4 py-2 text-start">{t('notifications.colEnabled')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,13 +124,14 @@ export default function NotificationSettingsPage() {
                     <tr key={`${entry.notificationType}:${entry.channel}`} className="border-b border-slate-100 last:border-0">
                       {idx === 0 && (
                         <td className="px-4 py-2 align-top font-medium text-gray-900" rowSpan={entries.length}>
-                          {humanize(type)}
+                          {tOr(`notificationType.${type}`, humanize(type))}
                         </td>
                       )}
-                      <td className="px-4 py-2 text-gray-600">{humanize(entry.channel)}</td>
+                      <td className="px-4 py-2 text-gray-600">{tOr(`notificationChannel.${entry.channel}`, humanize(entry.channel))}</td>
                       <td className="px-4 py-2">
                         <input
                           type="checkbox"
+                          aria-label={`${tOr(`notificationType.${type}`, humanize(type))} — ${tOr(`notificationChannel.${entry.channel}`, humanize(entry.channel))}`}
                           checked={entry.enabled}
                           onChange={() => togglePreference(entry.notificationType, entry.channel)}
                         />
@@ -143,7 +148,7 @@ export default function NotificationSettingsPage() {
             disabled={savingPrefs}
             className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:bg-brand-navyLight disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {savingPrefs ? 'Saving…' : 'Save preferences'}
+            {savingPrefs ? t('common.saving') : t('notifications.savePreferences')}
           </button>
         </div>
       )}

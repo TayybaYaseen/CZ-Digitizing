@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface PublicSettings {
   whatsappNumber: string | null;
@@ -22,6 +24,7 @@ const SOCIAL_LINKS: { key: keyof PublicSettings['social']; label: string }[] = [
 // contact.service.ts doc comment for why. Reuses the same GET /api/settings/public call
 // Footer.tsx already makes (A-005a) for WhatsApp/email/social, so both surfaces stay in sync.
 export default function ContactPage() {
+  const { t, errorMessage } = useLocale();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -47,7 +50,7 @@ export default function ContactPage() {
       setEmail('');
       setMessage('');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not send your message. Please try again.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.sendContactFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -55,19 +58,19 @@ export default function ContactPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-3xl font-semibold text-brand-navy">Contact Us</h1>
-      <p className="mt-2 text-sm text-gray-600">Reach us directly, or send a message below.</p>
+      <h1 className="text-3xl font-semibold text-brand-navy">{t('nav.contactUs')}</h1>
+      <p className="mt-2 text-sm text-gray-600">{t('contact.subtitle')}</p>
 
       <div className="mt-8 grid gap-10 sm:grid-cols-2">
-        <section aria-label="Direct contact options" className="space-y-3">
+        <section aria-label={t('contact.directOptions')} className="space-y-3">
           {settings?.contactEmail && (
             <a href={`mailto:${settings.contactEmail}`} className="block text-sm text-brand-navy hover:underline">
-              Email: {settings.contactEmail}
+              {t('contact.emailLabel')} <span dir="ltr">{settings.contactEmail}</span>
             </a>
           )}
           {whatsappHref && (
             <a href={whatsappHref} target="_blank" rel="noreferrer" className="block text-sm text-brand-navy hover:underline">
-              WhatsApp: {settings?.whatsappNumber}
+              WhatsApp: <span dir="ltr">{settings?.whatsappNumber}</span>
             </a>
           )}
           {settings?.social && Object.values(settings.social).some(Boolean) && (
@@ -83,28 +86,26 @@ export default function ContactPage() {
           )}
         </section>
 
-        <section aria-label="Contact form">
+        <section aria-label={t('contact.formLabel')}>
           {submitted ? (
-            <p className="rounded border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-              Thanks — your message has been sent. We&apos;ll get back to you soon.
-            </p>
+            <p className="rounded border border-green-200 bg-green-50 p-4 text-sm text-green-800">{t('contact.success')}</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700">Name</label>
+                <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700">{t('common.name')}</label>
                 <input id="contact-name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm" />
               </div>
               <div>
-                <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700">Email</label>
+                <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700">{t('common.email')}</label>
                 <input id="contact-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm" />
               </div>
               <div>
-                <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700">Message</label>
+                <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700">{t('common.message')}</label>
                 <textarea id="contact-message" required maxLength={2000} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm" />
               </div>
-              {error && <p className="text-sm text-red-600">{error.message}</p>}
+              {error && <p className="text-sm text-red-600">{errorMessage(error)}</p>}
               <button type="submit" disabled={submitting} className="rounded bg-brand-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {submitting ? 'Sending…' : 'Send message'}
+                {submitting ? t('common.sending') : t('contact.send')}
               </button>
             </form>
           )}

@@ -11,12 +11,15 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
-const schema = z.object({ email: z.string().email('email must be an email') });
+const schema = z.object({ email: z.string().email('validation.email') });
 type FormValues = z.infer<typeof schema>;
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -43,7 +46,7 @@ export default function ForgotPasswordPage() {
           setApiError(err.error);
         }
       } else {
-        setApiError({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });
+        setApiError(clientError('errors.generic'));
       }
     }
   }
@@ -54,27 +57,24 @@ export default function ForgotPasswordPage() {
         href="/login"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 hover:text-brand-gold"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="rtl:-scale-x-100">
           <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        Back to sign in
+        {t('auth.backToSignIn')}
       </Link>
 
-      <h1 className="mt-5 font-display text-[26px] font-bold tracking-tight text-brand-navy">Reset your password</h1>
-      <p className="mt-2 text-[14.5px] leading-relaxed text-gray-500">
-        Enter your account email and, if it&apos;s registered, we&apos;ll send a 4-digit code to reset your
-        password.
-      </p>
+      <h1 className="mt-5 font-display text-[26px] font-bold tracking-tight text-brand-navy">{t('auth.forgotTitle')}</h1>
+      <p className="mt-2 text-[14.5px] leading-relaxed text-gray-500">{t('auth.forgotSubtitle')}</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
-        <FormField label="Email address" htmlFor="email" error={errors.email}>
-          <input id="email" type="email" placeholder="you@company.com" className={inputClass} {...register('email')} />
+        <FormField label={t('auth.emailAddress')} htmlFor="email" error={errors.email}>
+          <input id="email" type="email" placeholder={t('auth.emailPlaceholder')} className={inputClass} {...register('email')} />
         </FormField>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Sending…' : 'Send reset code'}
+          {isSubmitting ? t('common.sending') : t('auth.sendResetCode')}
         </button>
       </form>
     </AuthLayout>

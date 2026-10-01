@@ -1,3 +1,7 @@
+'use client';
+
+import { useLocale } from '@/lib/locale-context';
+
 // docs/portfolio-spec.md §5.11/§8 — horizontally-scrollable pill row on mobile (no dropdown),
 // wrapping row on desktop/tablet. Built from the categories actually present among published work
 // samples, so no empty filter pill ever appears.
@@ -10,6 +14,7 @@ export function PortfolioCategoryFilter({
   selected: string | null;
   onSelect: (category: string | null) => void;
 }) {
+  const { t } = useLocale();
   if (categories.length === 0) return null;
 
   return (
@@ -22,7 +27,7 @@ export function PortfolioCategoryFilter({
           selected === null ? 'border-brand-gold bg-brand-gold text-brand-navy' : 'border-gray-300 bg-white text-gray-600 hover:border-brand-navy'
         }`}
       >
-        All
+        {t('common.all')}
       </button>
       {categories.map((category) => (
         <button

@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import type { ApiError } from '@czd/shared-types';
+import { clientError } from '@/i18n/api-errors';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 
 // Not in spec §5's route list, but AC-1 requires email verification, and the link
 // AuthService.register() emails (apps/api/src/auth/auth.service.ts) points here —
@@ -20,40 +23,41 @@ export default function VerifyEmailPage() {
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
+  const { t, errorMessage } = useLocale();
   const [status, setStatus] = useState<Status>('verifying');
-  const [message, setMessage] = useState('');
+  const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
     const token = searchParams.get('token');
     if (!token) {
       setStatus('error');
-      setMessage('Missing verification token.');
+      setError(clientError('auth.missingVerificationToken'));
       return;
     }
     apiFetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
       .then(() => setStatus('success'))
       .catch((err) => {
         setStatus('error');
-        setMessage(err instanceof ApiClientError ? err.error.message : 'Verification failed — the link may be expired.');
+        setError(err instanceof ApiClientError ? err.error : clientError('auth.verificationFailedExpired'));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="mx-auto max-w-sm space-y-4 text-center">
-      {status === 'verifying' && <p className="text-sm text-gray-600">Verifying your email…</p>}
+      {status === 'verifying' && <p className="text-sm text-gray-600">{t('auth.verifyingEmail')}</p>}
       {status === 'success' && (
         <>
-          <h1 className="text-2xl font-bold">Email verified</h1>
+          <h1 className="text-2xl font-bold">{t('auth.emailVerified')}</h1>
           <Link href="/login" className="font-medium text-gray-900 underline">
-            Log in
+            {t('nav.login')}
           </Link>
         </>
       )}
       {status === 'error' && (
         <>
-          <h1 className="text-2xl font-bold">Verification failed</h1>
-          <p className="text-sm text-red-600">{message}</p>
+          <h1 className="text-2xl font-bold">{t('auth.verificationFailed')}</h1>
+          <p className="text-sm text-red-600">{error ? errorMessage(error) : ''}</p>
         </>
       )}
     </div>

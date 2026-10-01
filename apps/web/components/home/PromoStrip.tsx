@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { AdvertisementDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 
 function useCountdown(endDate: string) {
   const [remaining, setRemaining] = useState(() => new Date(endDate).getTime() - Date.now());
@@ -37,14 +38,15 @@ export function PromoStrip() {
 
 function PromoStripContent({ ad }: { ad: AdvertisementDto }) {
   const countdown = useCountdown(ad.endDate);
+  const { t } = useLocale();
   if (!countdown) return null; // endDate has passed client-side since the last fetch — disappear with no layout shift
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-3 bg-brand-gold px-4 py-2 text-center text-sm font-semibold text-brand-navy">
-      <span>{ad.heading}</span>
-      {ad.offerText && <span className="font-normal">{ad.offerText}</span>}
+      <span dir="auto">{ad.heading}</span>
+      {ad.offerText && <span dir="auto" className="font-normal">{ad.offerText}</span>}
       <span className="font-mono text-xs">
-        {countdown.days}d {countdown.hours}h {countdown.minutes}m {countdown.seconds}s left
+        {t('home.promoCountdown', { days: countdown.days, hours: countdown.hours, minutes: countdown.minutes, seconds: countdown.seconds })}
       </span>
       {ad.ctaLink && ad.ctaText && (
         <a href={ad.ctaLink} className="rounded-md bg-brand-navy px-2.5 py-1 text-xs text-white hover:brightness-110">

@@ -7,6 +7,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale, type TranslationKey } from '@/lib/locale-context';
 
 interface CreditBalanceDto {
   available: number;
@@ -24,12 +26,12 @@ interface CreditTransactionDto {
   createdAt: string;
 }
 
-const TYPE_LABEL: Record<CreditTransactionDto['type'], string> = {
-  purchase: 'Purchase',
-  usage: 'Used',
-  refund: 'Refund',
-  adjustment: 'Adjustment',
-  grant: 'Monthly grant',
+const TYPE_LABEL: Record<CreditTransactionDto['type'], TranslationKey> = {
+  purchase: 'credits.typePurchase',
+  usage: 'credits.typeUsage',
+  refund: 'credits.typeRefund',
+  adjustment: 'credits.typeAdjustment',
+  grant: 'credits.typeGrant',
 };
 
 const PAGE_SIZE = 20;
@@ -39,6 +41,7 @@ const PAGE_SIZE = 20;
 export default function AccountCreditsPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
+  const { t, formatDate } = useLocale();
   const [balance, setBalance] = useState<CreditBalanceDto | null>(null);
   const [transactions, setTransactions] = useState<CreditTransactionDto[] | null>(null);
   const [page, setPage] = useState(1);
@@ -48,7 +51,8 @@ export default function AccountCreditsPage() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [giftAmount, setGiftAmount] = useState('');
   const [giftError, setGiftError] = useState<ApiError | null>(null);
-  const [giftSuccess, setGiftSuccess] = useState<string | null>(null);
+  // Kept as data (not a pre-built English sentence) so it renders in the active language.
+  const [giftSuccess, setGiftSuccess] = useState<{ amount: number; email: string } | null>(null);
   const [gifting, setGifting] = useState(false);
 
   const loadBalance = useCallback(async () => {
@@ -57,7 +61,7 @@ export default function AccountCreditsPage() {
       const b = await apiFetch<CreditBalanceDto>('/api/credits/balance', { headers: { Authorization: `Bearer ${accessToken}` } });
       setBalance(b);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load balance.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.loadBalanceFailed'));
     }
   }, [accessToken]);
 
@@ -71,7 +75,7 @@ export default function AccountCreditsPage() {
         setTransactions(res.data);
         setTotal(res.meta?.total ?? res.data.length);
       } catch (err) {
-        setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load transactions.', traceId: '' });
+        setError(err instanceof ApiClientError ? err.error : clientError('errors.loadTransactionsFailed'));
       }
     },
     [accessToken],
@@ -101,13 +105,13 @@ export default function AccountCreditsPage() {
         body: JSON.stringify({ recipientEmail: recipientEmail.trim(), amount }),
       });
       setBalance(updated);
-      setGiftSuccess(`Gifted ${amount} credits to ${recipientEmail.trim()}.`);
+      setGiftSuccess({ amount, email: recipientEmail.trim() });
       setRecipientEmail('');
       setGiftAmount('');
       loadTransactions(1);
       setPage(1);
     } catch (err) {
-      setGiftError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Gift failed.', traceId: '' });
+      setGiftError(err instanceof ApiClientError ? err.error : clientError('errors.giftFailed'));
     } finally {
       setGifting(false);
     }
@@ -120,7 +124,7 @@ export default function AccountCreditsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-brand-navy">My Credits</h1>
+        <h1 className="text-2xl font-bold text-brand-navy">{t('credits.title')}</h1>
       </div>
 
       <ErrorBanner error={error} />
@@ -128,30 +132,31 @@ export default function AccountCreditsPage() {
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
           <p className="text-2xl font-bold text-brand-navy">{balance?.available ?? '—'}</p>
-          <p className="text-xs text-gray-500">Available</p>
+          <p className="text-xs text-gray-500">{t('credits.available')}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
           <p className="text-2xl font-bold text-brand-navy">{balance?.used ?? '—'}</p>
-          <p className="text-xs text-gray-500">Used</p>
+          <p className="text-xs text-gray-500">{t('credits.used')}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
           <p className="text-2xl font-bold text-brand-navy">{balance?.total ?? '—'}</p>
-          <p className="text-xs text-gray-500">Total</p>
+          <p className="text-xs text-gray-500">{t('cart.total')}</p>
         </div>
       </div>
 
       <Link href="/pricing" className="inline-block text-sm text-brand-navy underline">
-        Buy more credits
+        {t('credits.buyMore')}
       </Link>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-brand-navy">Gift credits</h2>
+        <h2 className="text-sm font-semibold text-brand-navy">{t('credits.giftTitle')}</h2>
         <form onSubmit={onGift} className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
             value={recipientEmail}
             onChange={(e) => setRecipientEmail(e.target.value)}
-            placeholder="Recipient email"
+            placeholder={t('credits.recipientEmail')}
+            aria-label={t('credits.recipientEmail')}
             required
             className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -160,7 +165,8 @@ export default function AccountCreditsPage() {
             min={1}
             value={giftAmount}
             onChange={(e) => setGiftAmount(e.target.value)}
-            placeholder="Amount"
+            placeholder={t('credits.amount')}
+            aria-label={t('credits.amount')}
             required
             className="w-28 rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -169,33 +175,33 @@ export default function AccountCreditsPage() {
             disabled={gifting}
             className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
           >
-            {gifting ? 'Sending…' : 'Gift'}
+            {gifting ? t('common.sending') : t('credits.gift')}
           </button>
         </form>
         <ErrorBanner error={giftError} />
-        {giftSuccess && <div className="mt-2"><SuccessBanner message={giftSuccess} /></div>}
+        {giftSuccess && <div className="mt-2"><SuccessBanner message={t('credits.giftSuccess', { count: giftSuccess.amount, email: giftSuccess.email })} /></div>}
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-brand-navy">Transaction history</h2>
+        <h2 className="mb-2 text-sm font-semibold text-brand-navy">{t('credits.history')}</h2>
         {transactions === null ? (
-          <p className="text-center text-sm text-gray-500">Loading…</p>
+          <p className="text-center text-sm text-gray-500">{t('common.loading')}</p>
         ) : transactions.length === 0 ? (
-          <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">No transactions yet.</div>
+          <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">{t('credits.noTransactions')}</div>
         ) : (
           <>
             <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
               {transactions.map((tx) => (
                 <li key={tx.id} className="flex items-center justify-between px-4 py-3 text-sm">
                   <div>
-                    <p className="font-semibold text-brand-navy">{TYPE_LABEL[tx.type]}</p>
+                    <p className="font-semibold text-brand-navy">{t(TYPE_LABEL[tx.type])}</p>
                     <p className="text-gray-500">
-                      {new Date(tx.createdAt).toLocaleDateString()}
+                      {formatDate(tx.createdAt)}
                       {tx.note ? ` · ${tx.note}` : ''}
-                      {tx.relatedOrderId ? ` · Order #${tx.relatedOrderId}` : ''}
+                      {tx.relatedOrderId ? ` · ${t('orders.orderId', { id: tx.relatedOrderId })}` : ''}
                     </p>
                   </div>
-                  <p className={`font-semibold ${tx.amount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <p dir="ltr" className={`font-semibold ${tx.amount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {tx.amount >= 0 ? '+' : ''}
                     {tx.amount}
                   </p>
@@ -209,17 +215,15 @@ export default function AccountCreditsPage() {
                   disabled={page <= 1}
                   className="rounded-md border border-gray-300 px-3 py-1.5 disabled:opacity-50"
                 >
-                  Previous
+                  {t('common.previous')}
                 </button>
-                <span className="text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
+                <span className="text-gray-500">{t('common.pageOf', { page, total: totalPages })}</span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="rounded-md border border-gray-300 px-3 py-1.5 disabled:opacity-50"
                 >
-                  Next
+                  {t('common.next')}
                 </button>
               </div>
             )}

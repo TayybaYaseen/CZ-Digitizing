@@ -36,69 +36,69 @@ export default function AccountPage() {
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('account.title')}</h1>
-        <p className="mt-1 text-sm text-gray-600">Signed in as {user.email}</p>
+        <p className="mt-1 text-sm text-gray-600">{t('account.signedInAs', { email: user.email })}</p>
       </div>
 
       <ul className="divide-y divide-gray-200 rounded-md border border-gray-200">
         <li>
           <Link href="/account/profile" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Profile
+            {t('account.profile')}
           </Link>
         </li>
         <li>
           <Link href="/account/orders" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Order history
+            {t('account.orderHistory')}
           </Link>
         </li>
         <li>
           <Link href="/account/quotes" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            My quotes
+            {t('nav.myQuotes')}
           </Link>
         </li>
         <li>
           <Link href="/account/purchased-designs" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Purchased designs
+            {t('account.purchasedDesigns')}
           </Link>
         </li>
         <li>
           <Link href="/account/subscription" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Subscription
+            {t('nav.subscription')}
           </Link>
         </li>
         <li>
           <Link href="/account/credits" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Credits
+            {t('account.credits')}
           </Link>
         </li>
         <li>
           <Link href="/account/custom-requests" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Custom requests
+            {t('account.customRequests')}
           </Link>
         </li>
         <li>
           <Link href="/account/activity" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Activity
+            {t('account.activity')}
           </Link>
         </li>
         <li>
           <Link href="/account/members" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Shared account members
+            {t('account.members')}
           </Link>
         </li>
         <li>
           <Link href="/account/notifications" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Notifications
+            {t('notifications.title')}
           </Link>
         </li>
         <li>
           <Link href="/account/notifications/preferences" className="block px-4 py-3 text-sm hover:bg-gray-50">
-            Notification preferences
+            {t('account.notificationPreferences')}
           </Link>
         </li>
       </ul>
 
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Favorites</h2>
+        <h2 className="text-lg font-semibold">{t('account.favorites')}</h2>
         {favorites === null ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 2 }).map((_, i) => (
@@ -106,7 +106,7 @@ export default function AccountPage() {
             ))}
           </div>
         ) : favorites.length === 0 ? (
-          <p className="text-sm text-gray-500">No favorites yet — tap the heart on any design to save it here.</p>
+          <p className="text-sm text-gray-500">{t('account.noFavorites')}</p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {favorites.map((design) => (
@@ -123,7 +123,7 @@ export default function AccountPage() {
         }}
         className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
       >
-        Log out
+        {t('nav.logout')}
       </button>
     </div>
   );

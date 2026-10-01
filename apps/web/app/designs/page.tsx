@@ -5,6 +5,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface CategoryDto {
   id: string;
@@ -17,6 +19,7 @@ interface CategoryDto {
 // (limit 50, enforced server-side). Service-type filter renders disabled — Services (A-014) is
 // still Blocked, so there's nothing yet for it to filter against.
 export default function AllDesignsPage() {
+  const { t } = useLocale();
   const [designs, setDesigns] = useState<DesignSummaryDto[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<ApiError | null>(null);
@@ -49,7 +52,7 @@ export default function AllDesignsPage() {
       setDesigns(data);
       setTotal(meta?.total ?? data.length);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load designs.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.loadDesignsFailed'));
     }
   }, [sort, minPrice, maxPrice, categoryId, tags, minStitchCount, maxStitchCount, threadColorCount]);
 
@@ -60,31 +63,31 @@ export default function AllDesignsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">All Designs</h1>
-        <p className="mt-1 text-sm text-gray-600">{total} design{total === 1 ? '' : 's'}</p>
+        <h1 className="text-2xl font-bold">{t('nav.allDesigns')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('products.designCount', { count: total })}</p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-gray-600">
-          Sort
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="ml-2 rounded-md border border-gray-300 px-2 py-1 text-sm">
-            <option value="newest">Newest</option>
-            <option value="price_asc">Price: low to high</option>
-            <option value="price_desc">Price: high to low</option>
+          {t('filters.sort')}
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="ms-2 rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <option value="newest">{t('filters.newest')}</option>
+            <option value="price_asc">{t('filters.priceLowHigh')}</option>
+            <option value="price_desc">{t('filters.priceHighLow')}</option>
           </select>
         </label>
         <label className="text-sm text-gray-600">
-          Min price
-          <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+          {t('filters.minPrice')}
+          <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="ms-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
         </label>
         <label className="text-sm text-gray-600">
-          Max price
-          <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+          {t('filters.maxPrice')}
+          <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="ms-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
         </label>
         <label className="text-sm text-gray-600">
-          Category
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ml-2 rounded-md border border-gray-300 px-2 py-1 text-sm">
-            <option value="">All</option>
+          {t('filters.category')}
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ms-2 rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <option value="">{t('common.all')}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -93,47 +96,47 @@ export default function AllDesignsPage() {
           </select>
         </label>
         <label className="text-sm text-gray-600">
-          Tags
+          {t('filters.tags')}
           <input
             type="text"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="floral,caps"
-            className="ml-2 w-32 rounded-md border border-gray-300 px-2 py-1 text-sm"
+            placeholder={t('filters.tagsPlaceholder')}
+            className="ms-2 w-32 rounded-md border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
         <label className="text-sm text-gray-600">
-          Min stitches
+          {t('filters.minStitches')}
           <input
             type="number"
             value={minStitchCount}
             onChange={(e) => setMinStitchCount(e.target.value)}
-            className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+            className="ms-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
         <label className="text-sm text-gray-600">
-          Max stitches
+          {t('filters.maxStitches')}
           <input
             type="number"
             value={maxStitchCount}
             onChange={(e) => setMaxStitchCount(e.target.value)}
-            className="ml-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+            className="ms-2 w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
         <label className="text-sm text-gray-600">
-          Thread colors
+          {t('filters.threadColors')}
           <input
             type="number"
             value={threadColorCount}
             onChange={(e) => setThreadColorCount(e.target.value)}
-            className="ml-2 w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+            className="ms-2 w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
         {/* TODO(A-014): Services doesn't exist yet — filter renders disabled until it does. */}
         <label className="text-sm text-gray-400">
-          Service type
-          <select disabled className="ml-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-400">
-            <option>Coming soon</option>
+          {t('filters.serviceType')}
+          <select disabled className="ms-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-400">
+            <option>{t('common.comingSoon')}</option>
           </select>
         </label>
       </div>
@@ -147,7 +150,7 @@ export default function AllDesignsPage() {
           ))}
         </div>
       ) : designs && designs.length === 0 ? (
-        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">No designs in this category yet.</p>
+        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">{t('products.emptyCategory')}</p>
       ) : (
         designs && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">

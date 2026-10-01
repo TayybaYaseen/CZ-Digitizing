@@ -12,14 +12,17 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 import { PasswordInput } from '@/components/PasswordInput';
+import { useLocale } from '@/lib/locale-context';
+import { clientError } from '@/i18n/api-errors';
 
 // Mirrors apps/api/src/auth/dto/register.dto.ts exactly (AC-1: bcrypt input limit is 72 bytes).
+// Messages are translation keys, resolved by FormField (i18n A-021).
 const schema = z.object({
-  email: z.string().email('email must be an email'),
+  email: z.string().email('validation.email'),
   password: z
     .string()
-    .min(8, 'password must be at least 8 characters')
-    .max(72, 'password must be shorter than or equal to 72 characters'),
+    .min(8, 'validation.passwordMin8')
+    .max(72, 'validation.passwordMax72'),
   displayName: z.string().max(255).optional().or(z.literal('')),
 });
 
@@ -37,6 +40,7 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next');
+  const { t, rich } = useLocale();
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -65,7 +69,7 @@ function RegisterForm() {
           setApiError(err.error);
         }
       } else {
-        setApiError({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });
+        setApiError(clientError('errors.generic'));
       }
     }
   }
@@ -73,35 +77,38 @@ function RegisterForm() {
   return (
     <AuthLayout>
       <div className="space-y-1">
-        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Create an account</h1>
-        <p className="text-[14.5px] text-gray-500">Join CZ Digitizing to order, track, and download your designs</p>
+        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">{t('auth.registerTitle')}</h1>
+        <p className="text-[14.5px] text-gray-500">{t('auth.registerSubtitle')}</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
-        <FormField label="Email" htmlFor="email" error={errors.email}>
+        <FormField label={t('common.email')} htmlFor="email" error={errors.email}>
           <input id="email" type="email" className={inputClass} {...register('email')} />
         </FormField>
 
-        <FormField label="Password" htmlFor="password" error={errors.password}>
+        <FormField label={t('auth.password')} htmlFor="password" error={errors.password}>
           <PasswordInput id="password" {...register('password')} />
         </FormField>
 
-        <FormField label="Display name (optional)" htmlFor="displayName" error={errors.displayName}>
+        <FormField label={t('auth.displayNameOptional')} htmlFor="displayName" error={errors.displayName}>
           <input id="displayName" type="text" className={inputClass} {...register('displayName')} />
         </FormField>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Creating account…' : 'Create account'}
+          {isSubmitting ? t('auth.creatingAccount') : t('auth.createAccount')}
         </button>
       </form>
 
       <p className="mt-8 text-center text-[13.5px] text-slate-600">
-        Already have an account?{' '}
-        <Link href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
-          Log in
-        </Link>
+        {rich('auth.haveAccount', {
+          link: (chunk) => (
+            <Link href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
+              {chunk}
+            </Link>
+          ),
+        })}
       </p>
     </AuthLayout>
   );

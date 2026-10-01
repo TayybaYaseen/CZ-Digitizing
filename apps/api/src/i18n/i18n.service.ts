@@ -46,8 +46,13 @@ export class I18nService {
   }
 
   // AC-3 — every key in the requested locale, falling back to English for anything missing.
-  // Never returns a blank value or a raw key for a key that exists in English.
-  async getTranslationBundle(locale: string): Promise<TranslationBundleDto> {
+  // Never returns a blank value or a raw key for a key that exists in English. With
+  // includeFallback=false only the locale's own rows are returned (apps/web's override layer).
+  async getTranslationBundle(locale: string, { includeFallback = true }: { includeFallback?: boolean } = {}): Promise<TranslationBundleDto> {
+    if (!includeFallback) {
+      const rows = await this.prisma.uiTranslation.findMany({ where: { locale } });
+      return Object.fromEntries(rows.map((row) => [row.key, { value: row.value, isMachineTranslated: false }]));
+    }
     const [localeRows, fallbackRows] = await Promise.all([
       locale === FALLBACK_LOCALE ? Promise.resolve([]) : this.prisma.uiTranslation.findMany({ where: { locale } }),
       this.prisma.uiTranslation.findMany({ where: { locale: FALLBACK_LOCALE } }),

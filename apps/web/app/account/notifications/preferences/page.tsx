@@ -6,6 +6,8 @@ import { Suspense, useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 function humanize(value: string) {
   return value.replace(/_/g, ' ');
@@ -27,37 +29,43 @@ export default function UnsubscribePage() {
 function UnsubscribeContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const { t, tOr, rich } = useLocale();
   const [result, setResult] = useState<{ notificationType: string } | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) {
-      setError({ code: 'VALIDATION_ERROR', message: 'Missing unsubscribe token.', traceId: '' });
+      // Not VALIDATION_ERROR: ErrorBanner hides that code (it's for inline field errors).
+      setError(clientError('errors.missingUnsubscribeToken'));
       setLoading(false);
       return;
     }
     apiFetch<{ notificationType: string }>(`/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`)
       .then((data) => setResult(data))
       .catch((err) =>
-        setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Something went wrong.', traceId: '' }),
+        setError(err instanceof ApiClientError ? err.error : clientError('errors.generic')),
       )
       .finally(() => setLoading(false));
   }, [token]);
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">Email preferences</h1>
-      {loading && <p className="text-sm text-gray-500">Updating your preferences…</p>}
+      <h1 className="text-2xl font-bold">{t('notifications.emailPreferences')}</h1>
+      {loading && <p className="text-sm text-gray-500">{t('notifications.updatingPreferences')}</p>}
       {!loading && result && (
         <>
-          <SuccessBanner message={`You've been unsubscribed from "${humanize(result.notificationType)}" emails.`} />
+          <SuccessBanner
+            message={t('notifications.unsubscribed', { type: tOr(`notificationType.${result.notificationType}`, humanize(result.notificationType)) })}
+          />
           <p className="text-sm text-gray-500">
-            You can re-enable them any time from your{' '}
-            <Link href="/account/notifications/settings" className="underline">
-              notification preferences
-            </Link>
-            .
+            {rich('notifications.reenable', {
+              link: (chunk) => (
+                <Link href="/account/notifications/settings" className="underline">
+                  {chunk}
+                </Link>
+              ),
+            })}
           </p>
         </>
       )}
