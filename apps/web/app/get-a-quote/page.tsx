@@ -5,6 +5,8 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import type { ApiError, QuoteDto, QuoteMessageDto, QuoteQuestionDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface ServiceSummaryDto {
   id: string;
@@ -30,6 +32,7 @@ export default function GetAQuotePage() {
 function GetAQuoteForm() {
   const searchParams = useSearchParams();
   const preselectedSlug = searchParams.get('service');
+  const { t } = useLocale();
   const autoSelectedRef = useRef(false);
 
   const [step, setStep] = useState<Step>(1);
@@ -52,7 +55,7 @@ function GetAQuoteForm() {
   useEffect(() => {
     apiFetch<MainServiceDto[]>('/api/services')
       .then(setServices)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load services.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadServicesFailed')));
   }, []);
 
   // AC-7/AC-11 — a service/sub-service page's "Get a Quote" CTA links here with ?service=<slug>,
@@ -79,7 +82,7 @@ function GetAQuoteForm() {
       setQuote(draft);
       setStep(2);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not start a quote for this service.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.startQuoteFailed'));
     }
   }
 
@@ -109,7 +112,7 @@ function GetAQuoteForm() {
       setMessages((prev) => [...prev, message]);
       setChatInput('');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not send message.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.sendMessageFailed'));
     }
   }
 
@@ -134,7 +137,7 @@ function GetAQuoteForm() {
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not submit your quote request.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.submitQuoteFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -143,8 +146,8 @@ function GetAQuoteForm() {
   if (submitted) {
     return (
       <div className="mx-auto max-w-xl space-y-3 text-center">
-        <h1 className="text-2xl font-bold">Quote request received</h1>
-        <p className="text-sm text-gray-600">Thanks — we&apos;ve got your request and typically respond within 1-2 business days. You&apos;ll receive an email confirmation shortly.</p>
+        <h1 className="text-2xl font-bold">{t('quote.receivedTitle')}</h1>
+        <p className="text-sm text-gray-600">{t('quote.receivedBody')}</p>
       </div>
     );
   }
@@ -152,8 +155,8 @@ function GetAQuoteForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Get a Quote</h1>
-        <p className="mt-1 text-sm text-gray-600">Step {step} of 3</p>
+        <h1 className="text-2xl font-bold">{t('nav.getAQuote')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('quote.stepOf', { step, total: 3 })}</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -161,18 +164,18 @@ function GetAQuoteForm() {
       {step === 1 && (
         <div className="space-y-4">
           {services === null ? (
-            <p className="text-sm text-gray-400">Loading services…</p>
+            <p className="text-sm text-gray-400">{t('quote.loadingServices')}</p>
           ) : (
             services.map((main) => (
               <div key={main.id} className="space-y-2">
-                <button onClick={() => selectService(main)} className="block w-full rounded-lg border border-gray-200 p-4 text-left hover:border-brand-navy">
-                  <p className="font-semibold">{main.name}</p>
-                  <p className="text-sm text-gray-600">{main.description}</p>
+                <button onClick={() => selectService(main)} className="block w-full rounded-lg border border-gray-200 p-4 text-start hover:border-brand-navy">
+                  <p dir="auto" className="font-semibold">{main.name}</p>
+                  <p dir="auto" className="text-sm text-gray-600">{main.description}</p>
                 </button>
                 {main.subServices.length > 0 && (
-                  <div className="ml-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div className="ms-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {main.subServices.map((sub) => (
-                      <button key={sub.id} onClick={() => selectService(sub)} className="rounded-md border border-gray-200 p-2 text-left text-xs hover:border-brand-navy">
+                      <button key={sub.id} onClick={() => selectService(sub)} className="rounded-md border border-gray-200 p-2 text-start text-xs hover:border-brand-navy">
                         {sub.name}
                       </button>
                     ))}
@@ -186,25 +189,25 @@ function GetAQuoteForm() {
 
       {step === 2 && selectedService && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Common questions about {selectedService.name}:</p>
+          <p className="text-sm text-gray-600">{t('quote.commonQuestionsAbout', { service: selectedService.name })}</p>
           {questions === null ? (
-            <p className="text-sm text-gray-400">Loading…</p>
+            <p className="text-sm text-gray-400">{t('common.loading')}</p>
           ) : questions.length === 0 ? (
-            <p className="text-sm text-gray-500">No common questions yet — ask us directly.</p>
+            <p className="text-sm text-gray-500">{t('quote.noQuestions')}</p>
           ) : (
             <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
               {questions.map((q) => (
                 <div key={q.id} className="px-4 py-3">
-                  <button onClick={() => setOpenQuestionId(openQuestionId === q.id ? null : q.id)} className="w-full text-left text-sm font-medium text-brand-navy">
+                  <button dir="auto" onClick={() => setOpenQuestionId(openQuestionId === q.id ? null : q.id)} className="w-full text-start text-sm font-medium text-brand-navy">
                     {q.question}
                   </button>
-                  {openQuestionId === q.id && <p className="mt-2 text-sm text-gray-700">{q.answer}</p>}
+                  {openQuestionId === q.id && <p dir="auto" className="mt-2 text-sm text-gray-700">{q.answer}</p>}
                 </div>
               ))}
             </div>
           )}
           <button onClick={goToStep3} className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110">
-            Ask a Question / Continue to Quote Form
+            {t('quote.continueToForm')}
           </button>
         </div>
       )}
@@ -212,40 +215,40 @@ function GetAQuoteForm() {
       {step === 3 && (
         <div className="space-y-6">
           <form className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={(e) => e.preventDefault()}>
-            <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="WhatsApp" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Size" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Quantity" type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Fabric" value={form.fabric} onChange={(e) => setForm({ ...form, fabric: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Thread colors" value={form.threadColors} onChange={(e) => setForm({ ...form, threadColors: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Machine/file format preference" value={form.formatPreference} onChange={(e) => setForm({ ...form, formatPreference: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input placeholder="Deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <textarea placeholder="Instructions" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm" rows={3} />
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="col-span-2 text-sm" />
+            <input placeholder={t('common.name')} aria-label={t('common.name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('common.email')} aria-label={t('common.email')} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder="WhatsApp" aria-label="WhatsApp" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.country')} aria-label={t('quote.country')} value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.size')} aria-label={t('quote.size')} value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.quantity')} aria-label={t('quote.quantity')} type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.fabric')} aria-label={t('quote.fabric')} value={form.fabric} onChange={(e) => setForm({ ...form, fabric: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.threadColors')} aria-label={t('quote.threadColors')} value={form.threadColors} onChange={(e) => setForm({ ...form, threadColors: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.formatPreference')} aria-label={t('quote.formatPreference')} value={form.formatPreference} onChange={(e) => setForm({ ...form, formatPreference: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input placeholder={t('quote.deadline')} aria-label={t('quote.deadline')} type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <textarea placeholder={t('quote.instructions')} aria-label={t('quote.instructions')} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm" rows={3} />
+            <input type="file" aria-label={t('quote.uploadDesign')} accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="col-span-2 text-sm" />
           </form>
 
           <div className="rounded-lg border border-gray-200 p-3">
-            <p className="text-sm font-semibold text-gray-700">Have a question before you submit?</p>
+            <p className="text-sm font-semibold text-gray-700">{t('quote.questionBeforeSubmit')}</p>
             <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
               {messages.map((m) => (
-                <div key={m.id} className={`text-sm ${m.senderRole === 'customer' ? 'text-brand-navy' : 'text-gray-600'}`}>
-                  <span className="font-medium">{m.senderRole === 'customer' ? 'You' : 'Admin'}:</span> {m.body}
+                <div key={m.id} dir="auto" className={`text-sm ${m.senderRole === 'customer' ? 'text-brand-navy' : 'text-gray-600'}`}>
+                  <span className="font-medium">{m.senderRole === 'customer' ? t('chat.you') : t('chat.admin')}:</span> {m.body}
                 </div>
               ))}
-              {messages.length === 0 && <p className="text-xs text-gray-400">No messages yet.</p>}
+              {messages.length === 0 && <p className="text-xs text-gray-400">{t('chat.noMessages')}</p>}
             </div>
             <div className="mt-2 flex gap-2">
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask a question…" className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder={t('chat.askQuestion')} aria-label={t('chat.askQuestion')} className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm" />
               <button onClick={sendMessage} className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50">
-                Send
+                {t('common.send')}
               </button>
             </div>
           </div>
 
           <button onClick={onSubmit} disabled={submitting} className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110 disabled:opacity-50">
-            {submitting ? 'Submitting…' : 'Submit Quote Request'}
+            {submitting ? t('common.submitting') : t('quote.submit')}
           </button>
         </div>
       )}

@@ -87,6 +87,25 @@ describe('Internationalization (docs/specs/2026-08-28-16-internationalization.md
     expect(bundle.body.data['nav.home']?.value).toBe('Home');
   });
 
+  it('AC-6: ?fallback=false returns only the locale’s own rows, never English ones', async () => {
+    await prisma.language.create({ data: { code: 'i18n-test', name: 'Test Lang', nativeName: 'Test Lang', isRtl: false, isEnabled: true, sortOrder: 99 } });
+    await prisma.uiTranslation.create({ data: { locale: 'i18n-test', key: 'nav.cart', value: 'Carrito de Prueba' } });
+
+    const bundle = await request(app.getHttpServer()).get('/api/translations/i18n-test?fallback=false').expect(200);
+    expect(bundle.body.data).toEqual({ 'nav.cart': { value: 'Carrito de Prueba', isMachineTranslated: false } });
+  });
+
+  it('A-021: all 15 customer-site languages are seeded and enabled, with Arabic/Urdu flagged RTL', async () => {
+    const list = await request(app.getHttpServer()).get('/api/languages').expect(200);
+    const byCode = new Map<string, { isRtl: boolean }>(list.body.data.map((l: { code: string; isRtl: boolean }) => [l.code, l]));
+    for (const code of ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'tr', 'ar', 'zh', 'ja', 'ko', 'ru', 'hi', 'ur']) {
+      expect(byCode.has(code)).toBe(true);
+    }
+    expect(byCode.get('ar')?.isRtl).toBe(true);
+    expect(byCode.get('ur')?.isRtl).toBe(true);
+    expect(byCode.get('fr')?.isRtl).toBe(false);
+  });
+
   it("AC-4: a logged-in customer's preferred_locale persists and is readable on future requests", async () => {
     const customer = await createCustomer();
 

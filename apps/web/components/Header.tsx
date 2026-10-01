@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
-import { useLocale } from '@/lib/locale-context';
+import { useLocale, type TranslationKey } from '@/lib/locale-context';
 import { AccountMenu } from './AccountMenu';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { Logo } from './Logo';
@@ -29,19 +29,26 @@ const SEARCH_DEBOUNCE_MS = 250;
 // They now live inside the hamburger drawer, grouped as MAIN (first 5) / REQUESTS (next 2) /
 // COMPANY (Contact Us, below). No route, label, or destination changed — only where each link is
 // rendered.
-const PRIMARY_LINKS = [
-  { href: '/', label: 'Home' },
-  { href: '/services', label: 'Services' },
-  { href: '/categories', label: 'Design Categories' },
-  { href: '/designs', label: 'All Designs' },
-  { href: '/bundles', label: 'Design Bundles' },
-  { href: '/get-a-quote', label: 'Get a Quote' },
-  { href: '/custom-request', label: 'Custom Request' },
-  { href: '/contact', label: 'Contact Us' },
+//
+// i18n (A-021): `label` is a translation key, resolved with t() wherever a link renders.
+interface NavLinkDef {
+  href: string;
+  label: TranslationKey;
+}
+
+const PRIMARY_LINKS: NavLinkDef[] = [
+  { href: '/', label: 'nav.home' },
+  { href: '/services', label: 'nav.services' },
+  { href: '/categories', label: 'nav.designCategories' },
+  { href: '/designs', label: 'nav.allDesigns' },
+  { href: '/bundles', label: 'nav.designBundles' },
+  { href: '/get-a-quote', label: 'nav.getAQuote' },
+  { href: '/custom-request', label: 'nav.customRequest' },
+  { href: '/contact', label: 'nav.contactUs' },
 ];
 const MAIN_LINKS = PRIMARY_LINKS.slice(0, 5);
 const REQUEST_LINKS = PRIMARY_LINKS.slice(5, 7);
-const CONTACT_LINK = { href: '/contact', label: 'Contact Us' };
+const CONTACT_LINK: NavLinkDef = { href: '/contact', label: 'nav.contactUs' };
 
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
 // page break, without specifying what "More" itself contains — read here as a secondary-items
@@ -52,16 +59,16 @@ const CONTACT_LINK = { href: '/contact', label: 'Contact Us' };
 // too — those pages are all real now (A-012, docs/specs/2026-08-28-10-content-knowledge-base.md).
 // Its own sub-items and behavior (a nested list under a "More" trigger) are unchanged by the
 // header layout correction — only the trigger now lives inside the drawer instead of the header row.
-const MORE_LINKS = [
-  { href: '/faq', label: 'FAQ' },
-  { href: '/tips', label: 'Tips for Embroiderers' },
-  { href: '/testimonials', label: 'Testimonials' },
-  { href: '/blog', label: 'Blog' },
-  { href: '/about', label: 'About Us' },
-  { href: '/portfolio', label: 'Portfolio' },
-  { href: '/pricing', label: 'Subscription' },
-  { href: '/account', label: 'My Account' },
-  { href: '/account/quotes', label: 'My Quotes' },
+const MORE_LINKS: NavLinkDef[] = [
+  { href: '/faq', label: 'nav.faq' },
+  { href: '/tips', label: 'nav.tips' },
+  { href: '/testimonials', label: 'nav.testimonials' },
+  { href: '/blog', label: 'nav.blog' },
+  { href: '/about', label: 'nav.aboutUs' },
+  { href: '/portfolio', label: 'nav.portfolio' },
+  { href: '/pricing', label: 'nav.subscription' },
+  { href: '/account', label: 'nav.myAccount' },
+  { href: '/account/quotes', label: 'nav.myQuotes' },
 ];
 
 // AC-6 — debounced live suggestions (design name/category/subcategory/tags today; services/blog/
@@ -69,6 +76,7 @@ const MORE_LINKS = [
 // plus a "View All Results" action to /search?q=.
 function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SearchSuggestions | null>(null);
   const [open, setOpen] = useState(false);
@@ -123,15 +131,15 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.trim() && setOpen(true)}
-          placeholder="Search…"
-          aria-label="Search"
+          placeholder={t('header.searchPlaceholder')}
+          aria-label={t('common.search')}
           className="w-full min-w-0 rounded-field border border-brand-silver/20 bg-brand-navy px-1.5 py-1.5 text-xs text-brand-silver placeholder:text-brand-silver/40 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40 xs:px-2.5 xs:text-sm"
         />
       </form>
       {open && suggestions && (
         <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 w-[min(20rem,90vw)] overflow-y-auto rounded-field border border-gray-200 bg-white py-1 text-sm text-gray-800 shadow-cz-md">
           {!hasResults ? (
-            <p className="px-3 py-2 text-gray-400">No matches.</p>
+            <p className="px-3 py-2 text-gray-400">{t('header.noMatches')}</p>
           ) : (
             <>
               {suggestions.designs.map((d) => (
@@ -157,18 +165,18 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
                   }}
                   className="block px-3 py-2 text-gray-500 hover:bg-gray-50"
                 >
-                  Category: {c.name}
+                  {t('header.categoryPrefix', { name: c.name })}
                 </Link>
               ))}
               {suggestions.subcategories.map((s) => (
                 <span key={`subcategory-${s.id}`} className="block px-3 py-2 text-gray-500">
-                  Subcategory: {s.name}
+                  {t('header.subcategoryPrefix', { name: s.name })}
                 </span>
               ))}
             </>
           )}
-          <button onClick={goToAllResults} className="block w-full border-t border-gray-100 px-3 py-2 text-left font-medium text-brand-navy hover:bg-gray-50">
-            View All Results
+          <button onClick={goToAllResults} className="block w-full border-t border-gray-100 px-3 py-2 text-start font-medium text-brand-navy hover:bg-gray-50">
+            {t('header.viewAllResults')}
           </button>
         </div>
       )}
@@ -227,6 +235,7 @@ function DesktopNavLink({ href, label, active }: { href: string; label: string; 
 }
 
 function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -239,9 +248,9 @@ function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [open]);
 
-  const groups: { title: string; links: { href: string; label: string }[] }[] = [
-    { title: 'Requests', links: REQUEST_LINKS },
-    { title: 'Company', links: [CONTACT_LINK, ...MORE_LINKS] },
+  const groups: { title: string; links: NavLinkDef[] }[] = [
+    { title: t('nav.groupRequests'), links: REQUEST_LINKS },
+    { title: t('nav.groupCompany'), links: [CONTACT_LINK, ...MORE_LINKS] },
   ];
 
   return (
@@ -254,11 +263,11 @@ function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
           open ? 'text-brand-gold' : 'text-brand-silver hover:text-white'
         }`}
       >
-        More
+        {t('nav.more')}
         <ChevronIcon open={open} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-card border border-white/10 bg-brand-navy py-2 shadow-cz-navy">
+        <div className="absolute start-0 top-full z-30 mt-2 w-64 rounded-card border border-white/10 bg-brand-navy py-2 shadow-cz-navy">
           {groups.map((group) => (
             <div key={group.title} className="px-2 py-1.5">
               <p className="px-2 pb-1 font-sans text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold/70">{group.title}</p>
@@ -271,7 +280,7 @@ function DesktopMoreMenu({ pathname }: { pathname: string | null }) {
                     pathname === link.href ? 'font-semibold text-brand-gold' : 'text-brand-silver hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  {link.label}
+                  {t(link.label)}
                 </Link>
               ))}
             </div>
@@ -341,9 +350,6 @@ export function Header() {
     setMenuOpen(false);
   }
 
-  function linkLabel(link: { href: string; label: string }) {
-    return link.href === '/' ? t('nav.home') : link.href === '/services' ? t('nav.services') : link.label;
-  }
 
   return (
     <header className="relative bg-brand-navy px-3 py-3 sm:px-6">
@@ -389,7 +395,7 @@ export function Header() {
                 href="/register"
                 className="flex-shrink-0 whitespace-nowrap rounded-field bg-brand-gold px-1.5 py-1.5 text-[11px] font-semibold text-brand-navy hover:brightness-110 xs:px-2 xs:text-xs sm:px-3 sm:text-sm"
               >
-                Register
+                {t('nav.register')}
               </Link>
             </>
           )}
@@ -401,7 +407,7 @@ export function Header() {
             onClick={() => setMenuOpen((v) => !v)}
             aria-expanded={menuOpen}
             aria-controls="cz-nav-drawer"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={menuOpen ? t('header.closeMenu') : t('header.openMenu')}
             className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9 lg:hidden"
           >
             <HamburgerIcon open={menuOpen} />
@@ -414,7 +420,7 @@ export function Header() {
           active-state; everything else groups under "More" rather than competing for the row. */}
       <nav className="mt-3 hidden items-center gap-1 border-t border-white/10 pt-3 lg:flex">
         {MAIN_LINKS.map((link) => (
-          <DesktopNavLink key={link.href} href={link.href} label={linkLabel(link)} active={pathname === link.href} />
+          <DesktopNavLink key={link.href} href={link.href} label={t(link.label)} active={pathname === link.href} />
         ))}
         <DesktopMoreMenu pathname={pathname} />
       </nav>
@@ -426,15 +432,15 @@ export function Header() {
             id="cz-nav-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label="Site navigation"
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xs flex-col overflow-y-auto border-l border-brand-silver/10 bg-brand-navy shadow-cz-navy sm:max-w-sm"
+            aria-label={t('header.siteNavigation')}
+            className="fixed inset-y-0 end-0 z-50 flex w-full max-w-xs flex-col overflow-y-auto border-s border-brand-silver/10 bg-brand-navy shadow-cz-navy sm:max-w-sm"
           >
             <div className="flex items-center justify-between border-b border-brand-silver/10 px-4 py-4">
               <span className="font-display text-lg tracking-wide text-white">CZ Digitizing</span>
               <button
                 type="button"
                 onClick={closeMenu}
-                aria-label="Close menu"
+                aria-label={t('header.closeMenu')}
                 className="flex h-8 w-8 items-center justify-center rounded-field text-brand-silver hover:bg-white/5 hover:text-brand-gold"
               >
                 <HamburgerIcon open={true} />
@@ -442,28 +448,28 @@ export function Header() {
             </div>
 
             <nav className="flex flex-1 flex-col divide-y divide-brand-gold/15">
-              <DrawerGroup title="Main">
+              <DrawerGroup title={t('nav.groupMain')}>
                 {MAIN_LINKS.map((link) => (
                   <DrawerLink
                     key={link.href}
                     href={link.href}
-                    label={linkLabel(link)}
+                    label={t(link.label)}
                     active={pathname === link.href}
                     onClick={closeMenu}
                   />
                 ))}
               </DrawerGroup>
 
-              <DrawerGroup title="Requests">
+              <DrawerGroup title={t('nav.groupRequests')}>
                 {REQUEST_LINKS.map((link) => (
-                  <DrawerLink key={link.href} href={link.href} label={link.label} active={pathname === link.href} onClick={closeMenu} />
+                  <DrawerLink key={link.href} href={link.href} label={t(link.label)} active={pathname === link.href} onClick={closeMenu} />
                 ))}
               </DrawerGroup>
 
-              <DrawerGroup title="Company">
+              <DrawerGroup title={t('nav.groupCompany')}>
                 <DrawerLink
                   href={CONTACT_LINK.href}
-                  label={CONTACT_LINK.label}
+                  label={t(CONTACT_LINK.label)}
                   active={pathname === CONTACT_LINK.href}
                   onClick={closeMenu}
                 />
@@ -473,19 +479,19 @@ export function Header() {
                   aria-expanded={moreExpanded}
                   className="flex items-center justify-between rounded-field px-3 py-2.5 text-sm text-brand-silver hover:bg-white/5 hover:text-white"
                 >
-                  More
+                  {t('nav.more')}
                   <ChevronIcon open={moreExpanded} />
                 </button>
                 {moreExpanded && (
-                  <div className="ml-3 flex flex-col gap-0.5 border-l border-brand-gold/20 py-1 pl-3">
+                  <div className="ms-3 flex flex-col gap-0.5 border-s border-brand-gold/20 py-1 ps-3">
                     {MORE_LINKS.map((link) => (
-                      <DrawerLink key={link.href} href={link.href} label={link.label} active={pathname === link.href} onClick={closeMenu} />
+                      <DrawerLink key={link.href} href={link.href} label={t(link.label)} active={pathname === link.href} onClick={closeMenu} />
                     ))}
                   </div>
                 )}
               </DrawerGroup>
 
-              <DrawerGroup title="Account">
+              <DrawerGroup title={t('nav.groupAccount')}>
                 <Link
                   href="/cart"
                   onClick={closeMenu}

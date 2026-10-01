@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { HomeSectionDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 import { DesignCard } from '@/components/DesignCard';
 
 const VISIBLE_CAP = 6; // spec 13 AC-1 — cap at 6, View More once more than 6 exist (shared rule with the Catalog spec)
@@ -12,6 +13,7 @@ const VISIBLE_CAP = 6; // spec 13 AC-1 — cap at 6, View More once more than 6 
 // sections, each independently capped/expanded. Omits itself entirely with zero published sections
 // (spec 13 §5 "Empty" state) — the rest of the home page still renders (AC-8).
 export function HomeSections() {
+  const { t } = useLocale();
   const [sections, setSections] = useState<HomeSectionDto[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -30,8 +32,8 @@ export function HomeSections() {
           <section key={section.id} className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-display text-xl font-bold text-brand-navy">{section.heading}</h2>
-                {section.description && <p className="mt-1 text-sm text-gray-600">{section.description}</p>}
+                <h2 dir="auto" className="font-display text-xl font-bold text-brand-navy">{section.heading}</h2>
+                {section.description && <p dir="auto" className="mt-1 text-sm text-gray-600">{section.description}</p>}
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -45,7 +47,7 @@ export function HomeSections() {
                   onClick={() => setExpanded((e) => ({ ...e, [section.id]: true }))}
                   className="rounded-md border border-brand-navy/20 px-4 py-2 text-sm font-semibold text-brand-navy hover:bg-brand-navy/5"
                 >
-                  View More
+                  {t('common.viewMore')}
                 </button>
               </div>
             )}
@@ -54,7 +56,7 @@ export function HomeSections() {
       })}
       <div className="text-center">
         <Link href="/designs" className="text-sm font-semibold text-brand-navy underline">
-          Browse the full catalog
+          {t('home.browseFullCatalog')}
         </Link>
       </div>
     </div>

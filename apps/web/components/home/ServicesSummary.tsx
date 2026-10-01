@@ -1,19 +1,25 @@
+'use client';
+
 import Link from 'next/link';
+import { useLocale } from '@/lib/locale-context';
 
 // SRS §6 — Embroidery Digitizing / Vector Art service highlight. TODO(A-014): the Services Module
 // itself is still Blocked (SPEC_INDEX.md), so these cards link to /services which 404s for now,
 // same posture as Header.tsx's existing Services nav link. Always renders (AC-8 empty-state floor).
-const SERVICES = [
-  { title: 'Embroidery Digitizing', description: 'Professional conversion of artwork into machine-ready embroidery files.' },
-  { title: 'Vector Art', description: 'Clean, scalable artwork for branding, printing and production.' },
-];
-
+// i18n (A-021): client component so it switches language together with the rest of the page.
 export function ServicesSummary() {
+  const { t } = useLocale();
+  const services = [
+    { title: t('services.embroideryDigitizing'), description: t('home.services.digitizingDescription') },
+    // "Vector Art" is a service brand name and stays untranslated in every locale.
+    { title: 'Vector Art', description: t('home.services.vectorDescription') },
+  ];
+
   return (
     <section className="space-y-4">
-      <h2 className="text-center font-display text-xl font-bold text-brand-navy">Our Services</h2>
+      <h2 className="text-center font-display text-xl font-bold text-brand-navy">{t('home.services.title')}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        {SERVICES.map((s) => (
+        {services.map((s) => (
           <Link
             key={s.title}
             href="/services"

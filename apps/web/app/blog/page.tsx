@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ApiError, BlogPostSummaryDto } from '@czd/shared-types';
 import { ApiClientError, apiFetchWithMeta } from '@/lib/api-client';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { useLocale } from '@/lib/locale-context';
+import { clientError } from '@/i18n/api-errors';
 
 // docs/specs/2026-08-28-10-content-knowledge-base.md AC-9/AC-10 — newest first, category filter.
 export default function BlogPage() {
+  const { t, formatDate } = useLocale();
   const [posts, setPosts] = useState<BlogPostSummaryDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -15,7 +18,7 @@ export default function BlogPage() {
   useEffect(() => {
     apiFetchWithMeta<BlogPostSummaryDto[]>('/api/blog')
       .then((res) => setPosts(res.data))
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load blog posts.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadBlogFailed')));
   }, []);
 
   const categories = useMemo(() => Array.from(new Set((posts ?? []).map((p) => p.category))), [posts]);
@@ -24,8 +27,8 @@ export default function BlogPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Blog</h1>
-        <p className="mt-1 text-sm text-gray-600">News, tips, and stories from CZ Digitizing.</p>
+        <h1 className="text-2xl font-bold">{t('nav.blog')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('blog.subtitle')}</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -36,7 +39,7 @@ export default function BlogPage() {
             onClick={() => setCategory(null)}
             className={`rounded-full border px-3 py-1 text-xs ${!category ? 'border-gold-500 bg-gold-50 text-gold-700' : 'border-gray-300 text-gray-600'}`}
           >
-            All
+            {t('common.all')}
           </button>
           {categories.map((c) => (
             <button
@@ -57,7 +60,7 @@ export default function BlogPage() {
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <p className="text-center text-sm text-gray-500">No blog posts yet.</p>
+        <p className="text-center text-sm text-gray-500">{t('blog.empty')}</p>
       ) : (
         <div className="space-y-4">
           {visible.map((p) => (
@@ -66,9 +69,9 @@ export default function BlogPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.coverImageUrl} alt={p.title} className="mb-3 h-40 w-full rounded object-cover" />
               )}
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{p.category}</p>
-              <h2 className="mt-1 text-lg font-semibold text-brand-navy">{p.title}</h2>
-              {p.publishedAt && <p className="mt-1 text-xs text-gray-400">{new Date(p.publishedAt).toLocaleDateString()}</p>}
+              <p dir="auto" className="text-xs font-semibold uppercase tracking-wide text-gray-500">{p.category}</p>
+              <h2 dir="auto" className="mt-1 text-lg font-semibold text-brand-navy">{p.title}</h2>
+              {p.publishedAt && <p className="mt-1 text-xs text-gray-400">{formatDate(p.publishedAt)}</p>}
             </Link>
           ))}
         </div>

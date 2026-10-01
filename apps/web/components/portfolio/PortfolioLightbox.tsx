@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useLocale } from '@/lib/locale-context';
 
 export interface LightboxImage {
   url: string;
@@ -25,6 +26,7 @@ export function PortfolioLightbox({
   onNavigate: (nextIndex: number) => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const { t, dir } = useLocale();
   const current = images[index];
 
   useEffect(() => {
@@ -34,12 +36,13 @@ export function PortfolioLightbox({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowRight') onNavigate((index + 1) % images.length);
-      else if (e.key === 'ArrowLeft') onNavigate((index - 1 + images.length) % images.length);
+      // RTL: the "next" image sits to the left, so the arrow keys swap meaning with the layout.
+      else if (e.key === (dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) onNavigate((index + 1) % images.length);
+      else if (e.key === (dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft')) onNavigate((index - 1 + images.length) % images.length);
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [index, images.length, onClose, onNavigate]);
+  }, [index, images.length, onClose, onNavigate, dir]);
 
   if (!current) return null;
 
@@ -58,8 +61,8 @@ export function PortfolioLightbox({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
-        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20"
+        aria-label={t('common.close')}
+        className="absolute end-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20"
       >
         ×
       </button>
@@ -68,10 +71,10 @@ export function PortfolioLightbox({
         <button
           type="button"
           onClick={() => onNavigate((index - 1 + images.length) % images.length)}
-          aria-label="Previous image"
-          className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20 sm:left-4"
+          aria-label={t('portfolio.previousImage')}
+          className="absolute start-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20 sm:start-4"
         >
-          ‹
+          <span className="inline-block rtl:-scale-x-100">‹</span>
         </button>
       )}
 
@@ -85,10 +88,10 @@ export function PortfolioLightbox({
         <button
           type="button"
           onClick={() => onNavigate((index + 1) % images.length)}
-          aria-label="Next image"
-          className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20 sm:right-4"
+          aria-label={t('portfolio.nextImage')}
+          className="absolute end-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20 sm:end-4"
         >
-          ›
+          <span className="inline-block rtl:-scale-x-100">›</span>
         </button>
       )}
     </div>

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/locale-context';
 import { formatDate, formatNumber } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
 
 interface OrderSummaryDto {
   id: string;
@@ -24,7 +25,7 @@ interface OrderSummaryDto {
 export default function OrderHistoryPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
-  const { locale } = useLocale();
+  const { locale, t, tOr } = useLocale();
   const [orders, setOrders] = useState<OrderSummaryDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -36,7 +37,7 @@ export default function OrderHistoryPage() {
     if (!user || !accessToken) return;
     apiFetchWithMeta<OrderSummaryDto[]>('/api/orders/user/history?page=1&pageSize=50', { headers: { Authorization: `Bearer ${accessToken}` } })
       .then((res) => setOrders(res.data))
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load orders.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrdersFailed')));
   }, [user, accessToken]);
 
   if (!isReady || !user) return null;
@@ -44,19 +45,19 @@ export default function OrderHistoryPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Order History</h1>
-        <p className="mt-1 text-sm text-gray-600">Every past and future purchase, in one place.</p>
+        <h1 className="text-2xl font-bold">{t('account.orderHistory')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('orders.historySubtitle')}</p>
       </div>
 
       <ErrorBanner error={error} />
 
       {orders === null ? (
-        <p className="text-center text-sm text-gray-500">Loading…</p>
+        <p className="text-center text-sm text-gray-500">{t('common.loading')}</p>
       ) : orders.length === 0 ? (
         <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
-          <p>No orders yet.</p>
+          <p>{t('orders.noOrders')}</p>
           <Link href="/designs" className="mt-2 inline-block text-brand-navy underline">
-            Browse the catalog
+            {t('orders.browseCatalog')}
           </Link>
         </div>
       ) : (
@@ -64,15 +65,15 @@ export default function OrderHistoryPage() {
           {orders.map((order) => (
             <li key={order.id} className="flex items-center justify-between px-4 py-3 text-sm">
               <div>
-                <p className="font-semibold text-brand-navy">Order #{order.id}</p>
+                <p className="font-semibold text-brand-navy">{t('orders.orderId', { id: order.id })}</p>
                 <p className="text-gray-500">
-                  {order.itemCount} item{order.itemCount === 1 ? '' : 's'} · {formatDate(order.createdAt, locale)}
+                  {t('orders.itemCount', { count: order.itemCount })} · {formatDate(order.createdAt, locale)}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <p className="font-semibold">Rs {formatNumber(order.totalPkr, locale)}</p>
                 <Link href={`/order-confirmation/${order.id}`} className="text-brand-navy underline">
-                  {order.status}
+                  {tOr(`orderStatus.${order.status}`, order.status)}
                 </Link>
                 {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
                 {(order.status === 'processing' || order.status === 'ready' || order.status === 'completed') && (
@@ -90,6 +91,7 @@ export default function OrderHistoryPage() {
 // docs/specs/2026-08-28-12-custom-design-requests.md AC-6 (aspect A-017a) — "Need Another File
 // Format?" on an already-purchased order.
 function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; accessToken: string | null }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [requestedFormat, setRequestedFormat] = useState('');
   const [notes, setNotes] = useState('');
@@ -97,11 +99,11 @@ function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; ac
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (submitted) return <p className="mt-1 text-xs text-emerald-600">Format request sent</p>;
+  if (submitted) return <p className="mt-1 text-xs text-emerald-600">{t('orders.formatRequestSent')}</p>;
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="mt-1 block text-xs text-brand-navy underline">
-        Need Another File Format?
+        {t('orders.needAnotherFormat')}
       </button>
     );
   }
@@ -118,24 +120,25 @@ function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; ac
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not submit the request.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.submitRequestFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-left">
+    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-start">
       <ErrorBanner error={error} />
       <input
         value={requestedFormat}
         onChange={(e) => setRequestedFormat(e.target.value)}
-        placeholder="Format needed (e.g. PES)"
+        placeholder={t('orders.formatNeeded')}
+        aria-label={t('orders.formatNeeded')}
         className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
       />
-      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" className="w-full rounded border border-gray-300 px-2 py-1 text-xs" rows={2} />
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('orders.notesOptional')} aria-label={t('orders.notesOptional')} className="w-full rounded border border-gray-300 px-2 py-1 text-xs" rows={2} />
       <button disabled={busy || !requestedFormat.trim()} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
-        Submit
+        {t('common.submit')}
       </button>
     </div>
   );
@@ -143,6 +146,7 @@ function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; ac
 
 // AC-7 — customer submits a review tied to this completed order; stored pending Admin moderation.
 function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: string | null }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState('');
@@ -151,11 +155,11 @@ function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: 
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (submitted) return <p className="mt-1 text-xs text-emerald-600">Review submitted</p>;
+  if (submitted) return <p className="mt-1 text-xs text-emerald-600">{t('orders.reviewSubmitted')}</p>;
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="mt-1 block text-xs text-brand-navy underline">
-        Leave a review
+        {t('orders.leaveReview')}
       </button>
     );
   }
@@ -172,16 +176,16 @@ function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: 
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not submit review.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.submitReviewFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-left">
+    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-start">
       <ErrorBanner error={error} />
-      <select value={rating} onChange={(e) => setRating(Number(e.target.value))} className="w-full rounded border border-gray-300 px-2 py-1 text-xs">
+      <select value={rating} onChange={(e) => setRating(Number(e.target.value))} aria-label={t('orders.rating')} className="w-full rounded border border-gray-300 px-2 py-1 text-xs">
         {[5, 4, 3, 2, 1].map((r) => (
           <option key={r} value={r}>
             {'★'.repeat(r)} ({r})
@@ -191,18 +195,20 @@ function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: 
       <input
         value={serviceUsed}
         onChange={(e) => setServiceUsed(e.target.value)}
-        placeholder="Service used"
+        placeholder={t('orders.serviceUsed')}
+        aria-label={t('orders.serviceUsed')}
         className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
       />
       <textarea
         value={feedback}
         onChange={(e) => setFeedback(e.target.value)}
-        placeholder="Your feedback"
+        placeholder={t('orders.yourFeedback')}
+        aria-label={t('orders.yourFeedback')}
         className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
         rows={3}
       />
       <button disabled={busy} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
-        Submit
+        {t('common.submit')}
       </button>
     </div>
   );

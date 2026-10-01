@@ -8,6 +8,8 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { formatPkr } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface OrderDto {
   id: string;
@@ -29,16 +31,6 @@ interface AuthorizedFileDto {
   fileSizeBytes: number;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending',
-  payment_pending: 'Awaiting bank transfer confirmation',
-  payment_confirmed: 'Payment confirmed',
-  processing: 'Processing',
-  ready: 'Ready',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-};
 
 // docs/specs/2026-08-28-08-orders-payment-processing.md §5 — "order confirmation screen with
 // order number, next steps, and (once confirmed) a link to purchased files". Bank transfer only.
@@ -46,6 +38,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const { user, accessToken, isReady } = useAuth();
+  const { t, tOr, rich } = useLocale();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [files, setFiles] = useState<AuthorizedFileDto[] | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
@@ -59,7 +52,7 @@ export default function OrderConfirmationPage() {
     if (!user || !accessToken) return;
     apiFetch<OrderDto>(`/api/orders/${params.id}`, { headers: { Authorization: `Bearer ${accessToken}` } })
       .then(setOrder)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load order.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrderFailed')));
   }, [user, accessToken, params.id]);
 
   // Files are only offered once the SERVER reports them unlocked — the order is 100% paid and confirmed by
@@ -93,54 +86,51 @@ export default function OrderConfirmationPage() {
       });
       setDownloaded((prev) => ({ ...prev, [fileId]: true }));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not start the download.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.downloadFailed'));
     }
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-6 text-center">
-      <h1 className="text-2xl font-bold">Thank you for your order!</h1>
+      <h1 className="text-2xl font-bold">{t('checkout.orderSuccess')}</h1>
 
       <ErrorBanner error={error} />
 
       {order && (
-        <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-6 text-left text-sm">
-          <p>
-            Order <strong>#{order.id}</strong>
-          </p>
-          <p>Status: {STATUS_LABEL[order.status] ?? order.status}</p>
-          <p>Total: {formatPkr(order.totalPkr)}</p>
-          {order.creditsUsed > 0 && <p>Paid with credits: {formatPkr(order.creditsUsed)}</p>}
+        <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-6 text-start text-sm">
+          <p>{rich('orders.orderNumber', { b: () => <strong>#{order.id}</strong> })}</p>
+          <p>{t('orders.statusLine', { status: tOr(`orderStatus.${order.status}`, order.status) })}</p>
+          <p>{t('orders.totalLine', { amount: formatPkr(order.totalPkr) })}</p>
+          {order.creditsUsed > 0 && <p>{t('orders.paidWithCredits', { amount: formatPkr(order.creditsUsed) })}</p>}
           {order.status === 'payment_pending' && order.paymentStatus !== 'completed' && (
             <p className="text-amber-700">
-              Payment method: Bank Transfer — {formatPkr(order.amountOutstandingPkr)} still to be transferred and confirmed — your files unlock once the full amount is paid and confirmed.{' '}
+              {t('orders.bankTransferPending', { amount: formatPkr(order.amountOutstandingPkr) })}{' '}
               <Link href={`/checkout/bank-transfer/${order.id}`} className="underline">
-                See the bank details and upload your receipt
+                {t('orders.seeBankDetails')}
               </Link>
-              .
             </p>
           )}
           {filesReady && (
             <div className="space-y-2">
-              <p className="font-semibold text-brand-navy">Your files:</p>
+              <p className="font-semibold text-brand-navy">{t('orders.yourFiles')}</p>
               {files === null ? (
-                <p className="text-xs text-gray-500">Loading files…</p>
+                <p className="text-xs text-gray-500">{t('orders.loadingFiles')}</p>
               ) : files.length === 0 ? (
-                <p className="text-xs text-gray-500">No downloadable files on this order.</p>
+                <p className="text-xs text-gray-500">{t('orders.noFiles')}</p>
               ) : (
                 <ul className="space-y-1">
                   {files.map((f) => (
                     <li key={f.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-xs">
                       <span>.{f.fileFormat}</span>
                       <button onClick={() => downloadFile(f.id)} className="rounded-md border border-gray-300 px-2 py-1 hover:bg-gray-50">
-                        {downloaded[f.id] ? 'Downloaded ✓' : 'Download'}
+                        {downloaded[f.id] ? t('products.downloaded') : t('products.download')}
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
               <Link href="/account/purchased-designs" className="inline-block text-xs text-brand-navy underline">
-                View all your purchased designs
+                {t('orders.viewAllPurchased')}
               </Link>
             </div>
           )}
@@ -148,7 +138,7 @@ export default function OrderConfirmationPage() {
       )}
 
       <Link href="/account/orders" className="inline-block text-sm text-brand-navy underline">
-        View order history
+        {t('orders.viewHistory')}
       </Link>
     </div>
   );

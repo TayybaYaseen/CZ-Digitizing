@@ -5,7 +5,7 @@ import { useLocale } from '@/lib/locale-context';
 
 // docs/specs/2026-08-28-16-internationalization.md AC-1 (aspect A-021, header entry for A-022).
 export function LanguageSwitcher() {
-  const { locale, languages, setLocale } = useLocale();
+  const { locale, languages, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +34,8 @@ export function LanguageSwitcher() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Select language"
+        aria-haspopup="listbox"
+        aria-label={t('language.select')}
         className="flex-shrink-0 whitespace-nowrap rounded-field border border-brand-silver/20 px-1.5 py-1.5 text-[11px] text-brand-silver hover:bg-white/5 xs:px-2 xs:text-xs sm:px-3 sm:text-sm"
       >
         {/* Full native name from `sm` up; the 2-letter code alone below that so the header's
@@ -44,15 +45,20 @@ export function LanguageSwitcher() {
         <span className="hidden sm:inline">{current?.nativeName ?? locale.toUpperCase()}</span>
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-md border border-brand-silver/20 bg-brand-navyLight py-1 shadow-lg">
+        // max-h + scroll: 15 languages would otherwise run off the bottom of short/mobile viewports.
+        <div role="listbox" aria-label={t('language.select')} className="absolute end-0 top-full z-30 mt-1 max-h-[70vh] w-44 overflow-y-auto rounded-md border border-brand-silver/20 bg-brand-navyLight py-1 shadow-lg">
           {languages.map((lang) => (
             <button
               key={lang.code}
+              role="option"
+              aria-selected={lang.code === locale}
+              lang={lang.code}
+              dir={lang.dir}
               onClick={() => {
                 setLocale(lang.code);
                 setOpen(false);
               }}
-              className={`block w-full px-3 py-2 text-left text-sm hover:bg-white/5 ${lang.code === locale ? 'text-brand-gold' : 'text-brand-silver'}`}
+              className={`block w-full px-3 py-2 text-start text-sm hover:bg-white/5 ${lang.code === locale ? 'text-brand-gold' : 'text-brand-silver'}`}
             >
               {lang.nativeName}
             </button>

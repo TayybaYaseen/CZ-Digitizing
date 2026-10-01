@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale } from '@/lib/locale-context';
 import { portfolioProfileContent } from '@/lib/portfolio-profile-content';
 import { PortfolioSectionHeading } from './PortfolioSectionHeading';
 
@@ -12,6 +13,7 @@ const COLLAPSED_COUNT = 6;
 // need it, though the current single entry stays under the collapse threshold.
 function ExperienceCard({ employer, title, dates, bullets }: { employer: string; title: string; dates: string; bullets: string[] }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useLocale();
   const needsToggle = bullets.length > COLLAPSED_COUNT;
   const visible = needsToggle && !expanded ? bullets.slice(0, COLLAPSED_COUNT) : bullets;
 
@@ -22,9 +24,9 @@ function ExperienceCard({ employer, title, dates, bullets }: { employer: string;
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{dates}</span>
       </div>
       <p className="mt-0.5 text-sm font-semibold text-gold-600">{title}</p>
-      <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-gray-700">
+      <ul className="mt-4 list-disc space-y-2 ps-5 text-sm leading-relaxed text-gray-700">
         {visible.map((bullet, i) => (
-          <li key={i}>{bullet}</li>
+          <li key={i} dir="auto">{bullet}</li>
         ))}
       </ul>
       {needsToggle && (
@@ -34,7 +36,7 @@ function ExperienceCard({ employer, title, dates, bullets }: { employer: string;
           onClick={() => setExpanded((v) => !v)}
           className="mt-4 text-sm font-semibold text-brand-navy underline underline-offset-2 hover:text-gold-600"
         >
-          {expanded ? 'Show less' : `Show all ${bullets.length} responsibilities`}
+          {expanded ? t('common.showLess') : t('portfolio.showAllResponsibilities', { count: bullets.length })}
         </button>
       )}
     </div>
@@ -42,9 +44,10 @@ function ExperienceCard({ employer, title, dates, bullets }: { employer: string;
 }
 
 export function PortfolioExperience() {
+  const { t } = useLocale();
   return (
     <section className="mx-auto max-w-4xl px-1">
-      <PortfolioSectionHeading eyebrow="Professional Experience" title="Embroidery Digitizing Experience" weight="primary" />
+      <PortfolioSectionHeading eyebrow={t('portfolio.experienceEyebrow')} title={t('portfolio.experienceTitle')} weight="primary" />
       <div className="space-y-5">
         {portfolioProfileContent.experience.map((entry) => (
           <ExperienceCard key={entry.employer} employer={entry.employer} title={entry.title} dates={entry.dates} bullets={[...entry.bullets]} />

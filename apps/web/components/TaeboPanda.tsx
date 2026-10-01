@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale } from '@/lib/locale-context';
 
 // Taebo mascot artwork (docs/specs/2026-08-28-15-taebo-chatbot.md §10 "Character & Interaction
 // System"). ONE approved character, photographed/rendered as a realistic full-body panda in a
@@ -58,10 +59,11 @@ async function resolveSource(pose: TaeboPose): Promise<string | null> {
 }
 
 function PandaFallback({ variant, className }: { variant: 'full' | 'head'; className: string }) {
+  const { t } = useLocale();
   return (
     <span
       role="img"
-      aria-label="Taebo the panda"
+      aria-label={t('taebo.pandaAlt')}
       className={`flex items-center justify-center bg-brand-lightGray ${variant === 'head' ? 'rounded-full' : 'rounded-2xl'} ${className}`}
       style={{ fontSize: variant === 'head' ? '1.5rem' : '4rem' }}
     >
@@ -79,6 +81,7 @@ export function TaeboPanda({ variant = 'full', pose = 'idle', className = '', wa
   // a permanently-broken image with no re-render ever triggered. Probing client-side in an effect
   // guarantees hydration has already happened before any request for this asset is made.
   const [resolved, setResolved] = useState<string | null | undefined>(undefined);
+  const { t } = useLocale();
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +102,7 @@ export function TaeboPanda({ variant = 'full', pose = 'idle', className = '', wa
     // into it, so a pose asset's framing is never chopped differently per placement.
     return (
       <span className={`flex items-center justify-center overflow-hidden rounded-full bg-brand-lightGray shadow-md ring-2 ring-white/80 ${waving ? 'taebo-idle-bob' : ''} ${className}`}>
-        <img src={resolved} alt="Taebo the panda" className="h-full w-full object-contain" draggable={false} />
+        <img src={resolved} alt={t('taebo.pandaAlt')} className="h-full w-full object-contain" draggable={false} />
       </span>
     );
   }
@@ -107,7 +110,7 @@ export function TaeboPanda({ variant = 'full', pose = 'idle', className = '', wa
   return (
     <img
       src={resolved}
-      alt="Taebo the panda standing"
+      alt={t('taebo.pandaStandingAlt')}
       className={`w-auto object-contain drop-shadow-2xl ${waving ? 'taebo-idle-bob' : ''} ${className}`}
       draggable={false}
     />

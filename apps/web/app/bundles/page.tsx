@@ -5,10 +5,13 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { BundleCard, type BundleSummaryDto } from '@/components/BundleCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // docs/specs/2026-08-28-06-design-bundles.md §5 — Loading/Empty/Error/Success states, same
 // skeleton/grid conventions as apps/web/app/designs/page.tsx.
 export default function BundlesPage() {
+  const { t } = useLocale();
   const [bundles, setBundles] = useState<BundleSummaryDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -18,7 +21,7 @@ export default function BundlesPage() {
       const data = await apiFetch<BundleSummaryDto[]>('/api/bundles?pageSize=50');
       setBundles(data);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load bundles.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.loadBundlesFailed'));
     }
   }, []);
 
@@ -29,8 +32,8 @@ export default function BundlesPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Design Bundles</h1>
-        <p className="mt-1 text-sm text-gray-600">Themed collections at a bundle price.</p>
+        <h1 className="text-2xl font-bold">{t('nav.designBundles')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('products.bundlesSubtitle')}</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -42,7 +45,7 @@ export default function BundlesPage() {
           ))}
         </div>
       ) : bundles && bundles.length === 0 ? (
-        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">No bundles available right now.</p>
+        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">{t('products.noBundles')}</p>
       ) : (
         bundles && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">

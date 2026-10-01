@@ -1,4 +1,7 @@
+'use client';
+
 import type { ApiError } from '@czd/shared-types';
+import { useLocale } from '@/lib/locale-context';
 
 // Top-of-form banner per spec §5 UI states — for errors that aren't a single field's problem
 // (INVALID_OR_EXPIRED_CODE, RATE_LIMITED, UNAUTHENTICATED, EMAIL_ALREADY_REGISTERED, etc.).
@@ -6,24 +9,28 @@ import type { ApiError } from '@czd/shared-types';
 // `onRetry` is optional and additive — every existing caller that doesn't pass it is unaffected;
 // pass it only where re-running the failed action is meaningful (e.g. re-fetching a list), per
 // docs/specs/2026-08-28-02-notifications-system.md §5's "failed fetch shows retry with traceId".
+//
+// i18n (A-021): the API's English `message` is mapped to a translated string by its stable
+// code/message (i18n/api-errors.ts) — see useLocale().errorMessage.
 export function ErrorBanner({ error, onRetry }: { error: ApiError | null; onRetry?: () => void }) {
+  const { t, errorMessage } = useLocale();
   if (!error || error.code === 'VALIDATION_ERROR') return null;
 
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       <div className="flex items-center justify-between gap-3">
-        <span>{error.message}</span>
+        <span>{errorMessage(error)}</span>
         {onRetry && (
           <button
             type="button"
             onClick={onRetry}
             className="flex-shrink-0 rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
           >
-            Retry
+            {t('common.retry')}
           </button>
         )}
       </div>
-      {error.traceId && <p className="mt-1 text-xs text-red-400">Reference: {error.traceId}</p>}
+      {error.traceId && <p className="mt-1 text-xs text-red-400">{t('common.reference', { id: error.traceId })}</p>}
     </div>
   );
 }

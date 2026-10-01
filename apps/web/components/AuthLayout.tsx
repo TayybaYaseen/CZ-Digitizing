@@ -1,4 +1,7 @@
+'use client';
+
 import { Logo } from '@/components/Logo';
+import { useLocale } from '@/lib/locale-context';
 
 // Shared split-panel shell for the auth screens (login, forgot-password, ...), matching the
 // approved mockup. Renders inside the root layout's <main>, so the global header/footer stay —
@@ -9,6 +12,7 @@ import { Logo } from '@/components/Logo';
 // before the brand kit existed) instead of the real Logo component and brand palette — replaced here
 // with the "Navy flat" background treatment the brand doc specifies for this kind of panel.
 export function AuthLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useLocale();
   return (
     <div className="mx-auto flex max-w-4xl overflow-hidden rounded-2xl border border-brand-lightGray shadow-cz-navy">
       <div className="relative hidden w-[300px] shrink-0 flex-col justify-between overflow-hidden bg-brand-navy p-10 md:flex">
@@ -17,15 +21,15 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="z-10">
-          <div className="font-display text-[26px] font-bold leading-tight text-white">Your Vision, Our Stitches</div>
+          <div className="font-display text-[26px] font-bold leading-tight text-white">{t('auth.panelHeadline')}</div>
           <div className="mt-3 h-px w-10 bg-brand-gold" />
           <p className="mt-4 text-[14px] leading-relaxed text-brand-silver">
-            Manage your orders, purchased designs, and custom digitizing requests — all in one place.
+            {t('auth.panelSubtitle')}
           </p>
         </div>
 
         <div className="z-10 text-xs text-white/50">
-          &copy; {new Date().getFullYear()} CZ Digitizing. All rights reserved.
+          {t('auth.panelCopyright', { year: String(new Date().getFullYear()) })}
         </div>
       </div>
 

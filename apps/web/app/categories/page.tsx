@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface CategoryDto {
   id: string;
@@ -14,18 +16,19 @@ interface CategoryDto {
 
 // docs/specs/2026-08-28-04-design-catalog-browsing.md AC-1 — browse into a category from nav.
 export default function CategoriesPage() {
+  const { t } = useLocale();
   const [categories, setCategories] = useState<CategoryDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
     apiFetch<CategoryDto[]>('/api/categories')
       .then(setCategories)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load categories.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadCategoriesFailed')));
   }, []);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-2xl font-bold">Design Categories</h1>
+      <h1 className="text-2xl font-bold">{t('nav.designCategories')}</h1>
       <ErrorBanner error={error} />
       {categories === null && !error ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -34,7 +37,7 @@ export default function CategoriesPage() {
           ))}
         </div>
       ) : categories && categories.length === 0 ? (
-        <p className="text-sm text-gray-500">No categories yet.</p>
+        <p className="text-sm text-gray-500">{t('products.noCategories')}</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {categories?.map((category) => (

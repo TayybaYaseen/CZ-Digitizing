@@ -10,12 +10,14 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/auth/dto/reset-password.dto.ts.
 const schema = z.object({
-  email: z.string().email(),
-  code: z.string().length(4, 'code must be 4 digits'),
-  newPassword: z.string().min(8, 'newPassword must be at least 8 characters').max(72),
+  email: z.string().email('validation.email'),
+  code: z.string().length(4, 'validation.code4Digits'),
+  newPassword: z.string().min(8, 'validation.passwordMin8').max(72, 'validation.passwordMax72'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -31,6 +33,7 @@ export default function ResetPasswordPage() {
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLocale();
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -61,18 +64,18 @@ function ResetPasswordForm() {
           setApiError(err.error);
         }
       } else {
-        setApiError({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });
+        setApiError(clientError('errors.generic'));
       }
     }
   }
 
   return (
     <AuthLayout>
-      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Reset password</h1>
+      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">{t('auth.resetTitle')}</h1>
 
       {searchParams.get('requested') && (
         <div className="mt-4">
-          <SuccessBanner message="If that email is registered, a reset code was sent — it expires in 10 minutes." />
+          <SuccessBanner message={t('auth.resetCodeSent')} />
         </div>
       )}
 
@@ -81,16 +84,16 @@ function ResetPasswordForm() {
 
         <input type="hidden" {...register('email')} />
 
-        <FormField label="Reset code" htmlFor="code" error={errors.code}>
+        <FormField label={t('auth.resetCode')} htmlFor="code" error={errors.code}>
           <input id="code" type="text" inputMode="numeric" maxLength={4} className={inputClass} {...register('code')} />
         </FormField>
 
-        <FormField label="New password" htmlFor="newPassword" error={errors.newPassword}>
+        <FormField label={t('auth.newPassword')} htmlFor="newPassword" error={errors.newPassword}>
           <input id="newPassword" type="password" className={inputClass} {...register('newPassword')} />
         </FormField>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Resetting…' : 'Reset password'}
+          {isSubmitting ? t('auth.resetting') : t('auth.resetTitle')}
         </button>
       </form>
     </AuthLayout>

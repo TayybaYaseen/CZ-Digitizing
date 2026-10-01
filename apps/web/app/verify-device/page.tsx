@@ -13,11 +13,13 @@ import { safeNextPath } from '@/lib/safe-redirect';
 import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/auth/dto/verify-new-device.dto.ts.
 const schema = z.object({
-  email: z.string().email(),
-  code: z.string().length(4, 'code must be 4 digits'),
+  email: z.string().email('validation.email'),
+  code: z.string().length(4, 'validation.code4Digits'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -39,6 +41,7 @@ function VerifyDeviceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
+  const { t, rich } = useLocale();
   const email = searchParams.get('email') ?? '';
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
@@ -78,7 +81,7 @@ function VerifyDeviceForm() {
       setApiError(
         err instanceof ApiClientError
           ? err.error
-          : { code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' },
+          : clientError('errors.generic'),
       );
     } finally {
       setResending(false);
@@ -105,42 +108,46 @@ function VerifyDeviceForm() {
           setApiError(err.error);
         }
       } else {
-        setApiError({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });
+        setApiError(clientError('errors.generic'));
       }
     }
   }
 
   return (
     <AuthLayout>
-      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Verify this device</h1>
+      <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">{t('auth.verifyDeviceTitle')}</h1>
       <p className="mt-2 text-[14.5px] text-gray-500">
-        {email ? (
-          <>
-            We emailed a 4-digit code to <span className="break-words font-semibold text-brand-navy">{email}</span> to confirm
-            it&apos;s really you logging in from a new device.
-          </>
-        ) : (
-          <>We emailed a 4-digit code to confirm it&apos;s really you logging in from a new device.</>
-        )}
+        {email
+          ? rich('auth.verifyDeviceSentTo', {
+              email: () => (
+                <span dir="ltr" className="break-words font-semibold text-brand-navy">
+                  {email}
+                </span>
+              ),
+            })
+          : t('auth.verifyDeviceSent')}
       </p>
       {email && (
         <p className="mt-1.5 text-[13px] text-gray-500">
-          Not you?{' '}
-          <Link href="/login" className="font-medium text-brand-navy underline-offset-2 hover:text-brand-gold hover:underline">
-            Sign in with a different email
-          </Link>
+          {rich('auth.notYou', {
+            link: (chunk) => (
+              <Link href="/login" className="font-medium text-brand-navy underline-offset-2 hover:text-brand-gold hover:underline">
+                {chunk}
+              </Link>
+            ),
+          })}
         </p>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
         {resent && !apiError && (
-          <SuccessBanner message={`We've sent a new code to ${email || 'your email'}. It expires in 15 minutes.`} />
+          <SuccessBanner message={email ? t('auth.newCodeSentTo', { email }) : t('auth.newCodeSent')} />
         )}
 
         <input type="hidden" {...register('email')} />
 
-        <FormField label="Verification code" htmlFor="code" error={errors.code}>
+        <FormField label={t('auth.verificationCode')} htmlFor="code" error={errors.code}>
           <input
             id="code"
             type="text"
@@ -152,13 +159,13 @@ function VerifyDeviceForm() {
         </FormField>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Verifying…' : 'Verify'}
+          {isSubmitting ? t('auth.verifying') : t('auth.verify')}
         </button>
 
         <p className="text-center text-[13.5px] text-gray-500">
-          Didn&apos;t get the code?{' '}
+          {t('auth.didntGetCode')}{' '}
           {resendCooldown > 0 ? (
-            <span>Resend in {resendCooldown}s</span>
+            <span>{t('auth.resendIn', { seconds: resendCooldown })}</span>
           ) : (
             <button
               type="button"
@@ -166,7 +173,7 @@ function VerifyDeviceForm() {
               disabled={resending}
               className="font-medium text-brand-navy underline-offset-2 hover:text-brand-gold hover:underline disabled:opacity-60"
             >
-              {resending ? 'Sending…' : 'Resend code'}
+              {resending ? t('common.sending') : t('auth.resendCode')}
             </button>
           )}
         </p>

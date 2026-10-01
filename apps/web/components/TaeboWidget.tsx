@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TaeboReplyDto, TaeboSuggestionDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale, type TranslationKey } from '@/lib/locale-context';
 import { useTaeboPosition, type TaeboPosition } from '@/lib/use-taebo-position';
 import { TaeboPanda, type TaeboPose } from './TaeboPanda';
 
@@ -13,16 +14,17 @@ import { TaeboPanda, type TaeboPose } from './TaeboPanda';
 // existing route (no invented pages); Embroidery Digitizing/Vector Art both land on /services since
 // that's the one real Services page covering both (ServicesSummary.tsx), and File Formats routes to
 // /faq since there is no dedicated customer-facing file-format page to link instead.
-const QUICK_ACTIONS: { label: string; href: string }[] = [
-  { label: 'Browse Designs', href: '/designs' },
-  { label: 'Design Categories', href: '/categories' },
-  { label: 'Embroidery Digitizing', href: '/services' },
+// i18n (A-021): labels are translation keys; "Vector Art" is a brand name and stays literal.
+const QUICK_ACTIONS: { label: TranslationKey | 'Vector Art'; href: string }[] = [
+  { label: 'taebo.quick.browseDesigns', href: '/designs' },
+  { label: 'nav.designCategories', href: '/categories' },
+  { label: 'services.embroideryDigitizing', href: '/services' },
   { label: 'Vector Art', href: '/services' },
-  { label: 'Get a Quote', href: '/get-a-quote' },
-  { label: 'Custom Request', href: '/custom-request' },
-  { label: 'Orders & Downloads', href: '/account/orders' },
-  { label: 'File Formats', href: '/faq' },
-  { label: 'Contact Support', href: '/contact' },
+  { label: 'nav.getAQuote', href: '/get-a-quote' },
+  { label: 'nav.customRequest', href: '/custom-request' },
+  { label: 'taebo.quick.ordersDownloads', href: '/account/orders' },
+  { label: 'taebo.quick.fileFormats', href: '/faq' },
+  { label: 'taebo.quick.contactSupport', href: '/contact' },
 ];
 
 // docs/specs/2026-08-28-15-taebo-chatbot.md (aspect A-020) + §10 "Character & Interaction System".
@@ -44,6 +46,9 @@ const BUBBLE_HEIGHT = 72;
 const FLOAT_MARGIN = 16;
 const FLOAT_GAP = 8;
 
+// i18n (A-021): the greeting and the escalation notice are Taebo's own UI copy, so they are stored
+// as `text: ''` and rendered with t() at display time — they follow a later language switch too.
+// `text` is only ever the customer's own words or an API-supplied (Admin-authored FAQ) answer.
 interface DisplayMessage {
   id: string;
   sender: 'customer' | 'taebo' | 'admin';
@@ -110,6 +115,7 @@ function floatingStyle(anchor: TaeboPosition | null, launcherSize: LauncherSize,
 export function TaeboWidget() {
   const pathname = usePathname();
   const { accessToken } = useAuth();
+  const { t, rich } = useLocale();
   const { position, launcherSize, onPointerDown, onPointerMove, onPointerUp, reset: resetPosition } = useTaeboPosition();
 
   const [open, setOpen] = useState(false);
@@ -163,7 +169,7 @@ export function TaeboWidget() {
     if (typeof window === 'undefined') return;
     if (window.sessionStorage.getItem(GREETED_KEY)) return;
     window.sessionStorage.setItem(GREETED_KEY, '1');
-    setMessages([{ id: 'greeting', sender: 'taebo', text: "Hi, I'm Taebo! Ask me anything, or open chat any time you need help." }]);
+    setMessages([{ id: 'greeting', sender: 'taebo', text: '' }]);
   }, []);
 
   useEffect(() => {
@@ -218,9 +224,7 @@ export function TaeboWidget() {
           {
             id: `reply-${Date.now()}`,
             sender: 'taebo',
-            text: reply.escalated
-              ? "I'm checking this with our team — I'll let you know as soon as possible."
-              : (reply.answer ?? ''),
+            text: reply.escalated ? '' : (reply.answer ?? ''),
             escalated: reply.escalated,
           },
         ]);
@@ -269,10 +273,10 @@ export function TaeboWidget() {
             setOpen(true);
             void send(proactiveOffer.question);
           }}
-          className="taebo-motion-safe fixed z-50 max-w-xs rounded-lg bg-white px-4 py-2 text-left text-sm text-brand-navy shadow-lg ring-1 ring-black/10 transition-opacity"
+          className="taebo-motion-safe fixed z-50 max-w-xs rounded-lg bg-white px-4 py-2 text-start text-sm text-brand-navy shadow-lg ring-1 ring-black/10 transition-opacity"
           style={{ ...bubbleStyle, width: BUBBLE_WIDTH }}
         >
-          Need help with <span className="font-medium">{proactiveOffer.question}</span>?
+          {rich('taebo.proactiveOffer', { q: () => <span dir="auto" className="font-medium">{proactiveOffer.question}</span> })}
         </button>
       )}
 
@@ -287,23 +291,23 @@ export function TaeboWidget() {
               <span className="relative inline-flex">
                 <TaeboPanda variant="head" pose={pose} className="h-9 w-9 rounded-full" />
                 <span
-                  className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-navy-800 bg-emerald-400"
+                  className="absolute -end-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-navy-800 bg-emerald-400"
                   aria-hidden="true"
-                  title="Taebo is online"
+                  title={t('taebo.online')}
                 />
               </span>
               <div className="leading-tight">
                 <p className="font-display font-semibold">TAEBO</p>
-                <p className="text-[11px] text-brand-silver/70">Your CZ Digitizing Assistant</p>
+                <p className="text-[11px] text-brand-silver/70">{t('taebo.subtitle')}</p>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="Close Taebo chat" className="text-brand-silver hover:text-brand-gold">✕</button>
+            <button onClick={() => setOpen(false)} aria-label={t('taebo.close')} className="text-brand-silver hover:text-brand-gold">✕</button>
           </div>
 
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {messages.every((m) => m.id === 'greeting') && (
               <div className="space-y-1.5">
-                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">Quick actions</p>
+                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">{t('taebo.quickActions')}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_ACTIONS.map((action) => (
                     <Link
@@ -311,7 +315,7 @@ export function TaeboWidget() {
                       href={action.href}
                       className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-brand-silver transition-colors hover:border-brand-gold hover:text-white"
                     >
-                      {action.label}
+                      {action.label === 'Vector Art' ? action.label : t(action.label)}
                     </Link>
                   ))}
                 </div>
@@ -319,12 +323,13 @@ export function TaeboWidget() {
             )}
             {messages.every((m) => m.id === 'greeting') && suggestions.length > 0 && (
               <div className="space-y-1.5">
-                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">Common questions</p>
+                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">{t('taebo.commonQuestions')}</p>
                 {suggestions.map((s) => (
                   <button
                     key={s.faqId}
+                    dir="auto"
                     onClick={() => void send(s.question)}
-                    className="block w-full rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-left text-brand-silver transition-colors hover:border-brand-gold hover:text-white"
+                    className="block w-full rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-start text-brand-silver transition-colors hover:border-brand-gold hover:text-white"
                   >
                     {s.question}
                   </button>
@@ -332,8 +337,9 @@ export function TaeboWidget() {
               </div>
             )}
             {messages.map((m) => (
-              <div key={m.id} className={m.sender === 'customer' ? 'text-right' : 'text-left'}>
+              <div key={m.id} className={m.sender === 'customer' ? 'text-end' : 'text-start'}>
                 <span
+                  dir="auto"
                   className={`inline-block max-w-[85%] rounded-card px-3 py-2 ${
                     m.sender === 'customer'
                       ? 'bg-white text-brand-navy'
@@ -342,7 +348,7 @@ export function TaeboWidget() {
                         : 'bg-navy-700 text-white'
                   }`}
                 >
-                  {m.text}
+                  {m.id === 'greeting' ? t('taebo.greeting') : m.escalated ? t('taebo.escalated') : m.text}
                 </span>
               </div>
             ))}
@@ -350,7 +356,7 @@ export function TaeboWidget() {
                 keeps it announced to screen readers, and the dots hold still under reduced-motion. */}
             {loading && (
               <div className="flex items-center gap-1 px-1" role="status">
-                <span className="sr-only">Taebo is typing…</span>
+                <span className="sr-only">{t('taebo.typing')}</span>
                 <span className="taebo-typing-dot h-1.5 w-1.5 rounded-full bg-brand-silver/60" />
                 <span className="taebo-typing-dot h-1.5 w-1.5 rounded-full bg-brand-silver/60" style={{ animationDelay: '0.15s' }} />
                 <span className="taebo-typing-dot h-1.5 w-1.5 rounded-full bg-brand-silver/60" style={{ animationDelay: '0.3s' }} />
@@ -358,13 +364,13 @@ export function TaeboWidget() {
             )}
             {error && (
               <div className="space-y-1.5 rounded-field border border-red-400/30 bg-red-500/10 p-2 text-xs text-red-200">
-                <p>I&apos;m having trouble connecting right now. Please try again or contact support.</p>
+                <p>{t('taebo.connectionError')}</p>
                 <div className="flex items-center gap-3">
                   <button onClick={() => void send(input || messages.at(-2)?.text || '')} className="font-medium underline">
-                    Retry
+                    {t('common.retry')}
                   </button>
                   <Link href="/contact" className="font-medium underline">
-                    Contact support
+                    {t('taebo.contactSupport')}
                   </Link>
                 </div>
               </div>
@@ -374,7 +380,7 @@ export function TaeboWidget() {
           <div className="border-t border-white/10 p-2">
             {whatsappHref && (
               <a href={whatsappHref} target="_blank" rel="noreferrer" className="mb-2 block text-center text-xs text-emerald-400 underline">
-                Prefer WhatsApp? Chat with our team
+                {t('taebo.whatsapp')}
               </a>
             )}
             <form
@@ -387,7 +393,8 @@ export function TaeboWidget() {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Taebo a question…"
+                placeholder={t('taebo.inputPlaceholder')}
+                aria-label={t('taebo.inputPlaceholder')}
                 className="flex-1 rounded-field border border-white/15 bg-white/5 px-2.5 py-1.5 text-sm text-white placeholder:text-brand-silver/50 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/40"
               />
               <button
@@ -395,7 +402,7 @@ export function TaeboWidget() {
                 disabled={loading}
                 className="rounded-field bg-brand-gold px-3 py-1.5 text-sm font-semibold text-brand-navy transition hover:brightness-105 disabled:opacity-50"
               >
-                Send
+                {t('taebo.send')}
               </button>
             </form>
             {/* Part 12 — a simple, always-available way back to the default corner; keyboard-reachable
@@ -405,7 +412,7 @@ export function TaeboWidget() {
               onClick={resetPosition}
               className="mt-1.5 w-full text-center text-[11px] text-brand-silver/50 hover:text-brand-gold hover:underline"
             >
-              Reset Taebo position
+              {t('taebo.resetPosition')}
             </button>
           </div>
         </div>
@@ -425,7 +432,7 @@ export function TaeboWidget() {
           onPointerMove={onPointerMove}
           onPointerUp={onLauncherPointerUp}
           onClick={onLauncherClick}
-          aria-label="Open Taebo assistant"
+          aria-label={t('taebo.open')}
           className="taebo-motion-safe group fixed z-50 inline-flex h-[90px] touch-none items-end justify-center rounded-lg transition-all duration-500 ease-out hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2 sm:h-32"
           style={{
             ...launcherStyle,

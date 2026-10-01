@@ -14,10 +14,13 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorBanner, SuccessBanner } from '@/components/ErrorBanner';
 import { FormField, inputClass, submitButtonClass } from '@/components/FormField';
 import { PasswordInput } from '@/components/PasswordInput';
+import { useLocale } from '@/lib/locale-context';
+import { clientError } from '@/i18n/api-errors';
 
 const schema = z.object({
-  email: z.string().email('email must be an email'),
-  password: z.string().min(1, 'password is required'),
+  // Messages are translation keys, resolved by FormField (i18n A-021).
+  email: z.string().email('validation.email'),
+  password: z.string().min(1, 'validation.required'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -38,6 +41,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
+  const { t, rich } = useLocale();
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const {
     register,
@@ -60,11 +64,7 @@ function LoginForm() {
       if ('pendingTwoFactorToken' in result) {
         // Only reachable if this email belongs to an admin account (AC-5 always requires 2FA) —
         // the customer site has no 2FA UI, so send them to the right place instead of failing silently.
-        setApiError({
-          code: 'FORBIDDEN',
-          message: 'This account requires the Admin portal to log in.',
-          traceId: '',
-        });
+        setApiError(clientError('errors.adminPortalRequired', 'FORBIDDEN'));
         return;
       }
 
@@ -86,7 +86,7 @@ function LoginForm() {
           setApiError(err.error);
         }
       } else {
-        setApiError({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.', traceId: '' });
+        setApiError(clientError('errors.generic'));
       }
     }
   }
@@ -94,48 +94,51 @@ function LoginForm() {
   return (
     <AuthLayout>
       <div className="space-y-1">
-        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">Welcome back</h1>
-        <p className="text-[14.5px] text-gray-500">Sign in to your CZ Digitizing account</p>
+        <h1 className="font-display text-[26px] font-bold tracking-tight text-brand-navy">{t('auth.loginTitle')}</h1>
+        <p className="text-[14.5px] text-gray-500">{t('auth.loginSubtitle')}</p>
       </div>
 
       {searchParams.get('registered') && (
         <div className="mt-6">
-          <SuccessBanner message="Account created — you can now log in." />
+          <SuccessBanner message={t('auth.accountCreated')} />
         </div>
       )}
       {searchParams.get('reset') && (
         <div className="mt-6">
-          <SuccessBanner message="Password reset — log in with your new password." />
+          <SuccessBanner message={t('auth.passwordResetDone')} />
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
         <ErrorBanner error={apiError} />
 
-        <FormField label="Email address" htmlFor="email" error={errors.email}>
-          <input id="email" type="email" placeholder="you@company.com" className={inputClass} {...register('email')} />
+        <FormField label={t('auth.emailAddress')} htmlFor="email" error={errors.email}>
+          <input id="email" type="email" placeholder={t('auth.emailPlaceholder')} className={inputClass} {...register('email')} />
         </FormField>
 
-        <FormField label="Password" htmlFor="password" error={errors.password}>
+        <FormField label={t('auth.password')} htmlFor="password" error={errors.password}>
           <PasswordInput id="password" placeholder="••••••••" {...register('password')} />
         </FormField>
 
-        <div className="text-right text-sm">
+        <div className="text-end text-sm">
           <Link href="/forgot-password" className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
-            Forgot password?
+            {t('auth.forgotPassword')}
           </Link>
         </div>
 
         <button type="submit" disabled={isSubmitting} className={submitButtonClass}>
-          {isSubmitting ? 'Logging in…' : 'Sign in'}
+          {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
         </button>
       </form>
 
       <p className="mt-8 text-center text-[13.5px] text-slate-600">
-        No account yet?{' '}
-        <Link href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
-          Register
-        </Link>
+        {rich('auth.noAccount', {
+          link: (chunk) => (
+            <Link href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'} className="font-medium text-brand-navy hover:text-brand-gold hover:underline">
+              {chunk}
+            </Link>
+          ),
+        })}
       </p>
     </AuthLayout>
   );

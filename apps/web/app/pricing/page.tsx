@@ -6,6 +6,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/subscriptions/dto/subscription-plan.dto.ts's SubscriptionPlanDto.
 interface SubscriptionPlanDto {
@@ -38,6 +40,7 @@ type Tab = 'subscriptions' | 'credits';
 export default function PricingPage() {
   const router = useRouter();
   const { user, accessToken } = useAuth();
+  const { t } = useLocale();
   const [tab, setTab] = useState<Tab>('subscriptions');
   const [plans, setPlans] = useState<SubscriptionPlanDto[] | null>(null);
   const [packages, setPackages] = useState<CreditPackageDto[] | null>(null);
@@ -48,10 +51,10 @@ export default function PricingPage() {
   useEffect(() => {
     apiFetch<SubscriptionPlanDto[]>('/api/subscriptions/plans')
       .then(setPlans)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load plans.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadPlansFailed')));
     apiFetch<CreditPackageDto[]>('/api/credits/packages')
       .then(setPackages)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load credit packages.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadCreditPackagesFailed')));
   }, []);
 
   const publishedPlans = (plans ?? []).filter((p) => p.isPublished);
@@ -75,7 +78,7 @@ export default function PricingPage() {
       });
       router.push(`/checkout/bank-transfer/${order.id}`);
     } catch (err) {
-      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Subscribe failed.', traceId: '' });
+      setActionError(err instanceof ApiClientError ? err.error : clientError('errors.subscribeFailed'));
     } finally {
       setBusyId(null);
     }
@@ -97,7 +100,7 @@ export default function PricingPage() {
       });
       router.push(`/checkout/bank-transfer/${order.id}`);
     } catch (err) {
-      setActionError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Purchase failed.', traceId: '' });
+      setActionError(err instanceof ApiClientError ? err.error : clientError('errors.purchaseFailed'));
     } finally {
       setBusyId(null);
     }
@@ -111,8 +114,8 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-brand-navy">Pricing</h1>
-        <p className="mt-1 text-sm text-gray-600">Subscribe for monthly credits and perks, or buy a one-time credit package.</p>
+        <h1 className="text-2xl font-bold text-brand-navy">{t('pricing.title')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('pricing.subtitle')}</p>
       </div>
 
       <div className="flex gap-2 border-b border-gray-200">
@@ -121,7 +124,7 @@ export default function PricingPage() {
             onClick={() => setTab('subscriptions')}
             className={`px-4 py-2 text-sm font-semibold ${tab === 'subscriptions' ? 'border-b-2 border-brand-gold text-brand-navy' : 'text-gray-500'}`}
           >
-            Subscription Plans
+            {t('pricing.subscriptionPlans')}
           </button>
         )}
         {showCreditsTab && (
@@ -129,7 +132,7 @@ export default function PricingPage() {
             onClick={() => setTab('credits')}
             className={`px-4 py-2 text-sm font-semibold ${tab === 'credits' ? 'border-b-2 border-brand-gold text-brand-navy' : 'text-gray-500'}`}
           >
-            Buy Credits
+            {t('pricing.buyCredits')}
           </button>
         )}
       </div>
@@ -145,7 +148,7 @@ export default function PricingPage() {
         </div>
       ) : tab === 'subscriptions' ? (
         publishedPlans.length === 0 ? (
-          <p className="text-center text-sm text-gray-500">No subscription plans available right now.</p>
+          <p className="text-center text-sm text-gray-500">{t('pricing.noPlans')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {publishedPlans.map((plan) => (
@@ -157,15 +160,17 @@ export default function PricingPage() {
               >
                 <div className="space-y-2">
                   {plan.isBestValue && (
-                    <span className="inline-block rounded-full bg-brand-gold px-2 py-0.5 text-xs font-semibold text-brand-navy">Best Value</span>
+                    <span className="inline-block rounded-full bg-brand-gold px-2 py-0.5 text-xs font-semibold text-brand-navy">{t('pricing.bestValue')}</span>
                   )}
                   <h2 className="text-lg font-bold text-brand-navy">{plan.name}</h2>
                   <p className="text-2xl font-bold">
                     Rs {plan.pricePkr}
-                    <span className="text-sm font-normal text-gray-500"> / {plan.billingPeriod === 'monthly' ? 'mo' : 'yr'}</span>
+                    <span className="text-sm font-normal text-gray-500"> / {plan.billingPeriod === 'monthly' ? t('pricing.perMonthShort') : t('pricing.perYearShort')}</span>
                   </p>
-                  <p className="text-sm text-gray-600">{plan.monthlyCredits} credits / month</p>
-                  <p className="text-sm text-gray-600">{plan.logoLimit === null ? 'Unlimited' : plan.logoLimit} logo downloads / month</p>
+                  <p className="text-sm text-gray-600">{t('pricing.creditsPerMonth', { count: plan.monthlyCredits })}</p>
+                  <p className="text-sm text-gray-600">
+                    {plan.logoLimit === null ? t('pricing.unlimitedLogos') : t('pricing.logosPerMonth', { count: plan.logoLimit })}
+                  </p>
                   <ul className="space-y-1 text-sm text-gray-600">
                     {plan.perks.map((perk, i) => (
                       <li key={i}>• {perk}</li>
@@ -177,14 +182,14 @@ export default function PricingPage() {
                   disabled={busyId === plan.id}
                   className="mt-4 w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
                 >
-                  {busyId === plan.id ? 'Please wait…' : 'Subscribe'}
+                  {busyId === plan.id ? t('common.pleaseWait') : t('pricing.subscribe')}
                 </button>
               </div>
             ))}
           </div>
         )
       ) : publishedPackages.length === 0 ? (
-        <p className="text-center text-sm text-gray-500">No credit packages available right now.</p>
+        <p className="text-center text-sm text-gray-500">{t('pricing.noPackages')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {publishedPackages.map((pkg) => (
@@ -193,7 +198,9 @@ export default function PricingPage() {
                 <h2 className="text-lg font-bold text-brand-navy">{pkg.name}</h2>
                 <p className="text-2xl font-bold">Rs {pkg.pricePkr}</p>
                 <p className="text-sm text-gray-600">
-                  {pkg.credits} credits{pkg.bonusCredits > 0 ? ` + ${pkg.bonusCredits} bonus` : ''}
+                  {pkg.bonusCredits > 0
+                    ? t('pricing.creditsWithBonus', { credits: pkg.credits, bonus: pkg.bonusCredits })
+                    : t('pricing.credits', { count: pkg.credits })}
                 </p>
               </div>
               <button
@@ -201,7 +208,7 @@ export default function PricingPage() {
                 disabled={busyId === pkg.id}
                 className="mt-4 w-full rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
               >
-                {busyId === pkg.id ? 'Please wait…' : 'Buy Credits'}
+                {busyId === pkg.id ? t('common.pleaseWait') : t('pricing.buyCredits')}
               </button>
             </div>
           ))}

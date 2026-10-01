@@ -1,4 +1,7 @@
+'use client';
+
 import { portfolioProfileContent } from '@/lib/portfolio-profile-content';
+import { useLocale } from '@/lib/locale-context';
 import { PortfolioSectionHeading } from './PortfolioSectionHeading';
 
 // docs/portfolio-spec.md §5.4 — Wilcom/Pulse Tajima given large, top billing (primary); Oracle ERP
@@ -6,10 +9,11 @@ import { PortfolioSectionHeading } from './PortfolioSectionHeading';
 // internally hierarchical, rather than a second separate software section.
 export function PortfolioSoftwareExpertise() {
   const { softwareExpertise } = portfolioProfileContent;
+  const { t } = useLocale();
 
   return (
     <section className="mx-auto max-w-4xl px-1">
-      <PortfolioSectionHeading eyebrow="Software Expertise" title="Embroidery Software" weight="primary" />
+      <PortfolioSectionHeading eyebrow={t('portfolio.softwareEyebrow')} title={t('portfolio.softwareTitle')} weight="primary" />
       <div className="grid gap-4 sm:grid-cols-2">
         {softwareExpertise.primary.map((name) => (
           <div key={name} className="rounded-card border border-gray-200 bg-white p-5 shadow-cz-sm">
@@ -17,7 +21,7 @@ export function PortfolioSoftwareExpertise() {
           </div>
         ))}
       </div>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-400">Also proficient in</p>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-400">{t('portfolio.alsoProficient')}</p>
       <p className="mt-1 text-sm text-gray-600">{softwareExpertise.secondary.join(' · ')}</p>
     </section>
   );

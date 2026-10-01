@@ -30,7 +30,7 @@ const FAQS: { topic: string; question: string; answer: string; taeboVisible?: bo
     topic: 'General Website',
     question: 'Which languages does the website support?',
     answer:
-      'English is the default language. Additional languages (Urdu, Arabic, Spanish, French, German, Italian, Portuguese, Turkish, Chinese, Japanese, Korean, Russian, Hindi and Bengali) are being rolled out — your language choice is remembered where practical.',
+      'The website is available in 15 languages: English (the default), Spanish, French, German, Portuguese, Italian, Dutch, Turkish, Arabic, Chinese (Simplified), Japanese, Korean, Russian, Hindi and Urdu. Pick one from the language menu in the header — your choice is remembered on this device and, when you are signed in, on your account.',
   },
   {
     topic: 'Embroidery Designs',

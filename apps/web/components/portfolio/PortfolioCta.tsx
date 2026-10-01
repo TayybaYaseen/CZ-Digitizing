@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 
 // docs/portfolio-spec.md §5.12/§10.4/§15 — contact info is never hardcoded here. This reads the
 // same existing, Admin-configured settings Footer.tsx already reads (GET /api/settings/public),
@@ -15,6 +16,7 @@ interface PublicSettings {
 
 export function PortfolioCta() {
   const [settings, setSettings] = useState<PublicSettings | null>(null);
+  const { t } = useLocale();
 
   useEffect(() => {
     apiFetch<PublicSettings>('/api/settings/public').then(setSettings).catch(() => setSettings(null));
@@ -24,16 +26,16 @@ export function PortfolioCta() {
 
   return (
     <section className="rounded-card bg-brand-navy px-6 py-12 text-center text-white sm:px-10">
-      <h2 className="font-display text-2xl font-bold sm:text-3xl">Ready to Turn Your Artwork Into Perfect Stitches?</h2>
+      <h2 className="font-display text-2xl font-bold sm:text-3xl">{t('portfolio.ctaTitle')}</h2>
       <p className="mx-auto mt-2 max-w-xl text-sm text-brand-silver sm:text-base">
-        Get a quote for professional embroidery digitizing, or reach out with a custom request.
+        {t('portfolio.ctaSubtitle')}
       </p>
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
         <Link href="/get-a-quote" className="rounded-field bg-brand-gold px-6 py-3 text-sm font-semibold text-brand-navy shadow-cz-gold transition hover:brightness-110">
-          Get a Quote
+          {t('nav.getAQuote')}
         </Link>
         <Link href="/custom-request" className="rounded-field border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-          Custom Request
+          {t('nav.customRequest')}
         </Link>
         {whatsappHref && (
           <a
@@ -50,7 +52,7 @@ export function PortfolioCta() {
             href={`mailto:${settings.contactEmail}`}
             className="rounded-field border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
-            Email
+            {t('common.email')}
           </a>
         )}
       </div>

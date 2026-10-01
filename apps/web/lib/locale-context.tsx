@@ -1,116 +1,207 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { LanguageDto, TranslationBundleDto } from '@czd/shared-types';
+import { useRouter } from 'next/navigation';
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { ApiError, LanguageDto, TranslationBundleDto } from '@czd/shared-types';
+import { DEFAULT_LOCALE, intlLocale, isLocale, LOCALE_COOKIE, LOCALES, localeDir, type Direction, type Locale } from '@/i18n/config';
+import { loadFlatMessages, type EnglishMessages } from '@/i18n/messages';
+import { translateApiError, translateFieldMessage } from '@/i18n/api-errors';
+import { createTranslator, overridesFromBundle, type FlatMessages, type TranslationKeyOf, type TranslationValues } from '@/i18n/translate';
 import { apiFetch } from './api-client';
 import { useAuth } from './auth-context';
 
 // docs/specs/2026-08-28-16-internationalization.md (aspect A-021).
-const COOKIE_NAME = 'czd_locale';
-const DEFAULT_LOCALE = 'en'; // AC-2
+//
+// The base UI strings for all 15 locales ship with the app (apps/web/i18n/messages/*.ts). The
+// server reads the `czd_locale` cookie and hands this provider the active locale's messages, so the
+// first render — server and client alike — is already in the right language and direction. The
+// admin-editable `ui_translations` rows (/api/translations/:locale) are layered on top as
+// overrides, so Admin can still reword any string without a deploy (AC-6): merged on the server
+// for the initial locale (i18n/server.ts), and fetched alongside the bundle on a language switch.
+
+export type TranslationKey = TranslationKeyOf<EnglishMessages>;
+
+export interface LanguageOption {
+  code: Locale;
+  name: string;
+  nativeName: string;
+  dir: Direction;
+}
+
+type RichRenderer = (chunk: ReactNode) => ReactNode;
 
 interface LocaleContextValue {
-  locale: string;
-  dir: 'ltr' | 'rtl';
-  languages: LanguageDto[];
-  translations: TranslationBundleDto;
-  isReady: boolean;
+  locale: Locale;
+  dir: Direction;
+  languages: LanguageOption[];
   setLocale: (locale: string) => void;
-  t: (key: string) => string;
+  t: (key: TranslationKey, values?: TranslationValues) => string;
+  // For keys built at runtime (e.g. an order status) — returns `fallback` when no such key exists.
+  tOr: (key: string, fallback: string, values?: TranslationValues) => string;
+  // t() plus inline markup: "Read the <link>terms</link>" → components.link("terms").
+  rich: (key: TranslationKey, components: Record<string, RichRenderer>, values?: TranslationValues) => ReactNode;
+  errorMessage: (error: ApiError) => string;
+  // Inline form-field message (zod key or class-validator English) → translated text.
+  fieldError: (message: string | undefined) => string;
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatDate: (value: Date | string, options?: Intl.DateTimeFormatOptions) => string;
+  formatDateTime: (value: Date | string) => string;
+  // Kept for existing callers of the pre-refactor context shape.
+  isReady: boolean;
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
-function readCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
-}
-
-function writeCookie(name: string, value: string) {
-  if (typeof document === 'undefined') return;
+function writeCookie(value: string) {
   // 1 year — AC-4's "persists across return visits" for guests, who have no account row to persist to.
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
 }
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
+
+const RICH_TAG = /<(\w+)>(.*?)<\/\1>/g;
+
+export function LocaleProvider({
+  children,
+  initialLocale,
+  initialMessages,
+  hasExplicitChoice,
+}: {
+  children: ReactNode;
+  initialLocale: Locale;
+  initialMessages: FlatMessages;
+  hasExplicitChoice: boolean;
+}) {
+  const router = useRouter();
   const { user, accessToken, isReady: authReady } = useAuth();
-  const [locale, setLocaleState] = useState(DEFAULT_LOCALE);
-  const [languages, setLanguages] = useState<LanguageDto[]>([]);
-  const [translations, setTranslations] = useState<TranslationBundleDto>({});
-  const [isReady, setIsReady] = useState(false);
+  const [{ locale, messages }, setActive] = useState({ locale: initialLocale, messages: initialMessages });
+  const [enabledCodes, setEnabledCodes] = useState<string[] | null>(null);
+  // True once the visitor has actively picked a language (cookie present or chosen this session) —
+  // that choice then wins over a stale account preference on login instead of being overwritten.
+  const explicitChoice = useRef(hasExplicitChoice);
+  const switchSeq = useRef(0);
 
-  // AC-2/AC-4 — resolution order: an existing choice (cookie or, once auth is known, the logged-in
-  // user's saved preference) beats the browser's language, which beats the English default. Runs
-  // client-side only, after mount, to avoid an SSR/client render mismatch (server has no cookie).
-  useEffect(() => {
-    if (!authReady) return;
-    const cookieLocale = readCookie(COOKIE_NAME);
-    const resolved = user?.preferredLocale ?? cookieLocale ?? (typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : undefined) ?? DEFAULT_LOCALE;
-    setLocaleState(resolved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authReady]);
-
-  useEffect(() => {
-    apiFetch<LanguageDto[]>('/api/languages')
-      .then(setLanguages)
-      .catch(() => setLanguages([]));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<TranslationBundleDto>(`/api/translations/${locale}`)
-      .then((bundle) => {
-        if (!cancelled) {
-          setTranslations(bundle);
-          setIsReady(true);
-        }
-      })
-      // AC-3/§5 error state — a fetch failure keeps whatever bundle was already loaded (or empty
-      // on first load, which itself renders fine via the t() fallback below) rather than a broken page.
-      .catch(() => setIsReady(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [locale]);
-
-  const language = languages.find((l) => l.code === locale);
-  const dir: 'ltr' | 'rtl' = language?.isRtl ? 'rtl' : 'ltr';
-
-  // AC-7 — flips <html> dir/lang once the real locale is known; SSR always renders lang="en"/ltr
-  // (see app/layout.tsx), so this only ever mutates after mount, never during the first paint.
-  useEffect(() => {
-    document.documentElement.lang = locale;
-    document.documentElement.dir = dir;
-  }, [locale, dir]);
-
-  function setLocale(next: string) {
-    setLocaleState(next);
-    writeCookie(COOKIE_NAME, next);
-    if (user && accessToken) {
+  const persistToAccount = useCallback(
+    (next: Locale) => {
+      if (!user || !accessToken) return;
       apiFetch('/api/account/preferred-locale', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ locale: next }),
       }).catch(() => {});
-    }
-  }
-
-  // AC-3 — a key with no bundle entry yet (still loading, or genuinely missing from both the
-  // locale and its English fallback) renders as a readable label, never a blank string.
-  function t(key: string): string {
-    return translations[key]?.value ?? key;
-  }
-
-  return (
-    <LocaleContext.Provider value={{ locale, dir, languages, translations, isReady, setLocale, t }}>
-      {children}
-    </LocaleContext.Provider>
+    },
+    [user, accessToken],
   );
+
+  const applyLocale = useCallback(
+    async (next: Locale) => {
+      const seq = ++switchSeq.current;
+      writeCookie(next);
+      // Admin overrides for the new locale win over its bundled strings (docs/i18n.md precedence).
+      const [bundled, overrides] = await Promise.all([
+        loadFlatMessages(next),
+        apiFetch<TranslationBundleDto>(`/api/translations/${next}?fallback=false`)
+          .then(overridesFromBundle)
+          .catch(() => ({})),
+      ]);
+      if (seq !== switchSeq.current) return; // a later switch already won
+      setActive({ locale: next, messages: { ...bundled, ...overrides } });
+      // Re-renders server components (root layout's <html lang/dir>, page metadata) with the new cookie.
+      router.refresh();
+    },
+    [router],
+  );
+
+  const setLocale = useCallback(
+    (next: string) => {
+      if (!isLocale(next)) return;
+      explicitChoice.current = true;
+      void applyLocale(next);
+      persistToAccount(next);
+    },
+    [applyLocale, persistToAccount],
+  );
+
+  // AC-4 — on sign-in, a language picked on this device is saved to the account; with no pick on
+  // this device yet, the account's saved preference is adopted instead.
+  useEffect(() => {
+    if (!authReady || !user) return;
+    if (explicitChoice.current) {
+      if (user.preferredLocale !== locale) persistToAccount(locale);
+    } else if (isLocale(user.preferredLocale) && user.preferredLocale !== locale) {
+      explicitChoice.current = true;
+      void applyLocale(user.preferredLocale);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, user?.id]);
+
+  // Admin rollout toggle (languages.is_enabled) — hides a bundled language the Admin has switched
+  // off. A failed/empty response leaves all 15 visible rather than an empty selector.
+  useEffect(() => {
+    apiFetch<LanguageDto[]>('/api/languages')
+      .then((rows) => setEnabledCodes(rows.length > 0 ? rows.map((r) => r.code) : null))
+      .catch(() => setEnabledCodes(null));
+  }, []);
+
+
+  const dir = localeDir(locale);
+
+  // AC-7 — the server already rendered the right lang/dir; this keeps them in step immediately on
+  // a client-side switch, before router.refresh() round-trips.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = dir;
+  }, [locale, dir]);
+
+  const value = useMemo<LocaleContextValue>(() => {
+    const translator = createTranslator(messages, locale);
+    const t = (key: TranslationKey, values?: TranslationValues) => translator.t(key, values);
+    const tOr = (key: string, fallback: string, values?: TranslationValues) => (translator.has(key) || translator.has(`${key}_other`) ? translator.t(key, values) : fallback);
+    const rich = (key: TranslationKey, components: Record<string, RichRenderer>, values?: TranslationValues): ReactNode => {
+      const text = translator.t(key, values);
+      const parts: ReactNode[] = [];
+      let last = 0;
+      for (const match of Array.from(text.matchAll(RICH_TAG))) {
+        const [whole, tag, inner] = match;
+        const index = match.index ?? 0;
+        if (index > last) parts.push(text.slice(last, index));
+        const render = components[tag!];
+        parts.push(<Fragment key={index}>{render ? render(inner) : inner}</Fragment>);
+        last = index + whole.length;
+      }
+      if (last < text.length) parts.push(text.slice(last));
+      return parts;
+    };
+    const tag = intlLocale(locale);
+    const toDate = (v: Date | string) => (typeof v === 'string' ? new Date(v) : v);
+    const visible = LOCALES.filter((l) => !enabledCodes || enabledCodes.includes(l.code) || l.code === locale || l.code === DEFAULT_LOCALE);
+
+    return {
+      locale,
+      dir,
+      languages: visible.map(({ code, name, nativeName, dir: d }) => ({ code, name, nativeName, dir: d })),
+      setLocale,
+      t,
+      tOr,
+      rich,
+      errorMessage: (error: ApiError) => translateApiError(error, translator.t, translator.has),
+      fieldError: (message: string | undefined) => translateFieldMessage(message, translator.t, translator.has),
+      formatNumber: (v, options) => new Intl.NumberFormat(tag, options).format(v),
+      formatDate: (v, options) => new Intl.DateTimeFormat(tag, options ?? { dateStyle: 'medium' }).format(toDate(v)),
+      formatDateTime: (v) => new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short' }).format(toDate(v)),
+      isReady: true,
+    };
+  }, [locale, dir, messages, enabledCodes, setLocale]);
+
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   if (!ctx) throw new Error('useLocale() must be used within <LocaleProvider>');
   return ctx;
+}
+
+// Shorthand for the common case of a component that only needs t().
+export function useT() {
+  return useLocale().t;
 }

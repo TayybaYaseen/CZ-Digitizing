@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ApiError, PortfolioItemDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { useLocale } from '@/lib/locale-context';
 import { PortfolioIdentityHero } from '@/components/portfolio/PortfolioIdentityHero';
 import { PortfolioProfile } from '@/components/portfolio/PortfolioProfile';
 import { PortfolioCoreExpertise } from '@/components/portfolio/PortfolioCoreExpertise';
@@ -15,6 +16,7 @@ import { PortfolioCategoryFilter } from '@/components/portfolio/PortfolioCategor
 import { PortfolioCard } from '@/components/portfolio/PortfolioCard';
 import { PortfolioCta } from '@/components/portfolio/PortfolioCta';
 import { PortfolioSectionHeading } from '@/components/portfolio/PortfolioSectionHeading';
+import { clientError } from '@/i18n/api-errors';
 
 // docs/portfolio-spec.md §5 — section order, revised 2026-09-18/2026-09-28 (business-owner
 // decisions): Hero → Profile → Core Embroidery Expertise → Software Expertise → Professional
@@ -31,6 +33,7 @@ import { PortfolioSectionHeading } from '@/components/portfolio/PortfolioSection
 const HOME_PAGE_LOGOS_TITLE = 'home page logos';
 
 export default function PortfolioPage() {
+  const { t } = useLocale();
   const [items, setItems] = useState<PortfolioItemDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -38,7 +41,7 @@ export default function PortfolioPage() {
   useEffect(() => {
     apiFetch<PortfolioItemDto[]>('/api/portfolio')
       .then(setItems)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load the portfolio.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadPortfolioFailed')));
   }, []);
 
   const logosItem = useMemo(() => {
@@ -71,7 +74,7 @@ export default function PortfolioPage() {
 
       {/* Real Portfolio Work Samples — the only admin-authored section on the page (§5.11). */}
       <section className="mx-auto max-w-6xl px-1">
-        <PortfolioSectionHeading eyebrow="Real Work" title="Portfolio Work Samples" weight="primary" />
+        <PortfolioSectionHeading eyebrow={t('portfolio.workEyebrow')} title={t('portfolio.workTitle')} weight="primary" />
 
         <ErrorBanner error={error} />
 
@@ -85,7 +88,7 @@ export default function PortfolioPage() {
           </div>
         ) : hasNoResults ? (
           <p className="mt-6 rounded-card border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-            No portfolio items yet — check back soon.
+            {t('portfolio.empty')}
           </p>
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

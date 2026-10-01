@@ -6,6 +6,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface AccountMemberDto {
   id: string;
@@ -22,6 +24,7 @@ interface AccountMemberDto {
 export default function AccountMembersPage() {
   const router = useRouter();
   const { user, accessToken, isReady } = useAuth();
+  const { t } = useLocale();
   const [members, setMembers] = useState<AccountMemberDto[] | null>(null);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
@@ -36,7 +39,7 @@ export default function AccountMembersPage() {
     if (!accessToken) return;
     apiFetch<AccountMemberDto[]>('/api/users/account-members', { headers: { Authorization: `Bearer ${accessToken}` } })
       .then(setMembers)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load members.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadMembersFailed')));
   }
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function AccountMembersPage() {
       setEmail('');
       load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not add that member.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.addMemberFailed'));
     } finally {
       setBusy(false);
     }
@@ -72,18 +75,15 @@ export default function AccountMembersPage() {
       await apiFetch(`/api/users/account-members/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
       load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not remove that member.', traceId: '' });
+      setError(err instanceof ApiClientError ? err.error : clientError('errors.removeMemberFailed'));
     }
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Shared Account Members</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Give someone else their own login to your order/quote/purchase history — e.g. a colleague at a small business. They must already have
-          their own registered CZ Digitizing account.
-        </p>
+        <h1 className="text-2xl font-bold">{t('members.title')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('members.subtitle')}</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -92,19 +92,20 @@ export default function AccountMembersPage() {
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="colleague@example.com"
+          placeholder={t('members.emailPlaceholder')}
+          aria-label={t('common.email')}
           type="email"
           className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
         />
         <button onClick={invite} disabled={busy || !email.trim()} className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50">
-          Invite
+          {t('members.invite')}
         </button>
       </div>
 
       {members === null ? (
-        <p className="text-center text-sm text-gray-500">Loading…</p>
+        <p className="text-center text-sm text-gray-500">{t('common.loading')}</p>
       ) : members.length === 0 ? (
-        <p className="text-sm text-gray-500">No members yet — invite a colleague above.</p>
+        <p className="text-sm text-gray-500">{t('members.empty')}</p>
       ) : (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
           {members.map((m) => (
@@ -114,7 +115,7 @@ export default function AccountMembersPage() {
                 <p className="text-xs text-gray-500">{m.email}</p>
               </div>
               <button onClick={() => revoke(m.id)} className="text-xs text-red-600 underline">
-                Remove
+                {t('common.remove')}
               </button>
             </li>
           ))}

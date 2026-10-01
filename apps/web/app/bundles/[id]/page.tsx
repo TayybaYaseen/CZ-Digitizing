@@ -6,6 +6,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { useCart } from '@/lib/cart-context';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/bundles/dto/bundle.dto.ts's BundleDetailDto.
 interface BundleDetailDto {
@@ -22,6 +24,7 @@ interface BundleDetailDto {
 export default function BundleDetailPage() {
   const params = useParams<{ id: string }>();
   const { addItem } = useCart();
+  const { t, errorMessage } = useLocale();
   const [bundle, setBundle] = useState<BundleDetailDto | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [adding, setAdding] = useState(false);
@@ -31,7 +34,7 @@ export default function BundleDetailPage() {
   useEffect(() => {
     apiFetch<BundleDetailDto>(`/api/bundles/${params.id}`)
       .then(setBundle)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load bundle.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadBundleFailed')));
   }, [params.id]);
 
   async function onAddToCart() {
@@ -43,7 +46,7 @@ export default function BundleDetailPage() {
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
     } catch (err) {
-      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+      setAddError(err instanceof ApiClientError ? errorMessage(err.error) : t('products.addToCartFailed'));
     } finally {
       setAdding(false);
     }
@@ -68,7 +71,7 @@ export default function BundleDetailPage() {
           <div className="h-64 w-full rounded-lg border border-gray-200 bg-brand-lightGray" />
         )}
         <div className="space-y-3">
-          <h1 className="text-2xl font-bold">{bundle.name}</h1>
+          <h1 dir="auto" className="text-2xl font-bold">{bundle.name}</h1>
           <p className="text-lg">
             {bundle.salePricePkr ? (
               <>
@@ -79,8 +82,8 @@ export default function BundleDetailPage() {
               <span className="font-semibold">Rs {bundle.pricePkr}</span>
             )}
           </p>
-          {bundle.description && <p className="text-sm text-gray-600">{bundle.description}</p>}
-          <p className="text-sm text-gray-500">{bundle.includedDesigns.length} design{bundle.includedDesigns.length === 1 ? '' : 's'} included</p>
+          {bundle.description && <p dir="auto" className="text-sm text-gray-600">{bundle.description}</p>}
+          <p className="text-sm text-gray-500">{t('products.designsIncluded', { count: bundle.includedDesigns.length })}</p>
 
           {addError && <p className="text-sm text-red-600">{addError}</p>}
           <button
@@ -88,20 +91,20 @@ export default function BundleDetailPage() {
             disabled={adding}
             className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
           >
-            {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
+            {added ? t('products.added') : adding ? t('products.adding') : t('products.addToCart')}
           </button>
         </div>
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Included designs</h2>
+        <h2 className="text-lg font-semibold">{t('products.includedDesigns')}</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {bundle.includedDesigns.map((d) => (
             <div key={d.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-supplied URL */}
               <img src={d.previewImageUrl} alt={d.name} className="h-32 w-full object-cover" />
               <div className="p-2">
-                <p className="text-xs font-medium text-brand-navy">{d.name}</p>
+                <p dir="auto" className="text-xs font-medium text-brand-navy">{d.name}</p>
                 <p className="text-xs text-gray-500">Rs {d.priceOverridePkr ?? d.pricePkr}</p>
               </div>
             </div>

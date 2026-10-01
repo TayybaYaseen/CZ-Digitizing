@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/locale-context';
 import { subscribeToUnreadCountDelta } from '@/lib/unread-count-bus';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -12,6 +13,7 @@ const POLL_INTERVAL_MS = 30_000;
 // showing whatever count we last had rather than resetting to 0 or an error state.
 export function NotificationBell() {
   const { user, accessToken } = useAuth();
+  const { t } = useLocale();
   const [count, setCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function NotificationBell() {
   return (
     <Link
       href="/account/notifications"
-      aria-label="Notifications"
+      aria-label={t('notifications.title')}
       className="relative flex-shrink-0 whitespace-nowrap rounded-field border border-brand-silver/30 px-2 py-1.5 text-xs text-brand-silver hover:bg-white/5 sm:px-3 sm:text-sm"
     >
       {/* Label shows from `sm` up; below that only the bell glyph + badge remain, so this control
@@ -67,9 +69,9 @@ export function NotificationBell() {
         />
         <path d="M8 17a2 2 0 0 0 4 0" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="hidden sm:inline">Notifications</span>
+      <span className="hidden sm:inline">{t('notifications.title')}</span>
       {!!count && (
-        <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white sm:static sm:ml-2 sm:h-5 sm:min-w-5 sm:text-xs">
+        <span className="absolute -end-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white sm:static sm:ms-2 sm:h-5 sm:min-w-5 sm:text-xs">
           {count > 99 ? '99+' : count}
         </span>
       )}

@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 // Mirrors apps/api/src/designs/dto/design.dto.ts's DesignDetailDto.
 interface DesignDetailDto {
@@ -33,6 +35,7 @@ export default function DesignDetailPage() {
   const params = useParams<{ id: string }>();
   const { addItem } = useCart();
   const { user, accessToken } = useAuth();
+  const { t, errorMessage } = useLocale();
   const [design, setDesign] = useState<DesignDetailDto | null>(null);
   const [related, setRelated] = useState<DesignSummaryDto[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
@@ -47,7 +50,7 @@ export default function DesignDetailPage() {
         setDesign(d);
         if (d.sizes[0]) setSelectedSizeId(d.sizes[0].id);
       })
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load design.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadDesignFailed')));
     apiFetch<DesignSummaryDto[]>(`/api/designs/${params.id}/related`)
       .then(setRelated)
       .catch(() => setRelated([]));
@@ -72,7 +75,7 @@ export default function DesignDetailPage() {
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
     } catch (err) {
-      setAddError(err instanceof ApiClientError ? err.error.message : 'Failed to add to cart.');
+      setAddError(err instanceof ApiClientError ? errorMessage(err.error) : t('products.addToCartFailed'));
     } finally {
       setAdding(false);
     }
@@ -93,7 +96,7 @@ export default function DesignDetailPage() {
         {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-supplied URL */}
         <img src={design.previewImageUrl} alt={design.name} className="w-full rounded-lg border border-gray-200 object-cover" />
         <div className="space-y-3">
-          <h1 className="text-2xl font-bold">{design.name}</h1>
+          <h1 dir="auto" className="text-2xl font-bold">{design.name}</h1>
           <p className="text-lg">
             {design.salePricePkr ? (
               <>
@@ -104,30 +107,28 @@ export default function DesignDetailPage() {
               <span className="font-semibold">Rs {design.pricePkr}</span>
             )}
           </p>
-          {design.description && <p className="text-sm text-gray-600">{design.description}</p>}
+          {design.description && <p dir="auto" className="text-sm text-gray-600">{design.description}</p>}
 
           <div>
-            <p className="text-sm font-medium">Sizes</p>
+            <p className="text-sm font-medium">{t('products.sizes')}</p>
             <ul className="mt-1 list-inside list-disc text-sm text-gray-600">
               {design.sizes.map((s) => (
-                <li key={s.id}>
-                  {s.label}: {s.widthMm}×{s.heightMm}mm
-                </li>
+                <li key={s.id}>{t('products.sizeDimensions', { label: s.label, width: s.widthMm, height: s.heightMm })}</li>
               ))}
             </ul>
           </div>
 
           {(design.stitchCount !== null || design.threadColorCount !== null) && (
             <div className="text-sm text-gray-600">
-              {design.stitchCount !== null && <p>Stitch count: {design.stitchCount}</p>}
-              {design.threadColorCount !== null && <p>Thread colors: {design.threadColorCount}</p>}
-              {design.threadColorChanges !== null && <p>Thread color changes: {design.threadColorChanges}</p>}
+              {design.stitchCount !== null && <p>{t('products.stitchCount', { count: design.stitchCount })}</p>}
+              {design.threadColorCount !== null && <p>{t('products.threadColors', { count: design.threadColorCount })}</p>}
+              {design.threadColorChanges !== null && <p>{t('products.threadColorChanges', { count: design.threadColorChanges })}</p>}
             </div>
           )}
 
           {design.sizes.length > 0 && (
             <label className="block text-sm">
-              Size
+              {t('products.size')}
               <select
                 value={selectedSizeId}
                 onChange={(e) => setSelectedSizeId(e.target.value)}
@@ -147,7 +148,7 @@ export default function DesignDetailPage() {
             disabled={adding || !selectedSizeId}
             className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
           >
-            {added ? 'Added ✓' : adding ? 'Adding…' : 'Add to Cart'}
+            {added ? t('products.added') : adding ? t('products.adding') : t('products.addToCart')}
           </button>
         </div>
       </div>
@@ -157,7 +158,7 @@ export default function DesignDetailPage() {
           nothing rather than a fabricated list. */}
       {related.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Customers also bought</h2>
+          <h2 className="text-lg font-semibold">{t('products.alsoBought')}</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {related.map((r) => (
               <DesignCard key={r.id} design={r} />

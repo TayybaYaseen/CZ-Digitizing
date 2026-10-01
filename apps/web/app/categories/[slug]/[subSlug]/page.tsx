@@ -7,6 +7,8 @@ import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { DesignCard, type DesignSummaryDto } from '@/components/DesignCard';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { clientError } from '@/i18n/api-errors';
+import { useLocale } from '@/lib/locale-context';
 
 interface CategoryDto {
   id: string;
@@ -25,6 +27,7 @@ interface SubcategoryDto {
 // resolving slug → id the same way the parent category page does (no dedicated by-slug endpoint).
 export default function SubcategoryDesignsPage() {
   const params = useParams<{ slug: string; subSlug: string }>();
+  const { t } = useLocale();
   const [category, setCategory] = useState<CategoryDto | null | undefined>(undefined);
   const [subcategory, setSubcategory] = useState<SubcategoryDto | null | undefined>(undefined);
   const [designs, setDesigns] = useState<DesignSummaryDto[] | null>(null);
@@ -45,14 +48,14 @@ export default function SubcategoryDesignsPage() {
         const { data } = await apiFetchWithMeta<DesignSummaryDto[]>(`/api/designs/subcategory/${matchSub.id}?pageSize=50`);
         setDesigns(data);
       })
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to load subcategory.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadSubcategoryFailed')));
   }, [params.slug, params.subSlug]);
 
   if (error) return <ErrorBanner error={error} />;
   if (category === undefined || subcategory === undefined) {
     return <div className="mx-auto max-w-6xl"><div className="h-8 w-48 animate-pulse rounded bg-gray-100" /></div>;
   }
-  if (category === null || subcategory === null) return <p className="text-sm text-gray-500">Subcategory not found.</p>;
+  if (category === null || subcategory === null) return <p className="text-sm text-gray-500">{t('products.subcategoryNotFound')}</p>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -69,7 +72,7 @@ export default function SubcategoryDesignsPage() {
           ))}
         </div>
       ) : designs.length === 0 ? (
-        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">No designs in this category yet.</p>
+        <p className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">{t('products.emptyCategory')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {designs.map((design) => (

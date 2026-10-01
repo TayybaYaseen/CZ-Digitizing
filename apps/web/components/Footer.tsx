@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import { useLocale } from '@/lib/locale-context';
 import { Logo } from './Logo';
 
 interface PublicSettings {
@@ -23,6 +24,7 @@ const SOCIAL_ICONS: { key: keyof PublicSettings['social']; label: string; glyph:
 // the SRS like A-003 (Header). Icons hide per-platform when their URL is unset (AC already proven
 // at A-005a). Appears globally via apps/web/app/layout.tsx.
 export function Footer() {
+  const { t } = useLocale();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
 
   useEffect(() => {
@@ -36,34 +38,34 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-8 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-3">
           <Logo variant="dark" height={48} />
-          <p className="text-xs text-brand-silver/70">Machine embroidery designs, digitizing, and vector art — trusted internationally.</p>
+          <p className="text-xs text-brand-silver/70">{t('footer.tagline')}</p>
         </div>
 
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Shop</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">{t('footer.shop')}</h3>
           <ul className="mt-3 space-y-2 text-xs">
-            <li><Link href="/designs" className="hover:text-white">All Designs</Link></li>
-            <li><Link href="/categories" className="hover:text-white">Design Categories</Link></li>
-            <li><Link href="/bundles" className="hover:text-white">Design Bundles</Link></li>
+            <li><Link href="/designs" className="hover:text-white">{t('nav.allDesigns')}</Link></li>
+            <li><Link href="/categories" className="hover:text-white">{t('nav.designCategories')}</Link></li>
+            <li><Link href="/bundles" className="hover:text-white">{t('nav.designBundles')}</Link></li>
           </ul>
         </div>
 
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Services</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">{t('nav.services')}</h3>
           <ul className="mt-3 space-y-2 text-xs">
             {/* TODO(A-014): Services Module still Blocked — links 404 until it ships, same posture as Header.tsx's Services link. */}
-            <li><Link href="/services" className="hover:text-white">Embroidery Digitizing</Link></li>
+            <li><Link href="/services" className="hover:text-white">{t('services.embroideryDigitizing')}</Link></li>
             <li><Link href="/services" className="hover:text-white">Vector Art</Link></li>
-            <li><Link href="/contact" className="hover:text-white">Contact Us</Link></li>
+            <li><Link href="/contact" className="hover:text-white">{t('nav.contactUs')}</Link></li>
           </ul>
         </div>
 
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">Account</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white">{t('nav.account')}</h3>
           <ul className="mt-3 space-y-2 text-xs">
-            <li><Link href="/account" className="hover:text-white">My Account</Link></li>
-            <li><Link href="/register" className="hover:text-white">Register</Link></li>
-            <li><Link href="/login" className="hover:text-white">Log in</Link></li>
+            <li><Link href="/account" className="hover:text-white">{t('nav.myAccount')}</Link></li>
+            <li><Link href="/register" className="hover:text-white">{t('nav.register')}</Link></li>
+            <li><Link href="/login" className="hover:text-white">{t('nav.login')}</Link></li>
           </ul>
         </div>
       </div>
@@ -99,7 +101,7 @@ export function Footer() {
           </div>
         )}
 
-        <p className="text-xs text-brand-silver/60">&copy; {new Date().getFullYear()} CZ Digitizing</p>
+        <p className="text-xs text-brand-silver/60">{t('footer.copyright', { year: String(new Date().getFullYear()) })}</p>
       </div>
     </footer>
   );

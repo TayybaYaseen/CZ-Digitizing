@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, useState, type InputHTMLAttributes } from 'react';
+import { useLocale } from '@/lib/locale-context';
 import { inputClass } from './FormField';
 
 // Plain <input type="password"> with a show/hide toggle — the customer's own password, on their
@@ -9,16 +10,17 @@ import { inputClass } from './FormField';
 export const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function PasswordInput({ className, ...props }, ref) {
     const [visible, setVisible] = useState(false);
+    const { t } = useLocale();
 
     return (
       <div className="relative">
-        <input ref={ref} type={visible ? 'text' : 'password'} className={`${className ?? inputClass} pr-11`} {...props} />
+        <input ref={ref} type={visible ? 'text' : 'password'} className={`${className ?? inputClass} pe-11`} {...props} />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-label={visible ? t('auth.hidePassword') : t('auth.showPassword')}
           aria-pressed={visible}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600"
+          className="absolute inset-y-0 end-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600"
         >
           {visible ? <EyeOffIcon /> : <EyeIcon />}
         </button>

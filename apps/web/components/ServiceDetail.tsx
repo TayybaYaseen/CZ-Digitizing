@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { ApiError, FaqDto } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { BackArrow } from '@/components/DirectionalArrow';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { useLocale } from '@/lib/locale-context';
+import { clientError } from '@/i18n/api-errors';
 
 interface ServiceSummaryDto {
   id: string;
@@ -29,6 +32,7 @@ interface ServiceDetailDto extends ServiceSummaryDto {
 // (/services/[slug]) and a sub-service (/services/[slug]/[subSlug]); the API resolves both by the
 // same flat GET /api/services/:slug (AC-2/AC-3/AC-5/AC-6/AC-7/AC-10).
 export function ServiceDetail({ slug }: { slug: string }) {
+  const { t } = useLocale();
   const [service, setService] = useState<ServiceDetailDto | null>(null);
   const [faqs, setFaqs] = useState<FaqDto[]>([]);
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
@@ -39,7 +43,7 @@ export function ServiceDetail({ slug }: { slug: string }) {
     setError(null);
     apiFetch<ServiceDetailDto>(`/api/services/${slug}`)
       .then(setService)
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Could not load this service.', traceId: '' }));
+      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadServiceFailed')));
   }, [slug]);
 
   // AC-6 — resolve relatedFaqIds into full FAQ rows for display.
@@ -84,12 +88,12 @@ export function ServiceDetail({ slug }: { slug: string }) {
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       <Link href={service.parentServiceId ? `/services/${service.type === 'embroidery_digitizing' ? 'embroidery-digitizing' : 'vector-art'}` : '/services'} className="text-sm text-brand-navy underline">
-        ← {service.parentServiceId ? 'Back to service' : 'All services'}
+        <BackArrow /> {service.parentServiceId ? t('services.backToService') : t('services.allServices')}
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold">{service.name}</h1>
-        <p className="mt-2 text-sm text-gray-700">{service.description}</p>
+        <h1 dir="auto" className="text-2xl font-bold">{service.name}</h1>
+        <p dir="auto" className="mt-2 text-sm text-gray-700">{service.description}</p>
       </div>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -97,7 +101,7 @@ export function ServiceDetail({ slug }: { slug: string }) {
 
       {service.subServices && service.subServices.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold">Sub-categories</h2>
+          <h2 className="text-lg font-semibold">{t('services.subCategories')}</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {service.subServices.map((sub) => (
               <Link key={sub.id} href={`/services/${service.slug}/${sub.slug}`} className="rounded-lg border border-gray-200 p-3 text-sm hover:border-brand-navy">
@@ -109,23 +113,23 @@ export function ServiceDetail({ slug }: { slug: string }) {
       )}
 
       <section>
-        <h2 className="text-lg font-semibold">Applications</h2>
-        <p className="mt-2 text-sm text-gray-700">{service.applications}</p>
+        <h2 className="text-lg font-semibold">{t('services.applications')}</h2>
+        <p dir="auto" className="mt-2 text-sm text-gray-700">{service.applications}</p>
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold">Our process</h2>
-        <p className="mt-2 text-sm text-gray-700">{service.process}</p>
+        <h2 className="text-lg font-semibold">{t('services.ourProcess')}</h2>
+        <p dir="auto" className="mt-2 text-sm text-gray-700">{service.process}</p>
       </section>
 
       {faqs.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold">FAQs</h2>
+          <h2 className="text-lg font-semibold">{t('services.faqs')}</h2>
           <div className="mt-3 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
             {faqs.map((f) => (
               <details key={f.id} className="px-4 py-3">
-                <summary className="cursor-pointer list-none text-sm font-medium text-brand-navy">{f.question}</summary>
-                <p className="mt-2 text-sm text-gray-700">{f.answer}</p>
+                <summary dir="auto" className="cursor-pointer list-none text-sm font-medium text-brand-navy">{f.question}</summary>
+                <p dir="auto" className="mt-2 text-sm text-gray-700">{f.answer}</p>
               </details>
             ))}
           </div>
@@ -139,11 +143,11 @@ export function ServiceDetail({ slug }: { slug: string }) {
           href={`/get-a-quote?service=${service.slug}`}
           className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110"
         >
-          Get a Quote
+          {t('nav.getAQuote')}
         </a>
         {categorySlug && (
           <Link href={`/categories/${categorySlug}`} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-brand-navy hover:bg-gray-50">
-            Browse pre-made designs
+            {t('services.browsePremade')}
           </Link>
         )}
       </div>
