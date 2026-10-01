@@ -1,5 +1,7 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+
+const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 // spec §3 — POST /api/cart/items. Exactly one of designId/bundleId (validated in the service,
 // where the exclusivity check can see both fields at once — class-validator's per-field
@@ -58,4 +60,34 @@ export class CheckoutDto {
   @IsInt()
   @Min(0)
   creditsToApplyPkr: number = 0;
+}
+
+// Guest checkout — POST /api/cart/guest-checkout. Only what is needed to identify and contact the
+// buyer: a name, the email that receives the order confirmation and status emails (and is the
+// address they later sign in / recover with), and an optional WhatsApp number for Admin to reach
+// them. No credits field: credits belong to an account and need a signed-in session.
+export class GuestCheckoutDto {
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name!: string;
+
+  @Transform(trim)
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  // Digits with optional leading +, spaces, dashes, dots or parentheses — what people actually type.
+  // The message is a translation key the customer site renders in the active language.
+  @Transform(({ value }) => (typeof value === 'string' && value.trim() === '' ? undefined : trim({ value })))
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  @Matches(/^\+?[0-9][0-9 ().-]{5,30}$/, { message: 'validation.whatsapp' })
+  whatsapp?: string;
+
+  @IsOptional()
+  @IsIn(['bank_transfer'])
+  paymentMethod?: 'bank_transfer';
 }

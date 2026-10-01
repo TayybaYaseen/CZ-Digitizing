@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma';
-import type { Cart, PaymentMethod } from '../generated/prisma';
+import type { Cart, PaymentMethod, User } from '../generated/prisma';
 import type { AccessTokenPayload } from '../auth/token.types';
 import { ActivityService } from '../activity/activity.service';
 import { BundlesService } from '../bundles/bundles.service';
 import { ApiException } from '../common/exceptions/api-exception';
 import { CreditsService } from '../credits/credits.service';
-import type { OrderDto } from '../orders/dto/order.dto';
+import type { GuestOrderDto, OrderDto } from '../orders/dto/order.dto';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AddCartItemDto } from './dto/cart-write.dto';
+import type { AddCartItemDto, GuestCheckoutDto } from './dto/cart-write.dto';
 import { toCartDto, toCartItemDto, type CartDto, type CartItemWithRelations, type CartWithItems } from './dto/cart.dto';
 
 const CART_ITEM_INCLUDE = {
@@ -254,6 +254,77 @@ export class CartService {
   // 2026-08-28-08-orders-payment-processing.md, aspect A-013 — no longer a stub).
   async checkout(actor: AccessTokenPayload, paymentMethod: PaymentMethod, creditsToApplyPkr = 0): Promise<OrderDto> {
     const cart = await this.loadCartWithItems((await this.resolveCart({ customerId: BigInt(actor.sub), guestSessionId: '' })).id);
+    this.assertCheckoutable(cart);
+
+    // The credits balance is enforced inside OrdersService.createFromCart()'s own transaction, on
+    // the amount actually consumed (capped at the order total) — checking the raw requested amount
+    // here would wrongly reject "apply 5,000" from a customer whose 2,000 balance covers the order.
+    return this.orders.createFromCart(actor, cart, paymentMethod, creditsToApplyPkr);
+  }
+
+  // Guest checkout — POST /api/cart/guest-checkout: buy without registering or signing in. Checks out
+  // the guest-session cart (czd_cart_session) through the very same validation and
+  // OrdersService.createFromCart() as a signed-in checkout, so the order, its bank-transfer payment,
+  // receipt review and file release are the ordinary ones. What differs:
+  //   - the order's customer is the guest customer identity for the email typed (see
+  //     resolveGuestCustomer), so emails/notifications reach the buyer and a later sign-in with that
+  //     email simply finds the order already on the account — nothing is copied or moved;
+  //   - the order carries guestAccessKeyHash, the hash of the browser's guest key (set as a cookie by
+  //     the controller only after this returns, i.e. only once the order really exists);
+  //   - no credits are ever applied.
+  async guestCheckout(guestSessionId: string, dto: GuestCheckoutDto, guestAccessKeyHash: string): Promise<GuestOrderDto> {
+    const existingCart = await this.prisma.cart.findUnique({ where: { guestSessionId } });
+    if (!existingCart) throw new ApiException('VALIDATION_ERROR', 400, 'Cart is empty');
+    const cart = await this.loadCartWithItems(existingCart.id);
+    this.assertCheckoutable(cart);
+
+    const customer = await this.resolveGuestCustomer(dto.email, dto.name);
+    const order = await this.orders.createFromCart({ sub: customer.id.toString() }, cart, dto.paymentMethod ?? 'bank_transfer', 0, {
+      accessKeyHash: guestAccessKeyHash,
+      contactName: dto.name,
+      contactWhatsapp: dto.whatsapp ?? null,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { customerId, ...guestOrder } = order;
+    return guestOrder;
+  }
+
+  // The customer an order placed without signing in belongs to, matched on the email
+  // case-insensitively:
+  //   - no account yet  -> a new guest identity (User.isGuest, no password). It cannot be signed in
+  //     to until someone proves they own the email (every sign-in path emails a code/link first);
+  //   - an existing customer account (guest or registered) -> that account. The guest browser still
+  //     only ever sees the orders it placed itself (its key), never the account's other orders, and
+  //     the account's profile is never touched — the typed name/WhatsApp go on the order instead;
+  //   - a staff or disabled account -> refused: it must sign in (it must not be able to buy around
+  //     a suspension, and staff accounts are not customers).
+  private async resolveGuestCustomer(rawEmail: string, name: string): Promise<User> {
+    const email = rawEmail.trim().toLowerCase();
+    const assertUsable = (user: User): User => {
+      if (user.role !== 'customer' || user.status !== 'active') {
+        throw new ApiException('GUEST_CHECKOUT_SIGN_IN_REQUIRED', 409, 'Please sign in to place an order with this email address');
+      }
+      return user;
+    };
+    const find = () => this.prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } }, orderBy: { id: 'asc' } });
+
+    const existing = await find();
+    if (existing) return assertUsable(existing);
+    try {
+      return await this.prisma.user.create({ data: { email, displayName: name, role: 'customer', isGuest: true } });
+    } catch (err) {
+      // Two guest checkouts for the same new email at once: the loser takes the row the winner made.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const winner = await find();
+        if (winner) return assertUsable(winner);
+      }
+      throw err;
+    }
+  }
+
+  // AC-6 — real pre-checkout validation (every active line still published, every design line still
+  // has its size), shared by the signed-in and guest checkouts.
+  private assertCheckoutable(cart: CartWithItems): void {
     const active = cart.items.filter((i) => i.status === 'active');
     if (active.length === 0) throw new ApiException('VALIDATION_ERROR', 400, 'Cart is empty');
 
@@ -262,11 +333,6 @@ export class CartService {
       if (!published) throw new ApiException('ITEM_NOT_PUBLISHED', 422, `"${item.design?.name ?? item.bundle?.name}" is no longer available`);
       if (item.designId && !item.sizeId) throw new ApiException('SIZE_REQUIRED', 422, `A size must be selected for "${item.design?.name}"`);
     }
-
-    // The credits balance is enforced inside OrdersService.createFromCart()'s own transaction, on
-    // the amount actually consumed (capped at the order total) — checking the raw requested amount
-    // here would wrongly reject "apply 5,000" from a customer whose 2,000 balance covers the order.
-    return this.orders.createFromCart(actor, cart, paymentMethod, creditsToApplyPkr);
   }
 
   private async findOwnItemOrThrow(actor: CartActor, itemId: string): Promise<CartItemWithRelations> {

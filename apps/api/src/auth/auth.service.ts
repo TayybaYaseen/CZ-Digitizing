@@ -65,13 +65,8 @@ export class AuthService {
   // --- Registration (AC-1) ---
 
   async register(dto: RegisterDto): Promise<UserProfileDto> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ApiException('EMAIL_ALREADY_REGISTERED', 409, 'Email is already registered');
-
     const passwordHash = await this.passwords.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: { email: dto.email, passwordHash, displayName: dto.displayName, role: 'customer' },
-    });
+    const user = (await this.claimGuestIdentity(dto, passwordHash)) ?? (await this.createCustomer(dto, passwordHash));
 
     // A welcome email only — registration no longer issues an email-verification code or link.
     // The verify-email / verify-email-code endpoints stay, so links and codes already sent (and
@@ -95,6 +90,35 @@ export class AuthService {
 
     await this.notifyAdminsOfNewRegistration(user);
     return toUserProfileDto(user);
+  }
+
+  private async createCustomer(dto: RegisterDto, passwordHash: string): Promise<User> {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ApiException('EMAIL_ALREADY_REGISTERED', 409, 'Email is already registered');
+    return this.prisma.user.create({
+      data: { email: dto.email, passwordHash, displayName: dto.displayName, role: 'customer' },
+    });
+  }
+
+  // Guest checkout — someone who bought without an account registers with the same email. That
+  // email already has a guest customer identity (User.isGuest, no password) owning their guest
+  // orders, so registering completes THAT identity instead of creating a second one: the orders are
+  // already on it and are neither duplicated nor moved. Only an identity that has never been signed
+  // in to and has no password qualifies (the conditional update is the atomic claim), and nothing is
+  // exposed by it: like any registration, signing in afterwards still requires the code emailed to
+  // the address (new-device check), which is what proves ownership — isGuest is cleared only then
+  // (issueTokens). Matched case-insensitively, as guest checkout itself matches.
+  private async claimGuestIdentity(dto: RegisterDto, passwordHash: string): Promise<User | null> {
+    const guest = await this.prisma.user.findFirst({
+      where: { email: { equals: dto.email.trim(), mode: 'insensitive' }, isGuest: true, passwordHash: null, role: 'customer' },
+    });
+    if (!guest) return null;
+    const claimed = await this.prisma.user.updateMany({
+      where: { id: guest.id, isGuest: true, passwordHash: null },
+      data: { passwordHash, ...(dto.displayName ? { displayName: dto.displayName } : {}) },
+    });
+    if (claimed.count !== 1) throw new ApiException('EMAIL_ALREADY_REGISTERED', 409, 'Email is already registered');
+    return this.prisma.user.findUniqueOrThrow({ where: { id: guest.id } });
   }
 
   // docs/specs/2026-08-28-02-notifications-system.md AC-1/AC-2 — real-time per-registration Admin
@@ -447,7 +471,10 @@ export class AuthService {
     const permissions = await this.computePermissions(user);
     const accessToken = this.tokens.signAccessToken({ userId: user.id, email: user.email, role: user.role, deviceId, permissions });
     const refreshToken = this.tokens.signRefreshToken({ userId: user.id, sessionId });
-    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    // Every path here has proven control of the email (emailed device code / magic link, verified
+    // OAuth email, or an already-trusted session), so a guest-checkout identity becomes an ordinary
+    // account at this point — its guest orders were on it all along.
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), ...(user.isGuest ? { isGuest: false } : {}) } });
     return { accessToken, refreshToken, user: toUserProfileDto(user), deviceId };
   }
 

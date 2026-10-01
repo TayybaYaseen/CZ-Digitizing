@@ -71,8 +71,25 @@ export interface OrderSummaryDto {
   paymentMethod: PaymentMethod;
   totalPkr: number;
   itemCount: number;
+  // What the home-page order card shows (added for guest checkout; additive, so existing readers of
+  // this DTO are unaffected): line names/quantities, the still-unpaid amount, and the backend's own
+  // file-access decision — the card only displays it, the download routes re-check it every time.
+  items: OrderSummaryItemDto[];
+  amountOutstandingPkr: number;
+  filesUnlocked: boolean;
   createdAt: string;
 }
+
+export interface OrderSummaryItemDto {
+  name: string;
+  sizeLabel: string | null;
+  quantity: number;
+}
+
+// Guest checkout — what a guest browser sees of its own order: everything a customer sees except
+// internal account ids (customerId). Served only by the /api/guest-orders routes, which resolve the
+// order by id AND the browser's guest access key together.
+export type GuestOrderDto = Omit<OrderDto, 'customerId'>;
 
 // Admin list row: adds who ordered and the bank-transfer review state so the Payments screen can be
 // a real receipt queue (AC-4 "the order is flagged for review").
@@ -84,6 +101,11 @@ export interface AdminOrderSummaryDto extends OrderSummaryDto {
   amountOutstandingPkr: number;
   bankTransferReference: string | null;
   latestReceipt: { id: string; uploadedAt: string; reviewStatus: ReceiptReviewStatus; contentType: string | null } | null;
+  // Guest checkout — true when the order was placed without signing in; the contact details are what
+  // the guest typed at checkout (the account email is customerEmail above).
+  placedAsGuest: boolean;
+  guestContactName: string | null;
+  guestContactWhatsapp: string | null;
 }
 
 type OrderItemWithNames = OrderItem & { design: { name: string } | null; bundle: { name: string } | null; size: { sizeLabel: string } | null };
@@ -167,8 +189,17 @@ export function toOrderSummaryDto(order: OrderWithRelations): OrderSummaryDto {
     paymentMethod: order.paymentMethod,
     totalPkr: Number(order.totalPkr),
     itemCount: order.items.reduce((sum, i) => sum + i.quantity, 0),
+    items: order.items.map((item) => ({ name: toItemDto(item).name, sizeLabel: item.size?.sizeLabel ?? null, quantity: item.quantity })),
+    amountOutstandingPkr: amountOutstandingPkrOf(order),
+    filesUnlocked: orderAllowsFileAccess(order),
     createdAt: order.createdAt.toISOString(),
   };
+}
+
+export function toGuestOrderDto(order: OrderWithRelations): GuestOrderDto {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { customerId, ...rest } = toOrderDto(order);
+  return rest;
 }
 
 export function toAdminOrderSummaryDto(order: OrderWithCustomer): AdminOrderSummaryDto {
@@ -183,5 +214,8 @@ export function toAdminOrderSummaryDto(order: OrderWithCustomer): AdminOrderSumm
     amountOutstandingPkr: amountOutstandingPkrOf(order),
     bankTransferReference: order.bankTransferReference,
     latestReceipt: latest ? { id: latest.id.toString(), uploadedAt: latest.uploadedAt.toISOString(), reviewStatus: latest.reviewStatus, contentType: latest.contentType } : null,
+    placedAsGuest: order.guestAccessKeyHash !== null,
+    guestContactName: order.guestContactName,
+    guestContactWhatsapp: order.guestContactWhatsapp,
   };
 }

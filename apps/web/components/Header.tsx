@@ -184,6 +184,16 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function CartIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 8H6.2" />
+      <circle cx="9.5" cy="20" r="1.2" />
+      <circle cx="17" cy="20" r="1.2" />
+    </svg>
+  );
+}
+
 function HamburgerIcon({ open }: { open: boolean }) {
   return (
     <span aria-hidden="true" className="flex h-4 w-4 flex-col items-center justify-center gap-[5px]">
@@ -378,6 +388,24 @@ export function Header() {
 
           <LanguageSwitcher />
 
+          {/* Cart in the top bar from `sm:` up (guest checkout: buying no longer needs an account,
+              and at `lg:`+ the drawer's Cart link is hidden along with the hamburger). Below `sm:`
+              the bar has no room for it without clipping the logo; phones reach the cart (with its
+              count) through the hamburger drawer's Cart link and the "View cart" link after adding. */}
+          <Link
+            href="/cart"
+            aria-label={itemCount > 0 ? `${t('nav.cart')} (${itemCount})` : t('nav.cart')}
+            data-testid="header-cart"
+            className="relative hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold sm:flex"
+          >
+            <CartIcon />
+            {itemCount > 0 && (
+              <span className="absolute -end-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-gold px-1 text-[10px] font-semibold leading-none text-brand-navy">
+                {itemCount}
+              </span>
+            )}
+          </Link>
+
           {user ? (
             <>
               <NotificationBell />
@@ -408,9 +436,15 @@ export function Header() {
             aria-expanded={menuOpen}
             aria-controls="cz-nav-drawer"
             aria-label={menuOpen ? t('header.closeMenu') : t('header.openMenu')}
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9 lg:hidden"
+            className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-field border border-brand-silver/20 text-brand-silver transition-colors hover:border-brand-gold/60 hover:text-brand-gold focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-gold/60 xs:h-8 xs:w-8 sm:h-9 sm:w-9 lg:hidden"
           >
             <HamburgerIcon open={menuOpen} />
+            {/* Phones have no cart icon in the bar (see above) — the menu shows the cart count. */}
+            {itemCount > 0 && !menuOpen && (
+              <span className="absolute -end-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-gold px-1 text-[10px] font-semibold leading-none text-brand-navy sm:hidden" aria-hidden="true">
+                {itemCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

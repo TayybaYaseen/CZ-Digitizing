@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
@@ -43,6 +44,8 @@ export default function DesignDetailPage() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  // Stays true after the 2-second "Added" flash so the View cart link remains.
+  const [inCart, setInCart] = useState(false);
 
   useEffect(() => {
     apiFetch<DesignDetailDto>(`/api/designs/${params.id}`)
@@ -73,6 +76,7 @@ export default function DesignDetailPage() {
     try {
       await addItem({ designId: design.id, sizeId: selectedSizeId, quantity: 1 });
       setAdded(true);
+      setInCart(true);
       setTimeout(() => setAdded(false), 2000);
     } catch (err) {
       setAddError(err instanceof ApiClientError ? errorMessage(err.error) : t('products.addToCartFailed'));
@@ -143,13 +147,20 @@ export default function DesignDetailPage() {
             </label>
           )}
           {addError && <p className="text-sm text-red-600">{addError}</p>}
-          <button
-            onClick={onAddToCart}
-            disabled={adding || !selectedSizeId}
-            className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
-          >
-            {added ? t('products.added') : adding ? t('products.adding') : t('products.addToCart')}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={onAddToCart}
+              disabled={adding || !selectedSizeId}
+              className="rounded-md bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy disabled:opacity-50"
+            >
+              {added ? t('products.added') : adding ? t('products.adding') : t('products.addToCart')}
+            </button>
+            {inCart && (
+              <Link href="/cart" className="text-sm font-medium text-brand-navy underline" data-testid="view-cart">
+                {t('products.viewCart')}
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 

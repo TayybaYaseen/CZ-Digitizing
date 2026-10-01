@@ -97,7 +97,15 @@ model User {
   // a user who never picks a language simply falls through to the AC-2 default (English).
   preferredLocale String? @map("preferred_locale")
 
-  sessions                  Session[]
+  // Guest checkout — true for a customer identity created by POST /api/cart/guest-checkout (no
+  // password, never signed in). It owns its orders exactly like any customer, so notifications,
+  // authorized files and admin views need no special case. Cleared the first time someone signs in
+  // as this user, which always requires proving ownership of the email address (an emailed
+  // new-device code, magic link, verified OAuth email or password-reset code) — that is also how a
+  // guest recovers and claims their orders without any order being copied or moved.
+  isGuest Boolean @default(false) @map("is_guest")
+
+  sessions                 Session[]
   adminPermissions          AdminPermission[]
   auditLogs                 AuditLog[]
   notifications             Notification[]
@@ -792,8 +800,9 @@ model CartItem {
 // OrdersService.createFromCart(), called from CartService.checkout() once cart validation passes
 // (AC-6 of the Cart spec) — never created any other way, so every order always starts from a real,
 // validated cart snapshot. AC-7: customerId is a required (non-nullable) FK — orders are a
-// customer-purchasing concept only, same posture as Cart.customerId being the "real identity" side
-// of that model's exactly-one-of-customer-or-guest split (there is no guest-order concept here).
+// customer-purchasing concept only. A guest checkout still has a customer: the guest identity
+// (User.isGuest) for the email entered at checkout, so every order path stays the same; what makes
+// it a guest order is guestAccessKeyHash below.
 model Order {
   id         BigInt @id @default(autoincrement())
   customerId BigInt @map("customer_id")
@@ -831,6 +840,18 @@ model Order {
   // reverse regardless of what the ledger looks like later.
   creditsUsed Decimal @default(0) @map("credits_used") @db.Decimal(10, 2)
 
+  // Guest checkout — set ONLY on an order placed without signing in. SHA-256 (hex) of the random
+  // 256-bit guest access key held in that browser's httpOnly czd_guest_orders cookie: the key, never
+  // the order id or the email, is what authorizes the /api/guest-orders routes, and only its hash
+  // is stored so a database read can't be replayed as a cookie. Not unique: one browser key covers
+  // every guest order that browser places. Null for every signed-in order.
+  guestAccessKeyHash   String? @map("guest_access_key_hash")
+  // What the guest typed at checkout, kept on the order so Admin can contact them. Snapshotted here
+  // rather than written onto the User: when the email already belongs to an account, a checkout
+  // without signing in must never change that account's profile.
+  guestContactName     String? @map("guest_contact_name")
+  guestContactWhatsapp String? @map("guest_contact_whatsapp")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -851,6 +872,7 @@ model Order {
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
+  @@index([guestAccessKeyHash], map: "idx_orders_guest_access_key_hash")
   @@map("orders")
 }
 

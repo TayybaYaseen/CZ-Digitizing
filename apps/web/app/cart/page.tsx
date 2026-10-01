@@ -103,11 +103,9 @@ export default function CartPage() {
     }
   }
 
+  // Guest checkout — no sign-in needed to buy: /checkout itself offers the guest details form to a
+  // visitor who isn't signed in (and a link to sign in instead). Credits above still need an account.
   function onCheckout() {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
     router.push('/checkout');
   }
 
