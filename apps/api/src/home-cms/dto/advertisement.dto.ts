@@ -15,6 +15,7 @@ export function toAdvertisementDto(row: AdvertisementWithTargets): Advertisement
     ctaLink: row.ctaLink,
     startDate: row.startDate.toISOString(),
     endDate: row.endDate.toISOString(),
+    isActive: row.isActive,
     targetCategoryId: row.targetCategoryId?.toString() ?? null,
     targetDesignIds: row.targetDesigns.map((t) => t.designId.toString()),
   };

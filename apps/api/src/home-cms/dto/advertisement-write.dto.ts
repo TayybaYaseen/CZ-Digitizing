@@ -69,11 +69,11 @@ export class UpdateAdvertisementDto {
 
   @IsOptional()
   @IsUrl(URL_OPTIONS)
-  bannerImageUrl?: string;
+  bannerImageUrl?: string | null; // null clears it (e.g. switching an ad from image to video)
 
   @IsOptional()
   @IsUrl(URL_OPTIONS)
-  bannerVideoUrl?: string;
+  bannerVideoUrl?: string | null;
 
   @IsOptional()
   @IsString()
