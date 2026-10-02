@@ -44,6 +44,7 @@ export interface AdvertisementDto {
   ctaLink: string | null;
   startDate: string;
   endDate: string;
+  isActive: boolean;
   targetCategoryId: string | null;
   targetDesignIds: string[];
 }

@@ -17,6 +17,7 @@ const EMPTY_FORM = {
   subheading: '',
   offerText: '',
   bannerImageUrl: '',
+  bannerVideoUrl: '',
   ctaText: '',
   ctaLink: '',
   startDate: '',
@@ -25,8 +26,13 @@ const EMPTY_FORM = {
   targetDesigns: [] as { id: string; name: string }[],
 };
 
+// <input type="datetime-local"> holds LOCAL wall-clock time, and onSubmit reads it back as local.
+// Filling it from toISOString() (UTC) shifted the window by the admin's UTC offset on every edit
+// (5h earlier in PKT) — enough to quietly end an ad, so it vanished from the site after a save.
 function toDateTimeLocal(iso: string) {
-  return iso ? new Date(iso).toISOString().slice(0, 16) : '';
+  if (!iso) return '';
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 // docs/specs/2026-08-28-13-home-promotions-cms.md AC-3/AC-4/AC-5 (aspect A-018b). Targeting is
@@ -44,7 +50,9 @@ export default function AdvertisementsAdminPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -77,11 +85,12 @@ export default function AdvertisementsAdminPage() {
       subheading: ad.subheading ?? '',
       offerText: ad.offerText ?? '',
       bannerImageUrl: ad.bannerImageUrl ?? '',
+      bannerVideoUrl: ad.bannerVideoUrl ?? '',
       ctaText: ad.ctaText ?? '',
       ctaLink: ad.ctaLink ?? '',
       startDate: toDateTimeLocal(ad.startDate),
       endDate: toDateTimeLocal(ad.endDate),
-      isActive: true,
+      isActive: ad.isActive,
       targetDesigns,
     });
   }
@@ -102,6 +111,27 @@ export default function AdvertisementsAdminPage() {
     }
   }
 
+  async function onVideoSelected(fileList: FileList | null) {
+    const file = fileList?.item(0);
+    if (!file) return;
+    setVideoUploading(true);
+    try {
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      const { url } = await apiFetch<{ url: string }>('/api/uploads/videos', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: uploadForm });
+      setForm((f) => ({ ...f, bannerVideoUrl: url }));
+    } catch (err) {
+      setApiError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Video upload failed.', traceId: '' });
+    } finally {
+      setVideoUploading(false);
+    }
+  }
+
+  function resetFileInputs() {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  }
+
   async function onSubmit() {
     setApiError(null);
     setSuccessMessage(null);
@@ -115,7 +145,9 @@ export default function AdvertisementsAdminPage() {
         heading: form.heading,
         subheading: form.subheading || undefined,
         offerText: form.offerText || undefined,
-        bannerImageUrl: form.bannerImageUrl || undefined,
+        // null (not undefined) on edit so removing the image / video actually clears it server-side.
+        bannerImageUrl: form.bannerImageUrl || (editingId ? null : undefined),
+        bannerVideoUrl: form.bannerVideoUrl || (editingId ? null : undefined),
         ctaText: form.ctaText || undefined,
         ctaLink: form.ctaLink || undefined,
         startDate: new Date(form.startDate).toISOString(),
@@ -132,7 +164,7 @@ export default function AdvertisementsAdminPage() {
       }
       setEditingId(null);
       setForm(EMPTY_FORM);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      resetFileInputs();
       load();
     } catch (err) {
       setApiError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to save advertisement.', traceId: '' });
@@ -173,6 +205,7 @@ export default function AdvertisementsAdminPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-400">
+                <th className="px-4 py-3 font-medium">Media</th>
                 <th className="px-4 py-3 font-medium">Heading</th>
                 <th className="px-4 py-3 font-medium">Window</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -181,9 +214,19 @@ export default function AdvertisementsAdminPage() {
             </thead>
             <tbody>
               {ads.map((ad) => {
-                const isLive = new Date(ad.startDate).getTime() <= now && new Date(ad.endDate).getTime() >= now;
+                const isLive = ad.isActive && new Date(ad.startDate).getTime() <= now && new Date(ad.endDate).getTime() >= now;
                 return (
                   <tr key={ad.id} className="border-b border-gray-100 last:border-0">
+                    <td className="px-4 py-3">
+                      {ad.bannerVideoUrl ? (
+                        <video src={ad.bannerVideoUrl} poster={ad.bannerImageUrl ?? undefined} muted playsInline preload="metadata" className="h-11 w-16 rounded-field bg-navy-800 object-cover" />
+                      ) : ad.bannerImageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={ad.bannerImageUrl} alt="" className="h-11 w-16 rounded-field object-cover" />
+                      ) : (
+                        <div className="h-11 w-16 rounded-field bg-gray-100" />
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-navy-800">{ad.heading}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {new Date(ad.startDate).toLocaleDateString()} – {new Date(ad.endDate).toLocaleDateString()}
@@ -235,8 +278,70 @@ export default function AdvertisementsAdminPage() {
                 onChange={(e) => onImageSelected(e.target.files)}
                 className="block flex-1 text-sm text-gray-600 file:mr-3 file:rounded-field file:border-0 file:bg-gold-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-navy-800"
               />
+              {form.bannerImageUrl && (
+                <Button
+                  type="button"
+                  variant="outlineNavy"
+                  size="sm"
+                  onClick={() => {
+                    setForm((f) => ({ ...f, bannerImageUrl: '' }));
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                >
+                  Remove
+                </Button>
+              )}
             </div>
           </FormField>
+          <FormField label="Banner video (optional — plays instead of the image, which becomes its poster)" htmlFor="bannerVideo">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <input
+                  ref={videoInputRef}
+                  id="bannerVideo"
+                  type="file"
+                  accept="video/mp4,video/webm"
+                  disabled={videoUploading}
+                  onChange={(e) => onVideoSelected(e.target.files)}
+                  className="block flex-1 text-sm text-gray-600 file:mr-3 file:rounded-field file:border-0 file:bg-gold-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-navy-800"
+                />
+                {videoUploading && <span className="text-xs text-gray-500">Uploading…</span>}
+                {form.bannerVideoUrl && (
+                  <Button
+                    type="button"
+                    variant="outlineNavy"
+                    size="sm"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, bannerVideoUrl: '' }));
+                      if (videoInputRef.current) videoInputRef.current.value = '';
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <input
+                id="bannerVideoUrl"
+                aria-label="Banner video URL"
+                placeholder="…or paste a video URL (MP4/WebM)"
+                className={inputClass}
+                value={form.bannerVideoUrl}
+                onChange={(e) => setForm((f) => ({ ...f, bannerVideoUrl: e.target.value }))}
+              />
+            </div>
+          </FormField>
+          {(form.bannerImageUrl || form.bannerVideoUrl) && (
+            // Same treatment as the storefront's ad strip (apps/web/components/home/PromoStrip.tsx):
+            // full width at the media's own aspect ratio, capped height, object-cover.
+            <div className="overflow-hidden rounded-field bg-navy-800">
+              {form.bannerVideoUrl ? (
+                <video key={form.bannerVideoUrl} src={form.bannerVideoUrl} poster={form.bannerImageUrl || undefined} autoPlay muted loop playsInline className="block h-auto max-h-48 w-full object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.bannerImageUrl} alt="" className="block h-auto max-h-48 w-full object-cover" />
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <FormField label="CTA text (optional)" htmlFor="ctaText">
               <input id="ctaText" className={inputClass} value={form.ctaText} onChange={(e) => setForm((f) => ({ ...f, ctaText: e.target.value }))} />
@@ -262,7 +367,7 @@ export default function AdvertisementsAdminPage() {
           </label>
           <ErrorBanner error={apiError} />
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={onSubmit} className={submitButtonClass}>
+            <button type="button" disabled={busy || imageUploading || videoUploading} onClick={onSubmit} className={submitButtonClass}>
               {editingId ? 'Save changes' : 'Create advertisement'}
             </button>
             {editingId && (
@@ -272,6 +377,7 @@ export default function AdvertisementsAdminPage() {
                 onClick={() => {
                   setEditingId(null);
                   setForm(EMPTY_FORM);
+                  resetFileInputs();
                 }}
               >
                 Cancel
