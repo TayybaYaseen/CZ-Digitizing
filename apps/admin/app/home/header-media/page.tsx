@@ -158,6 +158,8 @@ export default function HeaderMediaAdminPage() {
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.imageUrl} alt="" className="h-11 w-16 rounded-field object-cover" />
+                    ) : item.videoUrl ? (
+                      <video src={item.videoUrl} muted playsInline preload="metadata" className="h-11 w-16 rounded-field bg-navy-800 object-cover" />
                     ) : (
                       <div className="h-11 w-16 rounded-field bg-gray-100" />
                     )}
@@ -203,6 +205,23 @@ export default function HeaderMediaAdminPage() {
           <FormField label="Video URL (optional)" htmlFor="videoUrl">
             <input id="videoUrl" className={inputClass} value={form.videoUrl} onChange={(e) => setForm((f) => ({ ...f, videoUrl: e.target.value }))} />
           </FormField>
+          {(form.imageUrl || form.videoUrl) && (
+            // Mirrors the storefront hero's treatment (apps/web/components/home/Hero.tsx): media covers
+            // the end side and fades into navy toward the text. A video plays over the image (its poster).
+            <div className="relative h-40 overflow-hidden rounded-field bg-navy-800">
+              <div className="absolute inset-y-0 right-0 w-[72%]">
+                {form.videoUrl ? (
+                  <video key={form.videoUrl} src={form.videoUrl} poster={form.imageUrl || undefined} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-navy-800 from-0% via-navy-800/40 via-35% to-transparent to-70%" />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-navy-800/85 from-0% via-navy-800/50 via-40% to-transparent to-75%" />
+              <p className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-widest text-gold-500">Homepage hero preview</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <FormField label="Heading (optional)" htmlFor="heading">
               <input id="heading" className={inputClass} value={form.heading} onChange={(e) => setForm((f) => ({ ...f, heading: e.target.value }))} />
