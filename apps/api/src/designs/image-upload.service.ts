@@ -14,6 +14,14 @@ const ALLOWED_MIME_EXT: Record<string, string> = {
   'image/gif': '.gif',
 };
 
+// Advertisement banner videos (docs/specs/2026-08-28-13-home-promotions-cms.md AC-3 "image/banner or
+// video") — short muted loops, so formats every evergreen browser plays inline in a <video>.
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+const ALLOWED_VIDEO_MIME_EXT: Record<string, string> = {
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+};
+
 // Admin's "Create design" flow only ever had a plain URL text field for previewImageUrl — no way
 // to actually upload a local image file. This gives Admin a real upload step, storing under a
 // PUBLIC (not the A-007 private embroidery) root so the resulting URL works directly in <img src>
@@ -30,6 +38,7 @@ export class ImageUploadService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await mkdir(join(this.root, 'images'), { recursive: true });
+    await mkdir(join(this.root, 'videos'), { recursive: true });
   }
 
   async saveImage(file: { mimetype: string; buffer: Buffer; originalname: string }): Promise<{ url: string }> {
@@ -49,5 +58,23 @@ export class ImageUploadService implements OnModuleInit {
     await writeFile(path, file.buffer);
 
     return { url: `${this.publicUrlBase}/images/${filename}` };
+  }
+
+  // Same public root and content-addressed naming as saveImage — express.static serves it with
+  // Range support, which Safari/iOS require before they'll play a <video>.
+  async saveVideo(file: { mimetype: string; buffer: Buffer }): Promise<{ url: string }> {
+    const ext = ALLOWED_VIDEO_MIME_EXT[file.mimetype];
+    if (!ext) {
+      throw new ApiException('UNSUPPORTED_FILE_TYPE', 415, `"${file.mimetype}" is not a supported video type (MP4/WebM only)`);
+    }
+    if (file.buffer.length > MAX_VIDEO_BYTES) {
+      throw new ApiException('FILE_TOO_LARGE', 413, 'Video exceeds the 50MB limit');
+    }
+
+    const hash = createHash('sha256').update(file.buffer).digest('hex');
+    const filename = `${hash}${ext}`;
+    await writeFile(join(this.root, 'videos', filename), file.buffer);
+
+    return { url: `${this.publicUrlBase}/videos/${filename}` };
   }
 }

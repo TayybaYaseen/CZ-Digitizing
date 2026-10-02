@@ -6,13 +6,14 @@ import { DesignsController } from './designs.controller';
 import { DesignsService } from './designs.service';
 import { ImageUploadController } from './image-upload.controller';
 import { ImageUploadService } from './image-upload.service';
+import { VideoUploadController } from './video-upload.controller';
 
 // AC-14 (Content & Knowledge Base spec) — imports BlogModule so DesignsService.searchSuggestions()
 // can fold in matching published Blog post titles, per the Design Catalog spec's own AC-6 search
 // scope (see designs.service.ts's TODO(A-014, A-012d) note this closes out).
 @Module({
   imports: [BlogModule],
-  controllers: [CategoriesController, SubcategoriesController, DesignsController, ImageUploadController],
+  controllers: [CategoriesController, SubcategoriesController, DesignsController, ImageUploadController, VideoUploadController],
   providers: [CategoriesService, DesignsService, ImageUploadService],
   // ImageUploadService is reused by AccountModule (A-019) for customer avatar uploads — same
   // "content-addressed public upload" mechanism as an admin's design preview image, no reason to

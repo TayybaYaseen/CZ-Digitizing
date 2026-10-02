@@ -26,8 +26,13 @@ const EMPTY_FORM = {
   targetDesigns: [] as { id: string; name: string }[],
 };
 
+// <input type="datetime-local"> holds LOCAL wall-clock time, and onSubmit reads it back as local.
+// Filling it from toISOString() (UTC) shifted the window by the admin's UTC offset on every edit
+// (5h earlier in PKT) — enough to quietly end an ad, so it vanished from the site after a save.
 function toDateTimeLocal(iso: string) {
-  return iso ? new Date(iso).toISOString().slice(0, 16) : '';
+  if (!iso) return '';
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 // docs/specs/2026-08-28-13-home-promotions-cms.md AC-3/AC-4/AC-5 (aspect A-018b). Targeting is
@@ -45,7 +50,9 @@ export default function AdvertisementsAdminPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -104,6 +111,27 @@ export default function AdvertisementsAdminPage() {
     }
   }
 
+  async function onVideoSelected(fileList: FileList | null) {
+    const file = fileList?.item(0);
+    if (!file) return;
+    setVideoUploading(true);
+    try {
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      const { url } = await apiFetch<{ url: string }>('/api/uploads/videos', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: uploadForm });
+      setForm((f) => ({ ...f, bannerVideoUrl: url }));
+    } catch (err) {
+      setApiError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Video upload failed.', traceId: '' });
+    } finally {
+      setVideoUploading(false);
+    }
+  }
+
+  function resetFileInputs() {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  }
+
   async function onSubmit() {
     setApiError(null);
     setSuccessMessage(null);
@@ -136,7 +164,7 @@ export default function AdvertisementsAdminPage() {
       }
       setEditingId(null);
       setForm(EMPTY_FORM);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      resetFileInputs();
       load();
     } catch (err) {
       setApiError(err instanceof ApiClientError ? err.error : { code: 'INTERNAL_ERROR', message: 'Failed to save advertisement.', traceId: '' });
@@ -265,8 +293,42 @@ export default function AdvertisementsAdminPage() {
               )}
             </div>
           </FormField>
-          <FormField label="Banner video URL (optional — plays instead of the image, which becomes its poster)" htmlFor="bannerVideoUrl">
-            <input id="bannerVideoUrl" className={inputClass} value={form.bannerVideoUrl} onChange={(e) => setForm((f) => ({ ...f, bannerVideoUrl: e.target.value }))} />
+          <FormField label="Banner video (optional — plays instead of the image, which becomes its poster)" htmlFor="bannerVideo">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <input
+                  ref={videoInputRef}
+                  id="bannerVideo"
+                  type="file"
+                  accept="video/mp4,video/webm"
+                  disabled={videoUploading}
+                  onChange={(e) => onVideoSelected(e.target.files)}
+                  className="block flex-1 text-sm text-gray-600 file:mr-3 file:rounded-field file:border-0 file:bg-gold-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-navy-800"
+                />
+                {videoUploading && <span className="text-xs text-gray-500">Uploading…</span>}
+                {form.bannerVideoUrl && (
+                  <Button
+                    type="button"
+                    variant="outlineNavy"
+                    size="sm"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, bannerVideoUrl: '' }));
+                      if (videoInputRef.current) videoInputRef.current.value = '';
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <input
+                id="bannerVideoUrl"
+                aria-label="Banner video URL"
+                placeholder="…or paste a video URL (MP4/WebM)"
+                className={inputClass}
+                value={form.bannerVideoUrl}
+                onChange={(e) => setForm((f) => ({ ...f, bannerVideoUrl: e.target.value }))}
+              />
+            </div>
           </FormField>
           {(form.bannerImageUrl || form.bannerVideoUrl) && (
             // Same treatment as the storefront's ad strip (apps/web/components/home/PromoStrip.tsx):
@@ -305,7 +367,7 @@ export default function AdvertisementsAdminPage() {
           </label>
           <ErrorBanner error={apiError} />
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={onSubmit} className={submitButtonClass}>
+            <button type="button" disabled={busy || imageUploading || videoUploading} onClick={onSubmit} className={submitButtonClass}>
               {editingId ? 'Save changes' : 'Create advertisement'}
             </button>
             {editingId && (
@@ -315,6 +377,7 @@ export default function AdvertisementsAdminPage() {
                 onClick={() => {
                   setEditingId(null);
                   setForm(EMPTY_FORM);
+                  resetFileInputs();
                 }}
               >
                 Cancel
