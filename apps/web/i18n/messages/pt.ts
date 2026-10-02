@@ -61,6 +61,7 @@ const pt: Messages = {
     subscription: 'Assinatura',
     myAccount: 'Minha conta',
     myQuotes: 'Meus orçamentos',
+    yourOrders: 'Seus pedidos',
     more: 'Mais',
     groupMain: 'Principal',
     groupRequests: 'Pedidos',
@@ -288,7 +289,6 @@ const pt: Messages = {
     failed: 'Falha no pagamento',
   },
   homeOrders: {
-    title: 'Seus pedidos',
     guestOrder: 'Pedido como convidado',
     orderDate: 'Data do pedido',
     orderStatus: 'Status do pedido',
@@ -300,7 +300,6 @@ const pt: Messages = {
     viewOrder: 'Ver pedido',
     payNow: 'Pagar e enviar comprovante',
     support: 'Precisa de ajuda com este pedido?',
-    viewAll: 'Ver todos os pedidos',
     savedOnBrowser: 'Os pedidos como convidado ficam salvos neste navegador. Para vê-los em outro dispositivo, entre com o e-mail usado na compra — na primeira vez, use “Esqueceu a senha?” para criar uma senha.',
     noGuestOrders: 'Nenhum pedido foi encontrado neste navegador.',
     orderUnavailable: 'Pedido indisponível',

@@ -61,6 +61,7 @@ const nl: Messages = {
     subscription: 'Abonnement',
     myAccount: 'Mijn account',
     myQuotes: 'Mijn offertes',
+    yourOrders: 'Uw bestellingen',
     more: 'Meer',
     groupMain: 'Hoofdmenu',
     groupRequests: 'Aanvragen',
@@ -288,7 +289,6 @@ const nl: Messages = {
     failed: 'Betaling mislukt',
   },
   homeOrders: {
-    title: 'Uw bestellingen',
     guestOrder: 'Gastbestelling',
     orderDate: 'Besteldatum',
     orderStatus: 'Bestelstatus',
@@ -300,7 +300,6 @@ const nl: Messages = {
     viewOrder: 'Bestelling bekijken',
     payNow: 'Betalen & betaalbewijs uploaden',
     support: 'Hulp nodig bij deze bestelling?',
-    viewAll: 'Alle bestellingen bekijken',
     savedOnBrowser: 'Gastbestellingen worden in deze browser opgeslagen. Wilt u ze op een ander apparaat zien, log dan in met het e-mailadres dat u bij het afrekenen gebruikte — gebruik de eerste keer “Wachtwoord vergeten?” om een wachtwoord in te stellen.',
     noGuestOrders: 'Er zijn geen bestellingen gevonden in deze browser.',
     orderUnavailable: 'Bestelling niet beschikbaar',

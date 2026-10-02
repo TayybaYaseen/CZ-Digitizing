@@ -62,6 +62,7 @@ const ja: Messages = {
     subscription: 'サブスクリプション',
     myAccount: 'マイアカウント',
     myQuotes: '見積もり一覧',
+    yourOrders: 'ご注文',
     more: 'その他',
     groupMain: 'メイン',
     groupRequests: 'ご依頼',
@@ -283,7 +284,6 @@ const ja: Messages = {
     failed: '支払い失敗',
   },
   homeOrders: {
-    title: 'ご注文',
     guestOrder: 'ゲスト注文',
     orderDate: '注文日',
     orderStatus: '注文ステータス',
@@ -295,7 +295,6 @@ const ja: Messages = {
     viewOrder: '注文を見る',
     payNow: '支払って控えをアップロード',
     support: 'このご注文についてお困りですか？',
-    viewAll: 'すべての注文を見る',
     savedOnBrowser: 'ゲスト注文はこのブラウザに保存されます。別の端末で確認するには、注文時のメールアドレスでログインしてください。初回は「パスワードをお忘れですか？」からパスワードを設定してください。',
     noGuestOrders: 'このブラウザには注文が見つかりませんでした。',
     orderUnavailable: 'この注文は表示できません',

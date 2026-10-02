@@ -62,6 +62,7 @@ const tr: Messages = {
     subscription: 'Abonelik',
     myAccount: 'Hesabım',
     myQuotes: 'Tekliflerim',
+    yourOrders: 'Siparişleriniz',
     more: 'Daha fazla',
     groupMain: 'Ana menü',
     groupRequests: 'Talepler',
@@ -289,7 +290,6 @@ const tr: Messages = {
     failed: 'Ödeme başarısız',
   },
   homeOrders: {
-    title: 'Siparişleriniz',
     guestOrder: 'Misafir siparişi',
     orderDate: 'Sipariş tarihi',
     orderStatus: 'Sipariş durumu',
@@ -301,7 +301,6 @@ const tr: Messages = {
     viewOrder: 'Siparişi görüntüle',
     payNow: 'Öde ve dekontu yükle',
     support: 'Bu siparişle ilgili yardım mı gerekiyor?',
-    viewAll: 'Tüm siparişleri görüntüle',
     savedOnBrowser: 'Misafir siparişleri bu tarayıcıya kaydedilir. Başka bir cihazda görmek için ödeme sırasında kullandığınız e-posta ile giriş yapın — ilk seferde şifre belirlemek için “Şifrenizi mi unuttunuz?” seçeneğini kullanın.',
     noGuestOrders: 'Bu tarayıcıda sipariş bulunamadı.',
     orderUnavailable: 'Sipariş kullanılamıyor',

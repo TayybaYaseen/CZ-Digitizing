@@ -61,6 +61,7 @@ const it: Messages = {
     subscription: 'Abbonamento',
     myAccount: 'Il mio account',
     myQuotes: 'I miei preventivi',
+    yourOrders: 'I tuoi ordini',
     more: 'Altro',
     groupMain: 'Principale',
     groupRequests: 'Richieste',
@@ -288,7 +289,6 @@ const it: Messages = {
     failed: 'Pagamento non riuscito',
   },
   homeOrders: {
-    title: 'I tuoi ordini',
     guestOrder: 'Ordine come ospite',
     orderDate: 'Data dell’ordine',
     orderStatus: 'Stato dell’ordine',
@@ -300,7 +300,6 @@ const it: Messages = {
     viewOrder: 'Vedi ordine',
     payNow: 'Paga e carica la ricevuta',
     support: 'Hai bisogno di aiuto con questo ordine?',
-    viewAll: 'Vedi tutti gli ordini',
     savedOnBrowser: 'Gli ordini come ospite sono salvati in questo browser. Per vederli su un altro dispositivo, accedi con l’email usata al momento dell’ordine; la prima volta, usa “Password dimenticata?” per impostare una password.',
     noGuestOrders: 'Nessun ordine trovato in questo browser.',
     orderUnavailable: 'Ordine non disponibile',

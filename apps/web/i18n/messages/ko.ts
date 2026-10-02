@@ -62,6 +62,7 @@ const ko: Messages = {
     subscription: '구독',
     myAccount: '내 계정',
     myQuotes: '내 견적',
+    yourOrders: '내 주문',
     more: '더보기',
     groupMain: '메인',
     groupRequests: '의뢰',
@@ -283,7 +284,6 @@ const ko: Messages = {
     failed: '결제 실패',
   },
   homeOrders: {
-    title: '내 주문',
     guestOrder: '비회원 주문',
     orderDate: '주문일',
     orderStatus: '주문 상태',
@@ -295,7 +295,6 @@ const ko: Messages = {
     viewOrder: '주문 보기',
     payNow: '결제 후 영수증 업로드',
     support: '이 주문에 도움이 필요하신가요?',
-    viewAll: '전체 주문 보기',
     savedOnBrowser: '비회원 주문은 이 브라우저에 저장됩니다. 다른 기기에서 보려면 주문 시 사용한 이메일로 로그인하세요. 처음에는 “비밀번호를 잊으셨나요?”로 비밀번호를 설정하세요.',
     noGuestOrders: '이 브라우저에서 찾은 주문이 없습니다.',
     orderUnavailable: '주문을 볼 수 없습니다',

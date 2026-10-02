@@ -49,6 +49,10 @@ const PRIMARY_LINKS: NavLinkDef[] = [
 const MAIN_LINKS = PRIMARY_LINKS.slice(0, 5);
 const REQUEST_LINKS = PRIMARY_LINKS.slice(5, 7);
 const CONTACT_LINK: NavLinkDef = { href: '/contact', label: 'nav.contactUs' };
+// The one canonical "Your Orders" page — a signed-in customer's order history or a guest browser's
+// own orders. A direct nav item placed right before "More" (never inside it), on the desktop row
+// and in the drawer alike; it replaced the order cards the home page used to show.
+const YOUR_ORDERS_LINK: NavLinkDef = { href: '/account/orders', label: 'nav.yourOrders' };
 
 // SRS §4 lists "More" as its own nav item with Subscription/My Account following on the next
 // page break, without specifying what "More" itself contains — read here as a secondary-items
@@ -456,6 +460,7 @@ export function Header() {
         {MAIN_LINKS.map((link) => (
           <DesktopNavLink key={link.href} href={link.href} label={t(link.label)} active={pathname === link.href} />
         ))}
+        <DesktopNavLink href={YOUR_ORDERS_LINK.href} label={t(YOUR_ORDERS_LINK.label)} active={pathname === YOUR_ORDERS_LINK.href} />
         <DesktopMoreMenu pathname={pathname} />
       </nav>
 
@@ -492,6 +497,12 @@ export function Header() {
                     onClick={closeMenu}
                   />
                 ))}
+                <DrawerLink
+                  href={YOUR_ORDERS_LINK.href}
+                  label={t(YOUR_ORDERS_LINK.label)}
+                  active={pathname === YOUR_ORDERS_LINK.href}
+                  onClick={closeMenu}
+                />
               </DrawerGroup>
 
               <DrawerGroup title={t('nav.groupRequests')}>

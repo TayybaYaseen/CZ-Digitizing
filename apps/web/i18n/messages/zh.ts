@@ -62,6 +62,7 @@ const zh: Messages = {
     subscription: '订阅',
     myAccount: '我的账户',
     myQuotes: '我的报价',
+    yourOrders: '我的订单',
     more: '更多',
     groupMain: '主菜单',
     groupRequests: '需求',
@@ -283,7 +284,6 @@ const zh: Messages = {
     failed: '付款失败',
   },
   homeOrders: {
-    title: '我的订单',
     guestOrder: '游客订单',
     orderDate: '下单日期',
     orderStatus: '订单状态',
@@ -295,7 +295,6 @@ const zh: Messages = {
     viewOrder: '查看订单',
     payNow: '付款并上传凭证',
     support: '这个订单需要帮助吗？',
-    viewAll: '查看全部订单',
     savedOnBrowser: '游客订单保存在此浏览器中。如需在其他设备上查看，请使用下单时填写的邮箱登录——首次登录请通过“忘记密码？”设置密码。',
     noGuestOrders: '此浏览器中没有找到订单。',
     orderUnavailable: '订单不可用',
