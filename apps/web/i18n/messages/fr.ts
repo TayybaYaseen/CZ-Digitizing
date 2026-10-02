@@ -61,6 +61,7 @@ const fr: Messages = {
     subscription: 'Abonnement',
     myAccount: 'Mon compte',
     myQuotes: 'Mes devis',
+    yourOrders: 'Vos commandes',
     more: 'Plus',
     groupMain: 'Principal',
     groupRequests: 'Demandes',
@@ -288,7 +289,6 @@ const fr: Messages = {
     failed: 'Échec du paiement',
   },
   homeOrders: {
-    title: 'Vos commandes',
     guestOrder: 'Commande invité',
     orderDate: 'Date de commande',
     orderStatus: 'Statut de la commande',
@@ -300,7 +300,6 @@ const fr: Messages = {
     viewOrder: 'Voir la commande',
     payNow: 'Payer et envoyer le justificatif',
     support: 'Besoin d’aide pour cette commande ?',
-    viewAll: 'Voir toutes les commandes',
     savedOnBrowser: 'Les commandes invité sont enregistrées sur ce navigateur. Pour les voir sur un autre appareil, connectez-vous avec l’e-mail utilisé lors de la commande — la première fois, utilisez « Mot de passe oublié ? » pour définir un mot de passe.',
     noGuestOrders: 'Aucune commande trouvée sur ce navigateur.',
     orderUnavailable: 'Commande indisponible',

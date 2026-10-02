@@ -61,6 +61,7 @@ const de: Messages = {
     subscription: 'Abonnement',
     myAccount: 'Mein Konto',
     myQuotes: 'Meine Angebote',
+    yourOrders: 'Ihre Bestellungen',
     more: 'Mehr',
     groupMain: 'Hauptmenü',
     groupRequests: 'Anfragen',
@@ -288,7 +289,6 @@ const de: Messages = {
     failed: 'Zahlung fehlgeschlagen',
   },
   homeOrders: {
-    title: 'Ihre Bestellungen',
     guestOrder: 'Gastbestellung',
     orderDate: 'Bestelldatum',
     orderStatus: 'Bestellstatus',
@@ -300,7 +300,6 @@ const de: Messages = {
     viewOrder: 'Bestellung ansehen',
     payNow: 'Bezahlen & Beleg hochladen',
     support: 'Brauchen Sie Hilfe zu dieser Bestellung?',
-    viewAll: 'Alle Bestellungen ansehen',
     savedOnBrowser: 'Gastbestellungen werden in diesem Browser gespeichert. Um sie auf einem anderen Gerät zu sehen, melden Sie sich mit der beim Bestellen verwendeten E-Mail an – beim ersten Mal über „Passwort vergessen?“, um ein Passwort festzulegen.',
     noGuestOrders: 'In diesem Browser wurden keine Bestellungen gefunden.',
     orderUnavailable: 'Bestellung nicht verfügbar',

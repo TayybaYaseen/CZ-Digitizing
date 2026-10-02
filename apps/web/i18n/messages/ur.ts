@@ -63,6 +63,7 @@ const ur: Messages = {
     subscription: 'سبسکرپشن',
     myAccount: 'میرا اکاؤنٹ',
     myQuotes: 'میرے کوٹیشن',
+    yourOrders: 'آپ کے آرڈرز',
     more: 'مزید',
     groupMain: 'مرکزی',
     groupRequests: 'درخواستیں',
@@ -290,7 +291,6 @@ const ur: Messages = {
     failed: 'ادائیگی ناکام',
   },
   homeOrders: {
-    title: 'آپ کے آرڈرز',
     guestOrder: 'مہمان آرڈر',
     orderDate: 'آرڈر کی تاریخ',
     orderStatus: 'آرڈر کی صورتحال',
@@ -302,7 +302,6 @@ const ur: Messages = {
     viewOrder: 'آرڈر دیکھیں',
     payNow: 'ادائیگی کریں اور رسید اپ لوڈ کریں',
     support: 'اس آرڈر کے لیے مدد چاہیے؟',
-    viewAll: 'تمام آرڈرز دیکھیں',
     savedOnBrowser: 'مہمان آرڈرز اسی براؤزر میں محفوظ رہتے ہیں۔ انہیں کسی دوسرے ڈیوائس پر دیکھنے کے لیے چیک آؤٹ میں استعمال کی گئی ای میل سے لاگ اِن کریں — پہلی بار پاس ورڈ بنانے کے لیے ”پاس ورڈ بھول گئے؟“ استعمال کریں۔',
     noGuestOrders: 'اس براؤزر میں کوئی آرڈر نہیں ملا۔',
     orderUnavailable: 'آرڈر دستیاب نہیں',

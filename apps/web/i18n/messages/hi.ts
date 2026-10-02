@@ -63,6 +63,7 @@ const hi: Messages = {
     subscription: 'सब्सक्रिप्शन',
     myAccount: 'मेरा खाता',
     myQuotes: 'मेरे कोटेशन',
+    yourOrders: 'आपके ऑर्डर',
     more: 'और',
     groupMain: 'मुख्य',
     groupRequests: 'अनुरोध',
@@ -290,7 +291,6 @@ const hi: Messages = {
     failed: 'भुगतान विफल',
   },
   homeOrders: {
-    title: 'आपके ऑर्डर',
     guestOrder: 'गेस्ट ऑर्डर',
     orderDate: 'ऑर्डर की तारीख',
     orderStatus: 'ऑर्डर की स्थिति',
@@ -302,7 +302,6 @@ const hi: Messages = {
     viewOrder: 'ऑर्डर देखें',
     payNow: 'भुगतान करें और रसीद अपलोड करें',
     support: 'इस ऑर्डर के लिए मदद चाहिए?',
-    viewAll: 'सभी ऑर्डर देखें',
     savedOnBrowser: 'गेस्ट ऑर्डर इसी ब्राउज़र में सेव रहते हैं। उन्हें किसी दूसरे डिवाइस पर देखने के लिए चेकआउट में इस्तेमाल किए गए ईमेल से लॉग इन करें — पहली बार पासवर्ड सेट करने के लिए “पासवर्ड भूल गए?” का उपयोग करें।',
     noGuestOrders: 'इस ब्राउज़र में कोई ऑर्डर नहीं मिला।',
     orderUnavailable: 'ऑर्डर उपलब्ध नहीं है',

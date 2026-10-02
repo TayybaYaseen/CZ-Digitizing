@@ -22,10 +22,11 @@ export interface OrderCardDto {
 
 const MAX_ITEMS_SHOWN = 3;
 
-// Guest checkout — the home-page order card, for a signed-in customer's recent orders and a guest
+// Guest checkout — the "Your Orders" page's order card, for a signed-in customer's orders and a guest
 // browser's own orders alike. Same card treatment as the rest of the site (rounded-card, brand
 // navy/gold). Holds no payment details beyond amounts: no bank data, receipt files or card numbers.
-export function OrderCard({ order, guest }: { order: OrderCardDto; guest: boolean }) {
+// `children` are extra per-order actions rendered under the card's own (review, file-format request).
+export function OrderCard({ order, guest, children }: { order: OrderCardDto; guest: boolean; children?: React.ReactNode }) {
   const { t, tOr, formatDate } = useLocale();
   const awaitingPayment = order.status === 'payment_pending' && order.amountOutstandingPkr > 0;
   const shown = order.items.slice(0, MAX_ITEMS_SHOWN);
@@ -89,6 +90,7 @@ export function OrderCard({ order, guest }: { order: OrderCardDto; guest: boolea
           {t('homeOrders.support')}
         </Link>
       </div>
+      {children}
     </article>
   );
 }

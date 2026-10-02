@@ -64,6 +64,7 @@ const ar: Messages = {
     subscription: 'الاشتراك',
     myAccount: 'حسابي',
     myQuotes: 'عروض أسعاري',
+    yourOrders: 'طلباتك',
     more: 'المزيد',
     groupMain: 'القائمة الرئيسية',
     groupRequests: 'الطلبات',
@@ -301,7 +302,6 @@ const ar: Messages = {
     failed: 'فشل الدفع',
   },
   homeOrders: {
-    title: 'طلباتك',
     guestOrder: 'طلب كضيف',
     orderDate: 'تاريخ الطلب',
     orderStatus: 'حالة الطلب',
@@ -313,7 +313,6 @@ const ar: Messages = {
     viewOrder: 'عرض الطلب',
     payNow: 'ادفع وارفع الإيصال',
     support: 'هل تحتاج إلى مساعدة بخصوص هذا الطلب؟',
-    viewAll: 'عرض جميع الطلبات',
     savedOnBrowser: 'تُحفَظ طلبات الضيوف على هذا المتصفح. لعرضها على جهاز آخر، سجّل الدخول بالبريد الإلكتروني الذي استخدمته عند الطلب — وفي المرة الأولى استخدم «نسيت كلمة المرور؟» لتعيين كلمة مرور.',
     noGuestOrders: 'لم يتم العثور على طلبات على هذا المتصفح.',
     orderUnavailable: 'الطلب غير متاح',

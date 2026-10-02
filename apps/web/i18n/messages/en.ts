@@ -67,6 +67,7 @@ const en = {
     subscription: 'Subscription',
     myAccount: 'My Account',
     myQuotes: 'My Quotes',
+    yourOrders: 'Your Orders',
     more: 'More',
     groupMain: 'Main',
     groupRequests: 'Requests',
@@ -294,7 +295,6 @@ const en = {
     failed: 'Payment failed',
   },
   homeOrders: {
-    title: 'Your Orders',
     guestOrder: 'Guest order',
     orderDate: 'Order date',
     orderStatus: 'Order status',
@@ -306,7 +306,6 @@ const en = {
     viewOrder: 'View order',
     payNow: 'Pay & upload receipt',
     support: 'Need help with this order?',
-    viewAll: 'View all orders',
     savedOnBrowser: 'Guest orders are saved on this browser. To see them on another device, sign in with the email you used at checkout — the first time, use “Forgot password?” to set a password.',
     noGuestOrders: 'No orders were found on this browser.',
     orderUnavailable: 'Order unavailable',

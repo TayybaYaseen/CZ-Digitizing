@@ -1,52 +1,55 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch, apiFetchWithMeta } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/locale-context';
-import { formatDate, formatNumber } from '@/lib/format';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { OrderCard, type OrderCardDto } from '@/components/OrderCard';
 import { clientError } from '@/i18n/api-errors';
 
-interface OrderSummaryDto {
-  id: string;
-  status: string;
-  paymentStatus: string;
-  paymentMethod: string;
-  totalPkr: number;
-  itemCount: number;
-  createdAt: string;
-}
-
-// docs/specs/2026-08-28-08-orders-payment-processing.md §3/§5 (AC-7) — GET /api/orders/user/history.
-export default function OrderHistoryPage() {
-  const router = useRouter();
+// "Your Orders" — the one canonical customer orders page, linked directly from the header nav.
+//   - Signed-in customer: their own order history, docs/specs/2026-08-28-08-orders-payment-processing.md
+//     §3/§5 (AC-7) — GET /api/orders/user/history (the API scopes it to the token's user).
+//   - Not signed in: the orders THIS browser placed as a guest (GET /api/guest-orders). The browser's
+//     httpOnly czd_guest_orders cookie is what the API matches — this page never sees or sends an
+//     order id, email or token of its own, so it can only ever show this browser's orders. No login
+//     is required to view a completed guest order.
+// The two sources are never mixed: a signed-in visitor sees only their account's orders.
+export default function YourOrdersPage() {
   const { user, accessToken, isReady } = useAuth();
-  const { locale, t, tOr } = useLocale();
-  const [orders, setOrders] = useState<OrderSummaryDto[] | null>(null);
+  const { t } = useLocale();
+  const [orders, setOrders] = useState<OrderCardDto[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const signedIn = Boolean(user);
 
   useEffect(() => {
-    if (isReady && !user) router.replace('/login');
-  }, [isReady, user, router]);
-
-  useEffect(() => {
-    if (!user || !accessToken) return;
-    apiFetchWithMeta<OrderSummaryDto[]>('/api/orders/user/history?page=1&pageSize=50', { headers: { Authorization: `Bearer ${accessToken}` } })
-      .then((res) => setOrders(res.data))
-      .catch((err) => setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrdersFailed')));
-  }, [user, accessToken]);
-
-  if (!isReady || !user) return null;
+    if (!isReady || (signedIn && !accessToken)) return;
+    let cancelled = false;
+    setOrders(null);
+    setError(null);
+    const load: Promise<OrderCardDto[]> = signedIn
+      ? apiFetchWithMeta<OrderCardDto[]>('/api/orders/user/history?page=1&pageSize=50', { headers: { Authorization: `Bearer ${accessToken}` } }).then((r) => r.data)
+      : apiFetch<OrderCardDto[]>('/api/guest-orders');
+    load
+      .then((rows) => !cancelled && setOrders(rows ?? []))
+      .catch((err) => {
+        if (cancelled) return;
+        setOrders([]);
+        setError(err instanceof ApiClientError ? err.error : clientError('errors.loadOrdersFailed'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady, signedIn, accessToken]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{t('account.orderHistory')}</h1>
-        <p className="mt-1 text-sm text-gray-600">{t('orders.historySubtitle')}</p>
+        <h1 className="text-2xl font-bold">{t('nav.yourOrders')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{signedIn ? t('orders.historySubtitle') : t('homeOrders.savedOnBrowser')}</p>
       </div>
 
       <ErrorBanner error={error} />
@@ -54,35 +57,34 @@ export default function OrderHistoryPage() {
       {orders === null ? (
         <p className="text-center text-sm text-gray-500">{t('common.loading')}</p>
       ) : orders.length === 0 ? (
-        <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
-          <p>{t('orders.noOrders')}</p>
-          <Link href="/designs" className="mt-2 inline-block text-brand-navy underline">
-            {t('orders.browseCatalog')}
-          </Link>
-        </div>
-      ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
-          {orders.map((order) => (
-            <li key={order.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <div>
-                <p className="font-semibold text-brand-navy">{t('orders.orderId', { id: order.id })}</p>
-                <p className="text-gray-500">
-                  {t('orders.itemCount', { count: order.itemCount })} · {formatDate(order.createdAt, locale)}
-                </p>
-              </div>
-              <div className="text-end">
-                <p className="font-semibold">Rs {formatNumber(order.totalPkr, locale)}</p>
-                <Link href={`/order-confirmation/${order.id}`} className="text-brand-navy underline">
-                  {tOr(`orderStatus.${order.status}`, order.status)}
+        !error && (
+          <div className="rounded-md border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+            <p>{signedIn ? t('orders.noOrders') : t('homeOrders.noGuestOrders')}</p>
+            <div className="mt-2 flex flex-wrap justify-center gap-4">
+              <Link href="/designs" className="text-brand-navy underline">
+                {t('orders.browseCatalog')}
+              </Link>
+              {!signedIn && (
+                <Link href="/login" className="text-brand-navy underline">
+                  {t('nav.login')}
                 </Link>
-                {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
-                {(order.status === 'processing' || order.status === 'ready' || order.status === 'completed') && (
+              )}
+            </div>
+          </div>
+        )
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {orders.map((order) => (
+            <OrderCard key={order.id} order={order} guest={!signedIn}>
+              {signedIn && (order.status === 'completed' || order.status === 'processing' || order.status === 'ready') && (
+                <div className="mt-3 border-t border-gray-100 pt-2">
+                  {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
                   <FileFormatRequestButton orderId={order.id} accessToken={accessToken} />
-                )}
-              </div>
-            </li>
+                </div>
+              )}
+            </OrderCard>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

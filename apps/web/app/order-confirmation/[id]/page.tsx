@@ -143,8 +143,8 @@ export default function OrderConfirmationPage() {
 
       {access.guest ? (
         <div className="space-y-2">
-          <Link href="/" className="inline-block text-sm text-brand-navy underline">
-            {t('homeOrders.title')}
+          <Link href="/account/orders" className="inline-block text-sm text-brand-navy underline">
+            {t('nav.yourOrders')}
           </Link>
           <p className="text-xs text-gray-500">{t('homeOrders.savedOnBrowser')}</p>
         </div>
