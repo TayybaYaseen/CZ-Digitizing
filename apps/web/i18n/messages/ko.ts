@@ -669,8 +669,17 @@ const ko: Messages = {
     metaItemDescription: 'CZ Digitizing 포트폴리오의 {category} 작업 샘플.',
   },
   taebo: {
-    greeting: '안녕하세요, Taebo예요! 무엇이든 물어보세요. 도움이 필요할 때 언제든 채팅을 열어 주세요.',
-    escalated: '담당자에게 확인하고 있어요 — 최대한 빨리 알려 드릴게요.',
+    greeting: '안녕하세요! 저는 Taebo예요. 👋\n오늘 무엇을 도와드릴까요?',
+    escalated: '그 부분은 아직 확실하지 않아서 질문을 저희 팀에 전달했어요. 곧 연락드릴 거예요. CZ Digitizing의 서비스, 디자인, 주문, 파일 형식, 가격, 맞춤 요청에 대해 도와드릴 수 있어요.',
+    escalatedAccount: '결제나 주문 상태 같은 계정 정보는 여기서 확인할 수 없어서 질문을 저희 팀에 전달했어요. 주문은 여기에서도 확인할 수 있어요:',
+    didYouMean: '조금 더 자세히 알려주시겠어요? 다음 중 하나를 말씀하신 건가요?',
+    notice: {
+      hello: '안녕하세요! 오늘 무엇을 도와드릴까요?',
+      thanks: '천만에요! 더 도와드릴 일이 있을까요?',
+      ack: '알겠습니다! 더 도와드릴 일이 있을까요?',
+      help: '기꺼이 도와드릴게요! 디자인, 자수 디지타이징, Vector Art, 가격, 파일 형식, 주문 또는 맞춤 요청에 대해 물어보세요.',
+      internal: '죄송하지만 내부 정보나 개인 정보는 공유할 수 없어요. CZ Digitizing의 디자인, 서비스, 주문, 가격에 대해서는 기꺼이 도와드릴게요.',
+    },
     subtitle: 'CZ Digitizing 도우미',
     online: 'Taebo 온라인',
     open: 'Taebo 도우미 열기',
@@ -684,7 +693,6 @@ const ko: Messages = {
     inputPlaceholder: 'Taebo에게 질문하기…',
     send: '보내기',
     resetPosition: 'Taebo 위치 초기화',
-    proactiveOffer: '<q></q> 관련해 도움이 필요하신가요?',
     pandaAlt: '판다 Taebo',
     pandaStandingAlt: '서 있는 판다 Taebo',
     quick: {

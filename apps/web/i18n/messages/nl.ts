@@ -681,8 +681,17 @@ const nl: Messages = {
     metaItemDescription: 'Werkvoorbeeld ({category}) uit het portfolio van CZ Digitizing.',
   },
   taebo: {
-    greeting: 'Hoi, ik ben Taebo! Vraag me alles, of open de chat wanneer je hulp nodig hebt.',
-    escalated: 'Ik overleg dit met ons team — ik laat het je zo snel mogelijk weten.',
+    greeting: 'Hoi! Ik ben Taebo. 👋\nWaarmee kan ik je vandaag helpen?',
+    escalated: 'Daar ben ik nog niet helemaal zeker van, dus ik heb je vraag doorgestuurd naar ons team — zij nemen contact met je op. Ik help je graag met diensten, ontwerpen, bestellingen, bestandsformaten, prijzen en maatwerkverzoeken van CZ Digitizing.',
+    escalatedAccount: 'Accountgegevens zoals betalingen of de bestelstatus kan ik hier niet zien, dus ik heb je vraag doorgestuurd naar ons team. Je kunt je bestellingen ook hier bekijken:',
+    didYouMean: 'Kun je iets meer vertellen? Bedoelde je een van deze?',
+    notice: {
+      hello: 'Hoi! Waarmee kan ik je vandaag helpen?',
+      thanks: 'Graag gedaan! Kan ik je nog ergens anders mee helpen?',
+      ack: 'Begrepen! Kan ik je nog ergens anders mee helpen?',
+      help: 'Ik help je graag! Vraag me naar onze ontwerpen, borduurdigitalisering, Vector Art, prijzen, bestandsformaten, bestellingen of maatwerkverzoeken.',
+      internal: 'Sorry, ik kan geen interne of privé-informatie delen. Ik help je graag met ontwerpen, diensten, bestellingen en prijzen van CZ Digitizing.',
+    },
     subtitle: 'Je CZ Digitizing-assistent',
     online: 'Taebo is online',
     open: 'Taebo-assistent openen',
@@ -696,7 +705,6 @@ const nl: Messages = {
     inputPlaceholder: 'Stel Taebo een vraag…',
     send: 'Versturen',
     resetPosition: 'Positie van Taebo herstellen',
-    proactiveOffer: 'Hulp nodig bij <q></q>?',
     pandaAlt: 'Taebo de panda',
     pandaStandingAlt: 'Taebo de panda, staand',
     quick: {

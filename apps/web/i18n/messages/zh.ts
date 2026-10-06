@@ -669,8 +669,17 @@ const zh: Messages = {
     metaItemDescription: 'CZ Digitizing 作品集中的{category}案例。',
   },
   taebo: {
-    greeting: '您好，我是 Taebo！有任何问题都可以问我，需要帮助时随时打开对话。',
-    escalated: '我正在与团队核实这个问题，会尽快回复您。',
+    greeting: '你好！我是 Taebo。👋\n今天有什么可以帮您？',
+    escalated: '这个问题我还不能完全确定，所以已将您的问题转交给我们的团队，他们会尽快回复您。我可以协助您了解 CZ Digitizing 的服务、设计、订单、文件格式、价格和定制需求。',
+    escalatedAccount: '我在这里无法查看付款或订单状态等账户信息，所以已将您的问题转交给我们的团队。您也可以在这里查看订单：',
+    didYouMean: '能再详细说明一下吗？您是想问以下哪个问题？',
+    notice: {
+      hello: '你好！今天有什么可以帮您？',
+      thanks: '不客气！还有什么可以帮您的吗？',
+      ack: '好的！还有什么可以帮您的吗？',
+      help: '很乐意为您服务！您可以咨询我们的设计、刺绣制版、Vector Art、价格、文件格式、订单或定制需求。',
+      internal: '抱歉，我无法分享内部或私密信息。很乐意为您解答 CZ Digitizing 的设计、服务、订单和价格问题。',
+    },
     subtitle: '您的 CZ Digitizing 助手',
     online: 'Taebo 在线',
     open: '打开 Taebo 助手',
@@ -684,7 +693,6 @@ const zh: Messages = {
     inputPlaceholder: '向 Taebo 提问…',
     send: '发送',
     resetPosition: '重置 Taebo 的位置',
-    proactiveOffer: '需要关于<q></q>的帮助吗？',
     pandaAlt: '熊猫 Taebo',
     pandaStandingAlt: '站立的熊猫 Taebo',
     quick: {

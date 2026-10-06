@@ -681,8 +681,17 @@ const fr: Messages = {
     metaItemDescription: 'Exemple de réalisation {category} issu du portfolio de CZ Digitizing.',
   },
   taebo: {
-    greeting: 'Bonjour, je suis Taebo ! Posez-moi vos questions, ou ouvrez le chat dès que vous avez besoin d’aide.',
-    escalated: 'Je vérifie auprès de notre équipe — je vous tiens au courant dès que possible.',
+    greeting: 'Bonjour ! Je suis Taebo. 👋\nComment puis-je vous aider aujourd’hui ?',
+    escalated: 'Je ne suis pas encore tout à fait sûr de cela, j’ai donc transmis votre question à notre équipe — elle reviendra vers vous. Je peux vous aider pour les services, designs, commandes, formats de fichier, tarifs et demandes personnalisées de CZ Digitizing.',
+    escalatedAccount: 'Je ne peux pas voir ici les informations de votre compte, comme les paiements ou le statut des commandes, j’ai donc transmis votre question à notre équipe. Vous pouvez aussi consulter vos commandes ici :',
+    didYouMean: 'Pouvez-vous m’en dire un peu plus ? Vouliez-vous dire l’une de ces questions ?',
+    notice: {
+      hello: 'Bonjour ! Comment puis-je vous aider aujourd’hui ?',
+      thanks: 'Avec plaisir ! Puis-je vous aider pour autre chose ?',
+      ack: 'C’est noté ! Puis-je vous aider pour autre chose ?',
+      help: 'Avec plaisir ! Posez-moi vos questions sur nos designs, la numérisation de broderie, Vector Art, les tarifs, les formats de fichier, les commandes ou les demandes personnalisées.',
+      internal: 'Désolé, je ne peux pas partager d’informations internes ou privées. Je peux volontiers vous aider pour les designs, services, commandes et tarifs de CZ Digitizing.',
+    },
     subtitle: 'Votre assistant CZ Digitizing',
     online: 'Taebo est en ligne',
     open: 'Ouvrir l’assistant Taebo',
@@ -696,7 +705,6 @@ const fr: Messages = {
     inputPlaceholder: 'Posez une question à Taebo…',
     send: 'Envoyer',
     resetPosition: 'Réinitialiser la position de Taebo',
-    proactiveOffer: 'Besoin d’aide pour <q></q> ?',
     pandaAlt: 'Taebo le panda',
     pandaStandingAlt: 'Taebo le panda, debout',
     quick: {

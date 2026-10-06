@@ -682,8 +682,17 @@ const tr: Messages = {
     metaItemDescription: 'CZ Digitizing portföyünden {category} çalışma örneği.',
   },
   taebo: {
-    greeting: 'Merhaba, ben Taebo! Bana istediğinizi sorun ya da yardıma ihtiyaç duyduğunuzda sohbeti açın.',
-    escalated: 'Bunu ekibimizle kontrol ediyorum — en kısa sürede size haber vereceğim.',
+    greeting: 'Merhaba! Ben Taebo. 👋\nBugün size nasıl yardımcı olabilirim?',
+    escalated: 'Bundan henüz tam emin değilim, bu yüzden sorunuzu ekibimize ilettim — size dönüş yapacaklar. CZ Digitizing hizmetleri, tasarımlar, siparişler, dosya formatları, fiyatlar ve özel talepler konusunda yardımcı olabilirim.',
+    escalatedAccount: 'Ödemeler veya sipariş durumu gibi hesap bilgilerini buradan göremiyorum, bu yüzden sorunuzu ekibimize ilettim. Siparişlerinizi buradan da kontrol edebilirsiniz:',
+    didYouMean: 'Biraz daha ayrıntı verebilir misiniz? Bunlardan birini mi kastettiniz?',
+    notice: {
+      hello: 'Merhaba! Bugün size nasıl yardımcı olabilirim?',
+      thanks: 'Rica ederim! Yardımcı olabileceğim başka bir şey var mı?',
+      ack: 'Anladım! Yardımcı olabileceğim başka bir şey var mı?',
+      help: 'Memnuniyetle yardımcı olurum! Tasarımlarımız, nakış dijitalleştirme, Vector Art, fiyatlar, dosya formatları, siparişler veya özel talepler hakkında sorabilirsiniz.',
+      internal: 'Üzgünüm, dahili veya gizli bilgileri paylaşamam. CZ Digitizing tasarımları, hizmetleri, siparişleri ve fiyatları konusunda memnuniyetle yardımcı olurum.',
+    },
     subtitle: 'CZ Digitizing asistanınız',
     online: 'Taebo çevrimiçi',
     open: 'Taebo asistanını aç',
@@ -697,7 +706,6 @@ const tr: Messages = {
     inputPlaceholder: 'Taebo’ya bir soru sorun…',
     send: 'Gönder',
     resetPosition: 'Taebo’nun konumunu sıfırla',
-    proactiveOffer: '<q></q> konusunda yardım ister misiniz?',
     pandaAlt: 'Panda Taebo',
     pandaStandingAlt: 'Ayakta duran panda Taebo',
     quick: {

@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { TaeboReplyDto, TaeboSuggestionDto } from '@czd/shared-types';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { TaeboNoticeKey, TaeboReplyDto, TaeboSuggestionDto } from '@czd/shared-types';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale, type TranslationKey } from '@/lib/locale-context';
@@ -46,14 +46,42 @@ const BUBBLE_HEIGHT = 72;
 const FLOAT_MARGIN = 16;
 const FLOAT_GAP = 8;
 
-// i18n (A-021): the greeting and the escalation notice are Taebo's own UI copy, so they are stored
-// as `text: ''` and rendered with t() at display time — they follow a later language switch too.
-// `text` is only ever the customer's own words or an API-supplied (Admin-authored FAQ) answer.
+// i18n (A-021): the greeting, the escalation notices and fixed conversational replies (`noticeKey`)
+// are Taebo's own UI copy, so they are rendered with t() at display time — they follow a later
+// language switch too. `text` is only ever the customer's own words or an API-supplied answer
+// (grounded in approved content, or the LLM's own reply in the customer's language).
 interface DisplayMessage {
   id: string;
   sender: 'customer' | 'taebo' | 'admin';
   text: string;
   escalated?: boolean;
+  noticeKey?: TaeboNoticeKey;
+  options?: TaeboSuggestionDto[];
+}
+
+const GREETING_MESSAGE: DisplayMessage = { id: 'greeting', sender: 'taebo', text: '' };
+
+function taeboText(m: DisplayMessage, t: (key: TranslationKey) => string): string {
+  if (m.id === 'greeting') return t('taebo.greeting');
+  if (m.escalated) return t(m.noticeKey === 'account' ? 'taebo.escalatedAccount' : 'taebo.escalated');
+  if (m.noticeKey) return t(`taebo.notice.${m.noticeKey}` as TranslationKey);
+  if (m.options?.length) return t('taebo.didYouMean');
+  return m.text;
+}
+
+// Answers may point to a site section ("see /pricing") — render those as in-app links. Only a
+// slash at the start of a word counts, so "monthly/yearly" stays plain text.
+function linkifyPaths(text: string): ReactNode[] {
+  return text.split(/((?:^|(?<=[\s(]))\/[a-z][a-z0-9\-/]*[a-z0-9])/g).map((part, i) =>
+    /^\/[a-z]/.test(part) ? (
+      // <bdi dir="ltr"> keeps the path reading correctly inside Arabic/Urdu (RTL) answers.
+      <Link key={i} href={part} className="font-medium text-brand-gold underline">
+        <bdi dir="ltr">{part}</bdi>
+      </Link>
+    ) : (
+      part
+    ),
+  );
 }
 
 function getOrCreateSessionId(): string {
@@ -73,16 +101,16 @@ interface PublicSettings {
 // §10.7 pose mapping — reuses the chat's own loading/error/messages state, no new flags:
 // loading -> thinking; a fetch error or an escalated reply -> waiting (Part 4 STATE 8's "error
 // state must not pretend to know an answer" is exactly AC-3/AC-4's existing escalation, reused
-// here rather than re-implemented); a matched reply -> helping; the one-time greeting -> greeting;
-// otherwise -> idle.
-function derivePose(loading: boolean, error: boolean, messages: DisplayMessage[]): TaeboPose {
+// here rather than re-implemented); a matched reply -> helping; the one-time-per-session greeting
+// -> greeting; otherwise -> idle.
+function derivePose(loading: boolean, error: boolean, messages: DisplayMessage[], firstVisit: boolean): TaeboPose {
   if (loading) return 'thinking';
   if (error) return 'waiting';
   const last = messages[messages.length - 1];
   if (last && last.sender === 'taebo' && last.id !== 'greeting') {
     return last.escalated ? 'waiting' : 'helping';
   }
-  if (messages.length === 1 && messages[0]?.id === 'greeting') return 'greeting';
+  if (firstVisit && messages.length === 1 && messages[0]?.id === 'greeting') return 'greeting';
   return 'idle';
 }
 
@@ -115,25 +143,31 @@ function floatingStyle(anchor: TaeboPosition | null, launcherSize: LauncherSize,
 export function TaeboWidget() {
   const pathname = usePathname();
   const { accessToken } = useAuth();
-  const { t, rich } = useLocale();
+  const { t, locale } = useLocale();
   const { position, launcherSize, onPointerDown, onPointerMove, onPointerUp, reset: resetPosition } = useTaeboPosition();
 
   const [open, setOpen] = useState(false);
   const [scrolledIn, setScrolledIn] = useState(false);
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  // The chat always opens on the greeting — never on an auto-picked question.
+  const [messages, setMessages] = useState<DisplayMessage[]>([GREETING_MESSAGE]);
+  const [firstVisit, setFirstVisit] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  // The customer's message whose request failed — what "Retry" re-sends.
+  const [failedText, setFailedText] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<TaeboSuggestionDto[]>([]);
-  const [proactiveOffer, setProactiveOffer] = useState<TaeboSuggestionDto | null>(null);
+  const [proactiveOffer, setProactiveOffer] = useState(false);
   const [whatsappHref, setWhatsappHref] = useState<string | null>(null);
 
   const sessionIdRef = useRef<string>('');
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justDraggedRef = useRef(false);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
 
-  const pose = useMemo(() => derivePose(loading, error, messages), [loading, error, messages]);
+  const error = failedText !== null;
+  const pose = useMemo(() => derivePose(loading, error, messages, firstVisit), [loading, error, messages, firstVisit]);
+  const onlyGreeting = messages.length === 1 && messages[0]?.id === 'greeting';
 
   useEffect(() => {
     sessionIdRef.current = getOrCreateSessionId();
@@ -161,15 +195,15 @@ export function TaeboWidget() {
     };
   }, []);
 
-  // AC-1 — greets once per session, never re-triggers the greeting on later navigation. The
-  // greeting is deliberately short and generic (no fabricated example questions) — Part 4 STATE 2's
-  // "never use fake demo questions" rule; a full-repo search turned up no hardcoded demo/test
-  // question anywhere in this widget (see docs/incidents/2026-09-13-taebo-character-interaction-system.md).
+  // AC-1 — the greeting itself is always the first message in the chat, but Taebo only waves it
+  // (the 'greeting' pose) once per session, never re-triggering on later navigation. The greeting
+  // is deliberately short and generic — never a fabricated or auto-picked example question (Part 4
+  // STATE 2; docs/incidents/2026-09-13-taebo-character-interaction-system.md).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.sessionStorage.getItem(GREETED_KEY)) return;
     window.sessionStorage.setItem(GREETED_KEY, '1');
-    setMessages([{ id: 'greeting', sender: 'taebo', text: '' }]);
+    setFirstVisit(true);
   }, []);
 
   useEffect(() => {
@@ -178,16 +212,18 @@ export function TaeboWidget() {
       .catch(() => setSuggestions([]));
   }, [pathname]);
 
-  // AC-9 — proactive suggestion after an idle threshold on a page with common questions, without
-  // requiring the customer to open chat first.
+  // AC-9 — after an idle threshold on a page with common questions, Taebo proactively offers help
+  // without requiring the customer to open chat first. The bubble shows the greeting and opens the
+  // chat; it used to quote the first FAQ verbatim ("Need help with What is the difference…??") and
+  // send it on the customer's behalf.
   useEffect(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    setProactiveOffer(null);
+    setProactiveOffer(false);
     if (open) return;
     idleTimerRef.current = setTimeout(() => {
       apiFetch<TaeboSuggestionDto[]>(`/api/taebo/suggestions?page=${encodeURIComponent(pathname ?? '/')}`)
         .then((rows) => {
-          if (rows[0]) setProactiveOffer(rows[0]);
+          if (rows.length > 0) setProactiveOffer(true);
         })
         .catch(() => undefined);
     }, IDLE_MS);
@@ -197,13 +233,13 @@ export function TaeboWidget() {
   }, [pathname, open]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, isRetry = false) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
-      setError(false);
+      setFailedText(null);
       setInput('');
-      setProactiveOffer(null);
-      setMessages((prev) => [...prev, { id: `local-${Date.now()}`, sender: 'customer', text: trimmed }]);
+      setProactiveOffer(false);
+      if (!isRetry) setMessages((prev) => [...prev, { id: `local-${Date.now()}`, sender: 'customer', text: trimmed }]);
       setLoading(true);
       try {
         const headers: Record<string, string> = {};
@@ -216,6 +252,7 @@ export function TaeboWidget() {
             conversationId,
             sessionId: sessionIdRef.current,
             page: pathname ?? undefined,
+            languageCode: locale,
           }),
         });
         setConversationId(reply.conversationId);
@@ -226,16 +263,24 @@ export function TaeboWidget() {
             sender: 'taebo',
             text: reply.escalated ? '' : (reply.answer ?? ''),
             escalated: reply.escalated,
+            noticeKey: reply.noticeKey,
+            options: reply.options,
           },
         ]);
       } catch {
-        setError(true);
+        setFailedText(trimmed);
       } finally {
         setLoading(false);
       }
     },
-    [accessToken, conversationId, loading, pathname],
+    [accessToken, conversationId, loading, pathname, locale],
   );
+
+  // Keep the newest message (or the typing indicator) in view as the conversation grows.
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el && !onlyGreeting) el.scrollTop = el.scrollHeight;
+  }, [messages, loading, open, onlyGreeting]);
 
   // Part 6 — a drag that moved past the threshold must not also open the chat once the pointer is
   // released (a plain click still fires right after pointerup with no movement in between).
@@ -270,13 +315,13 @@ export function TaeboWidget() {
       {!open && proactiveOffer && (
         <button
           onClick={() => {
+            setProactiveOffer(false);
             setOpen(true);
-            void send(proactiveOffer.question);
           }}
-          className="taebo-motion-safe fixed z-50 max-w-xs rounded-lg bg-white px-4 py-2 text-start text-sm text-brand-navy shadow-lg ring-1 ring-black/10 transition-opacity"
+          className="taebo-motion-safe fixed z-50 max-w-xs whitespace-pre-line break-words rounded-lg bg-white px-4 py-2 text-start text-sm leading-snug text-brand-navy shadow-lg ring-1 ring-black/10 transition-opacity"
           style={{ ...bubbleStyle, width: BUBBLE_WIDTH }}
         >
-          {rich('taebo.proactiveOffer', { q: () => <span dir="auto" className="font-medium">{proactiveOffer.question}</span> })}
+          {t('taebo.greeting')}
         </button>
       )}
 
@@ -304,8 +349,43 @@ export function TaeboWidget() {
             <button onClick={() => setOpen(false)} aria-label={t('taebo.close')} className="text-brand-silver hover:text-brand-gold">✕</button>
           </div>
 
-          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-            {messages.every((m) => m.id === 'greeting') && (
+          <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+            {messages.map((m) => (
+              <div key={m.id} className={m.sender === 'customer' ? 'text-end' : 'text-start'}>
+                <span
+                  dir="auto"
+                  className={`inline-block max-w-[85%] whitespace-pre-line break-words rounded-card px-3 py-2 text-start leading-snug ${
+                    m.sender === 'customer'
+                      ? 'bg-white text-brand-navy'
+                      : m.escalated
+                        ? 'border border-gold-500/40 bg-gold-500/10 text-gold-300'
+                        : 'bg-navy-700 text-white'
+                  }`}
+                >
+                  {m.sender === 'customer' ? m.text : linkifyPaths(taeboText(m, t))}
+                </span>
+                {m.escalated && m.noticeKey === 'account' && (
+                  <Link href="/account/orders" className="mt-1 block text-xs text-brand-gold underline">
+                    {t('taebo.quick.ordersDownloads')}
+                  </Link>
+                )}
+                {m.options && m.options.length > 0 && (
+                  <div className="mt-1.5 space-y-1.5">
+                    {m.options.map((o) => (
+                      <button
+                        key={o.faqId}
+                        dir="auto"
+                        onClick={() => void send(o.question)}
+                        className="block w-full rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-start text-brand-silver transition-colors hover:border-brand-gold hover:text-white"
+                      >
+                        {o.question}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {onlyGreeting && (
               <div className="space-y-1.5">
                 <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">{t('taebo.quickActions')}</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -321,7 +401,7 @@ export function TaeboWidget() {
                 </div>
               </div>
             )}
-            {messages.every((m) => m.id === 'greeting') && suggestions.length > 0 && (
+            {onlyGreeting && suggestions.length > 0 && (
               <div className="space-y-1.5">
                 <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-gold/80">{t('taebo.commonQuestions')}</p>
                 {suggestions.map((s) => (
@@ -336,22 +416,6 @@ export function TaeboWidget() {
                 ))}
               </div>
             )}
-            {messages.map((m) => (
-              <div key={m.id} className={m.sender === 'customer' ? 'text-end' : 'text-start'}>
-                <span
-                  dir="auto"
-                  className={`inline-block max-w-[85%] rounded-card px-3 py-2 ${
-                    m.sender === 'customer'
-                      ? 'bg-white text-brand-navy'
-                      : m.escalated
-                        ? 'border border-gold-500/40 bg-gold-500/10 text-gold-300'
-                        : 'bg-navy-700 text-white'
-                  }`}
-                >
-                  {m.id === 'greeting' ? t('taebo.greeting') : m.escalated ? t('taebo.escalated') : m.text}
-                </span>
-              </div>
-            ))}
             {/* §27 — a professional dot-typing indicator rather than a text line; the sr-only text
                 keeps it announced to screen readers, and the dots hold still under reduced-motion. */}
             {loading && (
@@ -366,7 +430,7 @@ export function TaeboWidget() {
               <div className="space-y-1.5 rounded-field border border-red-400/30 bg-red-500/10 p-2 text-xs text-red-200">
                 <p>{t('taebo.connectionError')}</p>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => void send(input || messages.at(-2)?.text || '')} className="font-medium underline">
+                  <button onClick={() => failedText && void send(failedText, true)} className="font-medium underline">
                     {t('common.retry')}
                   </button>
                   <Link href="/contact" className="font-medium underline">
