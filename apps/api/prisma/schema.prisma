@@ -58,6 +58,8 @@ enum AdminModule {
   home_sections
   advertisements
   header_media
+  // A-025 — Customer Support → Live Chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §12).
+  support_chat
 }
 
 enum AdminAccessLevel {
@@ -105,7 +107,7 @@ model User {
   // guest recovers and claims their orders without any order being copied or moved.
   isGuest Boolean @default(false) @map("is_guest")
 
-  sessions                 Session[]
+  sessions                  Session[]
   adminPermissions          AdminPermission[]
   auditLogs                 AuditLog[]
   notifications             Notification[]
@@ -140,6 +142,10 @@ model User {
   accountMembershipsHeld    AccountMember[]               @relation("AccountMemberUser")
   taeboConversations        TaeboConversation[]
   answeredTaeboQuestions    TaeboWaitingQuestion[]        @relation("TaeboQuestionAnsweredByAdmin")
+  // A-025 (docs/specs/2026-10-06-21-customer-admin-live-chat.md) — human support chat.
+  supportConversations      SupportConversation[]         @relation("SupportConversationCustomer")
+  supportMessages           SupportMessage[]              @relation("SupportMessageSender")
+  supportStatusChanges      SupportConversation[]         @relation("SupportConversationStatusChangedBy")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -344,6 +350,10 @@ enum NotificationType {
   admin_alert
   system_alert
   order_status_change
+  // A-025 live chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §17): support_reply goes
+  // to the customer when Admin replies; support_message goes to staff when a customer writes.
+  support_reply
+  support_message
 }
 
 enum NotificationChannel {
@@ -374,15 +384,19 @@ model Notification {
   // (Orders & Payment Processing), A-016 (Smart Get a Quote), and A-017 (Custom Design Requests)
   // respectively once their models existed, per this field's own former TODO(A-013)/TODO(A-016)/
   // TODO(A-017) comments.
-  relatedOrderId          BigInt?         @map("related_order_id")
-  order                   Order?          @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
-  relatedQuoteId          BigInt?         @map("related_quote_id")
-  quote                   Quote?          @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
-  relatedCustomRequestId  BigInt?         @map("related_custom_request_id")
-  customRequest           CustomRequest?  @relation(fields: [relatedCustomRequestId], references: [id], onDelete: SetNull)
+  relatedOrderId               BigInt?              @map("related_order_id")
+  order                        Order?               @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+  relatedQuoteId               BigInt?              @map("related_quote_id")
+  quote                        Quote?               @relation(fields: [relatedQuoteId], references: [id], onDelete: SetNull)
+  relatedCustomRequestId       BigInt?              @map("related_custom_request_id")
+  customRequest                CustomRequest?       @relation(fields: [relatedCustomRequestId], references: [id], onDelete: SetNull)
   // Set on contact_message notifications so clicking one opens that submission in Admin.
-  relatedContactMessageId BigInt?         @map("related_contact_message_id")
-  contactMessage          ContactMessage? @relation(fields: [relatedContactMessageId], references: [id], onDelete: SetNull)
+  relatedContactMessageId      BigInt?              @map("related_contact_message_id")
+  contactMessage               ContactMessage?      @relation(fields: [relatedContactMessageId], references: [id], onDelete: SetNull)
+  // Set on support_reply/support_message (A-025) so clicking one opens that conversation, and so
+  // reading the conversation can mark its notifications read.
+  relatedSupportConversationId BigInt?              @map("related_support_conversation_id")
+  supportConversation          SupportConversation? @relation(fields: [relatedSupportConversationId], references: [id], onDelete: SetNull)
 
   isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
@@ -403,6 +417,7 @@ model Notification {
   @@index([relatedOrderId], map: "idx_notifications_related_order")
   @@index([relatedQuoteId], map: "idx_notifications_related_quote")
   @@index([relatedCustomRequestId], map: "idx_notifications_related_custom_request")
+  @@index([relatedSupportConversationId], map: "idx_notifications_related_support_conversation")
   @@map("notifications")
 }
 
@@ -855,20 +870,22 @@ model Order {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  items              OrderItem[]
-  receipts           PaymentReceipt[]
-  authorizedFiles    CustomerAuthorizedFile[]
-  notifications      Notification[]
-  creditTransactions CreditTransaction[]
-  testimonials       Testimonial[]
+  items                OrderItem[]
+  receipts             PaymentReceipt[]
+  authorizedFiles      CustomerAuthorizedFile[]
+  notifications        Notification[]
+  creditTransactions   CreditTransaction[]
+  testimonials         Testimonial[]
   // AC-7 (Smart Get a Quote spec) — one-to-one, set only when this order was created via
   // OrdersService.createFromQuote() rather than the normal cart checkout path.
-  quote              Quote?
+  quote                Quote?
   // AC-4 (Custom Design Request spec) — one-to-one, set only when this order was created via
   // CustomRequestsService.approveQuote() rather than the normal cart checkout path.
-  customRequest      CustomRequest?
-  fileFormatRequests FileFormatRequest[]
-  activityEvents     ActivityEvent[]
+  customRequest        CustomRequest?
+  fileFormatRequests   FileFormatRequest[]
+  activityEvents       ActivityEvent[]
+  // A-025 — support conversations started from this order ("Ask about this order").
+  supportConversations SupportConversation[]
 
   @@index([customerId], map: "idx_orders_customer")
   @@index([status], map: "idx_orders_status")
@@ -1544,9 +1561,11 @@ model Quote {
   orderId BigInt? @unique @map("order_id")
   order   Order?  @relation(fields: [orderId], references: [id])
 
-  messages      QuoteMessage[]
-  notifications Notification[]
-  orderItems    OrderItem[]
+  messages             QuoteMessage[]
+  notifications        Notification[]
+  orderItems           OrderItem[]
+  // A-025 — support conversations about this quote.
+  supportConversations SupportConversation[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1642,14 +1661,16 @@ model CustomRequest {
   orderId BigInt? @unique @map("order_id")
   order   Order?  @relation(fields: [orderId], references: [id])
 
-  references      CustomRequestReference[]
-  messages        CustomRequestMessage[]
-  notifications   Notification[]
-  files           CustomRequestFile[]
-  orderItems      OrderItem[]
-  tasks           CustomRequestTask[]
-  timeEntries     CustomRequestTimeEntry[]
-  productionFiles CustomRequestProductionFile[]
+  references           CustomRequestReference[]
+  messages             CustomRequestMessage[]
+  notifications        Notification[]
+  files                CustomRequestFile[]
+  orderItems           OrderItem[]
+  tasks                CustomRequestTask[]
+  timeEntries          CustomRequestTimeEntry[]
+  productionFiles      CustomRequestProductionFile[]
+  // A-025 — support conversations about this request (distinct from `messages`, the production thread).
+  supportConversations SupportConversation[]
 
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -1829,6 +1850,9 @@ model FileFormatRequest {
 
   createdAt   DateTime  @default(now()) @map("created_at")
   fulfilledAt DateTime? @map("fulfilled_at")
+
+  // A-025 — support conversations about this format request.
+  supportConversations SupportConversation[]
 
   @@index([orderId], map: "idx_file_format_requests_order")
   @@index([customerId], map: "idx_file_format_requests_customer")
@@ -2016,4 +2040,106 @@ model TaeboWaitingQuestion {
   @@index([conversationId], map: "idx_taebo_waiting_questions_conversation")
   @@index([status], map: "idx_taebo_waiting_questions_status")
   @@map("taebo_waiting_questions")
+}
+
+// ---------------------------------------------------------------------------------------------
+// A-025 — Customer ↔ Admin Live Chat (human support chat), docs/specs/2026-10-06-21-customer-admin-live-chat.md §9.
+// Deliberately separate from Taebo (TaeboConversation/TaeboMessage: the AI assistant) and from
+// CustomRequestMessage (a custom request's production thread). Raw-SQL constraints that Prisma can't
+// express live in the migration: the context CHECK, the "one active conversation per customer per
+// context" partial unique index, non-negative counters and the body-length CHECK (§9.6).
+// ---------------------------------------------------------------------------------------------
+
+enum SupportConversationStatus {
+  open // needs Admin attention (new, or the customer replied last)
+  pending // Admin is waiting on the customer
+  resolved // closed by Admin; any customer message reopens it
+}
+
+enum SupportContextType {
+  general
+  order
+  custom_request
+  quote
+  file_format_request
+}
+
+enum SupportSenderType {
+  customer
+  admin
+  system // status-change lines; Admin-visible only (§14.3)
+}
+
+model SupportConversation {
+  id         BigInt @id @default(autoincrement())
+  customerId BigInt @map("customer_id")
+  customer   User   @relation("SupportConversationCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+
+  status      SupportConversationStatus @default(open)
+  contextType SupportContextType        @default(general) @map("context_type")
+
+  // Exactly the FK matching contextType is set at creation (all null for `general`). SetNull:
+  // deleting the context record must never delete the transcript.
+  orderId             BigInt?            @map("order_id")
+  order               Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customRequestId     BigInt?            @map("custom_request_id")
+  customRequest       CustomRequest?     @relation(fields: [customRequestId], references: [id], onDelete: SetNull)
+  quoteId             BigInt?            @map("quote_id")
+  quote               Quote?             @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  fileFormatRequestId BigInt?            @map("file_format_request_id")
+  fileFormatRequest   FileFormatRequest? @relation(fields: [fileFormatRequestId], references: [id], onDelete: SetNull)
+
+  // Denormalized from the newest customer/admin message (never a system line) so list views need
+  // no join or per-row query.
+  lastMessageAt         DateTime           @default(now()) @map("last_message_at")
+  lastMessagePreview    String?            @map("last_message_preview")
+  lastMessageSenderType SupportSenderType? @map("last_message_sender_type")
+
+  // Read pointers are the source of truth (§15); the counters cache them and are written in the same
+  // transaction as every message insert / pointer move. The Admin side is team-level in v1.
+  customerLastReadMessageId BigInt?   @map("customer_last_read_message_id")
+  customerLastReadAt        DateTime? @map("customer_last_read_at")
+  adminLastReadMessageId    BigInt?   @map("admin_last_read_message_id")
+  adminLastReadAt           DateTime? @map("admin_last_read_at")
+  customerUnreadCount       Int       @default(0) @map("customer_unread_count")
+  adminUnreadCount          Int       @default(0) @map("admin_unread_count")
+
+  statusChangedAt        DateTime? @map("status_changed_at")
+  statusChangedByAdminId BigInt?   @map("status_changed_by_admin_id")
+  statusChangedByAdmin   User?     @relation("SupportConversationStatusChangedBy", fields: [statusChangedByAdminId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages      SupportMessage[]
+  notifications Notification[]
+
+  @@index([customerId, lastMessageAt(sort: Desc)], map: "idx_support_conversations_customer_activity")
+  @@index([status, lastMessageAt(sort: Desc)], map: "idx_support_conversations_status_activity")
+  @@index([orderId], map: "idx_support_conversations_order")
+  @@index([customRequestId], map: "idx_support_conversations_custom_request")
+  @@index([quoteId], map: "idx_support_conversations_quote")
+  @@index([fileFormatRequestId], map: "idx_support_conversations_file_format_request")
+  @@map("support_conversations")
+}
+
+model SupportMessage {
+  // Autoincrement id is also the canonical ordering key (§14.2) — never the client's clock.
+  id             BigInt              @id @default(autoincrement())
+  conversationId BigInt              @map("conversation_id")
+  conversation   SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderType   SupportSenderType @map("sender_type")
+  // SetNull: removing an admin account must not delete what they wrote to customers.
+  senderUserId BigInt?           @map("sender_user_id")
+  sender       User?             @relation("SupportMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  body            String   @db.Text
+  // Idempotency key generated by the client (§11.6): a retried send returns the existing row.
+  clientMessageId String   @map("client_message_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([conversationId, clientMessageId], map: "uq_support_messages_conversation_client_id")
+  @@index([conversationId, id], map: "idx_support_messages_conversation_id")
+  @@map("support_messages")
 }

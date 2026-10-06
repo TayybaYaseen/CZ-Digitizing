@@ -3,7 +3,7 @@ import type { NotificationDto } from '@czd/shared-types';
 // Where clicking a row in the customer notification center takes you — the web counterpart of
 // apps/mobile/lib/notification-deep-link.ts. Returns null for types with no dedicated page
 // (e.g. taebo_answered); those rows just mark themselves read and stay on the list.
-export function getNotificationHref(n: Pick<NotificationDto, 'notificationType'>): string | null {
+export function getNotificationHref(n: Pick<NotificationDto, 'notificationType'> & Partial<Pick<NotificationDto, 'relatedSupportConversationId'>>): string | null {
   switch (n.notificationType) {
     case 'order_confirmed':
     case 'payment_received':
@@ -26,6 +26,9 @@ export function getNotificationHref(n: Pick<NotificationDto, 'notificationType'>
       return '/account/credits';
     case 'new_device_login':
       return '/account/activity';
+    // A-025 — opens the conversation the reply belongs to.
+    case 'support_reply':
+      return n.relatedSupportConversationId ? `/account/support/${n.relatedSupportConversationId}` : '/account/support';
     default:
       return null;
   }

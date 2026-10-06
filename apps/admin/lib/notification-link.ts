@@ -3,7 +3,9 @@ import type { NotificationDto } from '@czd/shared-types';
 // Where clicking a row in the Admin notification center takes you. Types with no business page
 // of their own (admin_alert, system_alert, new_device_login, …) open the notification's own
 // detail view, so every row leads somewhere.
-export function getNotificationHref(n: Pick<NotificationDto, 'id' | 'notificationType' | 'relatedOrderId' | 'relatedContactMessageId'>): string {
+export function getNotificationHref(
+  n: Pick<NotificationDto, 'id' | 'notificationType' | 'relatedOrderId' | 'relatedContactMessageId'> & Partial<Pick<NotificationDto, 'relatedSupportConversationId'>>,
+): string {
   switch (n.notificationType) {
     case 'order_confirmed':
     case 'payment_received':
@@ -29,6 +31,9 @@ export function getNotificationHref(n: Pick<NotificationDto, 'id' | 'notificatio
     case 'subscription_renewal_failed':
     case 'subscription_logo_limit_low':
       return '/customers';
+    // A-025 — Customer Support → Live Chat, opened on that conversation.
+    case 'support_message':
+      return n.relatedSupportConversationId ? `/support/live-chat/${n.relatedSupportConversationId}` : '/support/live-chat';
     case 'contact_message':
       return n.relatedContactMessageId ? `/contact-messages/${n.relatedContactMessageId}` : '/contact-messages';
     default:

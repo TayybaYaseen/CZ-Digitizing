@@ -86,9 +86,17 @@ export function OrderCard({ order, guest, children }: { order: OrderCardDto; gue
         <Link href={`/order-confirmation/${order.id}`} className="rounded-md border border-gray-300 px-3 py-1.5 text-brand-navy hover:bg-gray-50">
           {t('homeOrders.viewOrder')}
         </Link>
-        <Link href="/contact" className="ms-auto text-xs text-brand-navy underline">
-          {t('homeOrders.support')}
-        </Link>
+        {/* A-025 — a signed-in customer can ask Support about this exact order (spec §8.1/§19); a guest
+            browser has no account session to chat with, so it keeps the Contact Us link. */}
+        {guest ? (
+          <Link href="/contact" className="ms-auto text-xs text-brand-navy underline">
+            {t('homeOrders.support')}
+          </Link>
+        ) : (
+          <Link href={`/account/support/new?context=order&id=${order.id}`} className="ms-auto text-xs text-brand-navy underline">
+            {t('supportChat.askAboutOrder')}
+          </Link>
+        )}
       </div>
       {children}
     </article>

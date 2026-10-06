@@ -1173,9 +1173,21 @@ notes elsewhere were. Corrected both rows to `Completed` below; no code change, 
 | A-017a | "Need Another File Format?" / File Format Requests | A-017 | A-017 | 9 | Completed | 50 |
 | A-019 | Customer Account & Purchase History (parent) | A-002 | A-002, A-013, A-015, A-016, A-017 | 9 | Completed | 51 |
 | A-019a | Customer Activity Timeline (Viewed/Cart/Purchased/Paid/Downloaded) | A-019 | A-019, A-006, A-011, A-013, A-007 | 10 | Completed | 52 |
-| A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 53 |
-| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | In Progress | 54 |
-| A-024 | Performance & Optimization | — | all aspects A-001–A-023 | 12 | Blocked | 55 |
+| A-025 | Customer ↔ Admin Live Chat (human support chat) | A-004 | A-002, A-004, A-005f, A-013c, A-016, A-017, A-017a, A-019, A-020, A-021 | 10 | Completed | 53 |
+| A-005g | Admin: Live Website Preview | A-005 | A-005, *(all public-facing aspects — see Needs Review)* | Needs Review | Needs Review | 54 |
+| A-023 | Mobile App (Android/iOS) & Cross-Platform Sync | A-002 | A-002 + all of A-003–A-022 (see note) | 11 | In Progress | 55 |
+| A-024 | Performance & Optimization | — | all aspects A-001–A-023, A-025 | 12 | Blocked | 56 |
+
+**Note on A-025 (2026-10-06):** spec [`2026-10-06-21-customer-admin-live-chat.md`](2026-10-06-21-customer-admin-live-chat.md).
+Registered on the Primary Admin's explicit request. The Aspect File grounds it only indirectly — SRS
+§9 ("WhatsApp/human support remains available") and §10 ("Notifications + Support") — it does not
+name a live-chat feature, so the Aspect File should be updated to name it (flagged, not silently
+assumed; see §Dependency Issues and the Change Log). It depends on A-013c (the sub-aspect owning the
+`Order` record), not the A-013 parent, which is `In Progress` only for its unrelated AC-8. Level 10 =
+`1 + max(A-017a 9, A-019 9)`. Every listed dependency was `Completed` before work started, and
+implementation began only after the spec was explicitly approved (2026-10-06). It is now `Completed`
+(see the Change Log). Native mobile screens are out of its v1 scope, so A-023's dependency range is
+unchanged.
 
 **Note on A-023 Dependencies:** the mobile app is a client shell over every customer-facing aspect
 already listed (architecture: "Website AND Android/iOS mobile app... using the same secure
@@ -1200,7 +1212,9 @@ A-002 — Authentication & Account Security
 │   └── A-018c — Header Media (also under A-018)
 │
 ├── A-004 — Notifications System
-│   └── A-005d — Admin: Dashboard (also under A-005)
+│   ├── A-005d — Admin: Dashboard (also under A-005)
+│   └── A-025 — Customer ↔ Admin Live Chat  (also depends on A-005f, A-013c, A-016, A-017,
+│                A-017a, A-019, A-020, A-021)
 │
 ├── A-012 — Content & Knowledge Base
 │   ├── A-012a — FAQ
@@ -1326,9 +1340,10 @@ dependencies appear earlier in this list — verified in §Dependency Validation
 50. A-017a "Need Another File Format?"
 51. A-019  Customer Account & Purchase History (parent)
 52. A-019a Customer Activity Timeline
-53. A-005g Admin: Live Website Preview  ⚠ Needs Review
-54. A-023  Mobile App (Android/iOS) & Cross-Platform Sync
-55. A-024  Performance & Optimization
+53. A-025  Customer ↔ Admin Live Chat
+54. A-005g Admin: Live Website Preview  ⚠ Needs Review
+55. A-023  Mobile App (Android/iOS) & Cross-Platform Sync
+56. A-024  Performance & Optimization
 ```
 
 **Note on A-020 (Taebo), position 28:** its *technical* dependency level (4) is early — it only
@@ -1355,7 +1370,8 @@ YES → Ready to be sequenced (Status still governed separately — see Status r
 NO  → Blocked / reorder required
 ```
 
-**Result of this pass:** all 55 rows pass validation — no dependent aspect appears before its
+**Result of this pass:** all 56 rows pass validation (A-025 added 2026-10-06 at Order 53, after
+all of its dependencies, the latest of which is A-019 at Order 51) — no dependent aspect appears before its
 parent or before any listed dependency anywhere in the Order sequence above. Three rows required a
 deliberate correction from where the source documents' own flat lists would have implied they sit
 (see next section).
@@ -1409,6 +1425,13 @@ Found while reconciling the source documents' presentation order against actual 
    Stripe-specific acceptance criteria in `docs/specs/2026-08-28-08-orders-payment-processing.md` (AC-1,
    AC-2, AC-10) are marked **NOT APPLICABLE — BUSINESS DECISION** there. A-013 itself stays `In Progress`
    for the bank-transfer items that are genuinely open (spec §10).
+
+7. **A-025 (Customer ↔ Admin Live Chat) is not named in the Aspect File.** Added 2026-10-06 on the
+   Primary Admin's explicit request. The SRS supports it only indirectly (§9: "WhatsApp/human support
+   remains available"; §10: "Notifications + Support"), so its Parent (A-004) and Dependencies are
+   taken from its own spec's §35 rather than from an explicit Aspect File relationship. Not resolved
+   silently: the Aspect File should be updated to name the feature, after which this row must be
+   re-validated per `CLAUDE.md` §4.
 
 No dependent aspect was found positioned before its parent in either source document's own
 narrative flow once these three items were corrected — the remaining presentation order in both
@@ -1469,3 +1492,5 @@ build order, and was not assumed to be one anywhere in this file.
 | 2026-09-14 | A-017 guest-access UX fix; A-002 `next`-redirect fix (no Status/Order/Dependency change) | `/custom-request` redirected every guest to `/login` before showing the form at all. Per Admin's explicit choice, changed to: form always renders; Submit while logged out saves typed text fields to `sessionStorage` and sends the guest to `/login?next=/custom-request`, restoring them on return (files can't survive the round trip, flagged to the user in-page). Found and fixed a separate, general bug while doing this: `/login`/`/register`/`/verify-device` accepted `?next=` but never read it — every login unconditionally landed on `/`, not wherever the user came from. Added `apps/web/lib/safe-redirect.ts` (`safeNextPath`, rejects anything but a same-origin relative path — an unvalidated `next` is an open-redirect vector) and wired `next` through login → new-device-verify → landing and through login/register's cross-links. Verified live via Playwright: guest fills the form, signs in through the real login + mandatory device-verification gate, lands back on `/custom-request` with fields restored |
 | 2026-09-14 | A-014/A-014a/A-014b completeness fixes (no Status/Order/Dependency change, all remain `Completed`); reorder route + §8 risk #1 corrected in `docs/specs/2026-08-29-17-services-module.md` | A code-verified audit found AC-8's admin panel was create/publish/delete-only (edit and reorder existed only in the API), AC-10's Design Catalog link had no admin UI path to set it at all, and AC-4's service images were fully broken (404s, not just "unrealistic" placeholders — `apps/web/public/images/services/` never existed). Added an edit panel, up/down reorder, and a `relatedDesignCategoryId` picker to `apps/admin/app/services/page.tsx`; fixed a real bug this surfaced (`ServicesService.update()` crashed on `BigInt(null)` when a caller explicitly cleared `relatedDesignCategoryId`/`parentServiceId` — added a regression test); pointed the seed data at 5 real brand-approved photos for Embroidery Digitizing (Vector Art still has zero real vector-art photography available anywhere in this repo, so it uses the CZ logo mark as an honest stand-in — flagged as a genuine, unresolved AC-4 gap, not silently closed); added the spec's missing e2e test (`e2e/services.e2e.spec.ts`). Verified: `apps/api` unit suite 280/280, `services.spec.ts` 5/5 (incl. the new regression test), new e2e test passing standalone, both apps typecheck/lint clean, live Playwright pass as a real admin confirming edit/reorder actually persist (API read-back, not just the UI's own toast) |
 | 2026-09-14 | A-014 AC-4 content upgrade (same-day follow-up, no Status/Order/Dependency change) | Admin supplied real, purpose-made hero images for both main services (`apps/web/public/images/services/embroidery-digitizing.png`, `vector-art.png`), replacing Vector Art's CZ-logo-mark stand-in from the note above with an actual vector-art-themed image — AC-4 is now genuinely met for both main service cards/detail pages. Sub-category-level "each has its own unique photo" remains unmet for Vector Art (all 9 share the one main-service image) and partially for Embroidery Digitizing (8 of 9 share 3 photos) — unchanged, flagged gaps, not newly introduced. Verified live via Playwright against the running dev server: both cards and both main detail pages render the new images, zero 404s; `apps/api` suite re-run clean (280/280, no code changed) |
+| 2026-10-06 | A-025 added (new row, Status `Not Started`, Order 53); A-005g/A-023/A-024 Order shifted 53→54, 54→55, 55→56 (no Status/Dependency change for them); A-024 Dependencies extended to include A-025; new Dependency Issue #7 | Primary Admin requested a Customer ↔ Admin Live Chat (human support chat, separate from Taebo) with a spec-first, approval-gated workflow. Inspected the existing architecture (Socket.IO `/custom-requests` gateway, JWT/roles/`AdminPermissionsGuard`, `NotificationService`, Taebo, orders/custom requests/quotes/file-format requests, `StorageService`, 15-locale i18n) and wrote [`2026-10-06-21-customer-admin-live-chat.md`](2026-10-06-21-customer-admin-live-chat.md) (AC-1–AC-26). **Spec created; approval pending; implementation not started** — no code, schema, migration, socket event or package change has been made. Parent A-004 (SRS §10 "Notifications + Support"); depends on A-013c rather than the `In Progress` A-013 parent because it only needs the `Order` record. Level 10. The Aspect File does not name this feature — flagged as Dependency Issue #7 rather than assumed. `docs/specs/USER_FLOW.md` gained the two new screens (customer Support chat, Admin Live Chat) to stay consistent with the Order change |
+| 2026-10-06 | A-025 Status: Not Started → In Progress → Completed (no Order/Dependency change) | The Primary Admin approved [`2026-10-06-21-customer-admin-live-chat.md`](2026-10-06-21-customer-admin-live-chat.md) and it was implemented as approved. **API:** new `support_conversations`/`support_messages` tables (migration `20261006120000_add_support_live_chat`, with the raw-SQL context CHECK, a partial unique index allowing one active conversation per customer per context, and non-negative counter and body-length CHECKs). Also added: the `AdminModule.support_chat` permission, the `support_reply`/`support_message` notification types, `notifications.related_support_conversation_id`, a new `apps/api/src/support-chat/` module (REST for every write, idempotent on `clientMessageId`) and a `/support-chat` namespace on the existing Socket.IO server (JWT handshake, disconnect at token expiry, per-audience rooms). **Web:** `/account/support` (list, thread, new conversation), with entry points in the account menu (unread badge), My Account, the Taebo panel ("Chat with a person"; Taebo is hidden on these pages), Contact Us, order cards, custom-request rows and quote rows. All strings are in 15 locales and the layout is RTL-correct. **Admin:** Customer Support → Live Chat (`/support/live-chat`) with search, filters, a sidebar unread badge, status control, and customer and context panels. **Verified:** API typecheck and lint clean; full API unit suite 513/513 plus the new unit tests; `support-chat.spec.ts` integration 22/22 on a throwaway DB; web, admin and mobile typecheck clean; web `i18n:check` passes for all 15 locales; a scripted live Playwright pass of 31/31 checks on an isolated stack (API :4100, web :3100, admin :3102, throwaway DB) covering realtime both ways, status, notification de-duplication, isolation, the Taebo hand-off, iPhone 13 and Pixel 7 layouts, and Arabic and Urdu RTL. Spec §38 lists the non-material implementation notes and open items: native-speaker review of the translations, and the admin shell not being responsive on phones. Dependency Issue #7 (Aspect File doesn't name this feature) still stands |

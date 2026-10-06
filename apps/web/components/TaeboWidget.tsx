@@ -142,7 +142,7 @@ function floatingStyle(anchor: TaeboPosition | null, launcherSize: LauncherSize,
 
 export function TaeboWidget() {
   const pathname = usePathname();
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const { t, locale } = useLocale();
   const { position, launcherSize, onPointerDown, onPointerMove, onPointerUp, reset: resetPosition } = useTaeboPosition();
 
@@ -310,6 +310,10 @@ export function TaeboWidget() {
     ? { left: position.left, top: position.top }
     : { right: FLOAT_MARGIN, bottom: FLOAT_MARGIN };
 
+  // A-025 — hidden on the human-support chat pages so the launcher never covers the composer/Send
+  // button on phones and the two chats never compete for the same corner (spec §8.3/§23).
+  if (pathname?.startsWith('/account/support')) return null;
+
   return (
     <>
       {!open && proactiveOffer && (
@@ -442,6 +446,17 @@ export function TaeboWidget() {
           </div>
 
           <div className="border-t border-white/10 p-2">
+            {/* A-025 — the explicit hand-off from the AI assistant to a person (spec §8.3). Taebo's own
+                answering/escalation above is unchanged. */}
+            {(!user || user.role === 'customer') && (
+              <Link
+                href={user ? '/account/support/new' : `/login?next=${encodeURIComponent('/account/support/new')}`}
+                onClick={() => setOpen(false)}
+                className="mb-2 flex items-center justify-center rounded-field border border-brand-gold/50 py-1.5 text-xs font-semibold text-brand-gold hover:bg-white/5"
+              >
+                {t('supportChat.chatWithPerson')}
+              </Link>
+            )}
             {whatsappHref && (
               <a href={whatsappHref} target="_blank" rel="noreferrer" className="mb-2 block text-center text-xs text-emerald-400 underline">
                 {t('taebo.whatsapp')}

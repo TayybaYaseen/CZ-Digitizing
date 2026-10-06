@@ -69,6 +69,24 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+// A-025 live chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §11.3) — socket.io's `auth`
+// callback runs on every (re)connect, and the server drops a socket when its access token expires;
+// this hands it a token that is still good for at least 30s, refreshing first if needed.
+export async function getFreshAccessToken(): Promise<string | null> {
+  const token = readStoredAuth()?.accessToken ?? null;
+  if (token && !expiresWithin(token, 30_000)) return token;
+  return refreshAccessToken();
+}
+
+function expiresWithin(token: string, ms: number): boolean {
+  try {
+    const payload = JSON.parse(atob((token.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: unknown };
+    return typeof payload.exp !== 'number' || payload.exp * 1000 - Date.now() < ms;
+  } catch {
+    return true;
+  }
+}
+
 function isUnauthenticated(body: unknown): boolean {
   return typeof body === 'object' && body !== null && (body as { error?: { code?: string } }).error?.code === 'UNAUTHENTICATED';
 }

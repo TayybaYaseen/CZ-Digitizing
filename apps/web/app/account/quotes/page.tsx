@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ApiError, QuoteDto } from '@czd/shared-types';
@@ -57,6 +58,10 @@ export default function MyQuotesPage() {
               <div>
                 <p className="font-medium">{t('quote.quoteId', { id: q.id })}</p>
                 <p className="text-xs text-gray-500">{formatDate(q.createdAt)}</p>
+                {/* A-025 — ask Support about this exact quote (spec §8.1/§19). */}
+                <Link href={`/account/support/new?context=quote&id=${q.id}`} className="text-xs text-brand-navy underline">
+                  {t('supportChat.askAboutQuote')}
+                </Link>
               </div>
               <div className="text-end">
                 <p className="font-medium">{tOr(`quoteStatus.${q.status}`, q.status)}</p>

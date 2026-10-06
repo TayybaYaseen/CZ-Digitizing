@@ -46,6 +46,7 @@ import { I18nModule } from './i18n/i18n.module';
 import { ContactModule } from './contact/contact.module';
 import { AccountModule } from './account/account.module';
 import { TaeboModule } from './taebo/taebo.module';
+import { SupportChatModule } from './support-chat/support-chat.module';
 import { PushTokensModule } from './users/push-tokens/push-tokens.module';
 
 @Module({
@@ -121,6 +122,10 @@ import { PushTokensModule } from './users/push-tokens/push-tokens.module';
     // Taebo (A-020) — depends on FaqModule (AC-2/AC-4 matching source of truth) and
     // NotificationsModule (AC-3/AC-5 escalation + answer notifications), both registered above.
     TaeboModule,
+    // Customer ↔ Admin Live Chat (A-025) — reads orders/custom requests/quotes/file-format requests
+    // as optional conversation context and notifies through NotificationsModule; deliberately a
+    // separate module from Taebo (the AI assistant). docs/specs/2026-10-06-21-customer-admin-live-chat.md
+    SupportChatModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
