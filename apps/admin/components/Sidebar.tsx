@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useStaffUnreadConversations } from '@/lib/support-chat';
 import { Logo } from './Logo';
 
 // Mirrors the NAV structure decoded from docs/CZ Digitizing Admin Panel.html's bundled
@@ -10,7 +11,7 @@ import { Logo } from './Logo';
 // Payments/Quotes have real pages now; Customers/Reports are still Blocked in
 // docs/specs/SPEC_INDEX.md (their owning aspects — A-019, A-005e — don't exist yet) and 404 until
 // built, same posture as apps/web's Header.tsx nav.
-const NAV: { section?: string; href?: string; label?: string }[] = [
+const NAV: { section?: string; href?: string; label?: string; badge?: 'support' }[] = [
   { section: 'Main' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/orders', label: 'Orders' }, // TODO(A-013)
@@ -37,7 +38,10 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
   { href: '/blog', label: 'Blog' },
   { href: '/about', label: 'About Us' },
   { href: '/portfolio', label: 'Portfolio' },
-  { section: 'Support' }, // A-020 (docs/specs/2026-08-28-15-taebo-chatbot.md)
+  // A-020 (docs/specs/2026-08-28-15-taebo-chatbot.md); Live Chat is A-025
+  // (docs/specs/2026-10-06-21-customer-admin-live-chat.md §8.4) — human support, separate from Taebo.
+  { section: 'Customer Support' },
+  { href: '/support/live-chat', label: 'Live Chat', badge: 'support' },
   { href: '/taebo/unanswered', label: 'Taebo — Waiting for Admin' },
   { href: '/contact-messages', label: 'Contact Messages' }, // A-010
   { section: 'System' },
@@ -50,7 +54,8 @@ const NAV: { section?: string; href?: string; label?: string }[] = [
 ];
 
 export function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, accessToken, logout } = useAuth();
+  const supportUnread = useStaffUnreadConversations(accessToken);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -76,7 +81,17 @@ export function Sidebar() {
                 pathname.startsWith(item.href!) ? 'bg-gold-500 font-semibold text-navy-800' : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}
             >
-              {item.label}
+              <span className="flex items-center justify-between gap-2">
+                <span>{item.label}</span>
+                {item.badge === 'support' && supportUnread > 0 && (
+                  <span
+                    className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white"
+                    aria-label={`${supportUnread} conversation${supportUnread === 1 ? '' : 's'} with unread messages`}
+                  >
+                    {supportUnread > 99 ? '99+' : supportUnread}
+                  </span>
+                )}
+              </span>
             </Link>
           ),
         )}

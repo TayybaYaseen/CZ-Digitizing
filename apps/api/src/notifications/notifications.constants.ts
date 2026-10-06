@@ -30,6 +30,8 @@ export const DEFAULT_CHANNELS: Record<NotificationType, NotificationChannel[]> =
   new_device_login: ['email', 'in_app', 'push'],
   taebo_answered: ['email', 'in_app', 'push'],
   order_status_change: ['email', 'in_app', 'push'],
+  // A-025 live chat — Admin replied (docs/specs/2026-10-06-21-customer-admin-live-chat.md §17).
+  support_reply: ['email', 'in_app', 'push'],
   // Admin triggers (architecture "Admin Notifications") — Dashboard/email only, no WhatsApp/push/SMS.
   new_registration: ['email', 'in_app'],
   taebo_waiting: ['email', 'in_app'],
@@ -37,6 +39,8 @@ export const DEFAULT_CHANNELS: Record<NotificationType, NotificationChannel[]> =
   receipt_uploaded: ['email', 'in_app'],
   admin_alert: ['in_app'],
   system_alert: ['in_app'],
+  // A-025 live chat — a customer wrote to Support.
+  support_message: ['email', 'in_app'],
 };
 
 // AC-3 — 30-day in-app retention for customer-facing notifications. Admin-only types (no
@@ -50,6 +54,7 @@ export const ADMIN_ONLY_TYPES: readonly NotificationType[] = [
   'receipt_uploaded',
   'admin_alert',
   'system_alert',
+  'support_message',
 ];
 
 // Architecture's Admin Notifications table is Dashboard/email only for every Admin trigger, with

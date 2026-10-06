@@ -17,7 +17,7 @@ import { Card } from '@/components/ui/Card';
 const ADMIN_MODULES = [
   'designs', 'categories', 'services', 'bundles', 'orders', 'quotes', 'custom_requests', 'faqs',
   'taebo', 'tips', 'testimonials', 'blog', 'about', 'portfolio', 'subscriptions', 'credits',
-  'notifications', 'settings', 'home_sections', 'advertisements', 'header_media',
+  'notifications', 'settings', 'home_sections', 'advertisements', 'header_media', 'support_chat',
 ] as const;
 const ACCESS_LEVELS = ['read_only', 'crud'] as const;
 

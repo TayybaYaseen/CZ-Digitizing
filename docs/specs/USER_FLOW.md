@@ -75,6 +75,11 @@ Customer Activity Timeline  [A-019a]
         Viewed → Added to Cart → Removed/Purchased → Paid → Downloaded  (idempotent event log)
         ↓
 Need a different file format later?  →  "Need Another File Format?"  [A-017a]  →  Admin fulfills  →  re-download
+        ↓
+Chat with Support  [A-025]  ⚠ requires Login
+        Account menu / Taebo "Chat with a person" / Contact Us / "Ask about this order|request"
+        → real-time conversation with the CZ Digitizing team, optionally tied to an order, custom
+          request, quote or file-format request; Admin replies → customer notified [A-004] if away
 ```
 
 **Auth-gating points (⚠ above):** browsing the Catalog, Services, Content, and Pricing pages is
@@ -119,6 +124,8 @@ Manage Social / Contact Settings, Experience, Domain, Payment Methods, Allowed F
 Manage Admin Users / Roles / Active Sessions (freelancer/limited-admin)  [A-005f]
         ↓
 Data Exports (Customer_History, Orders, Payments, Downloads, Quotes, Custom_Requests, Notifications)  [A-005e]
+        ↓
+Customer Support → Live Chat  [A-025]
         ↓
 Live Website Preview  [A-005g]  ⚠ dependency scope Needs Review — see SPEC_INDEX.md § Dependency Issues
         ↓
@@ -170,7 +177,8 @@ here.
 | About Us | `/about` | A-012e | A-012 | Read company info | Contact Us |
 | Portfolio | `/portfolio`, `/portfolio/:id` | A-012f | A-012 | Browse work samples | Get a Quote |
 | Contact Us | `/contact` | A-010 | A-005a | Submit contact form, open WhatsApp | — |
-| Taebo widget | floating, all pages | A-020 | A-012a | Ask a question | Instant answer or escalate to Admin |
+| Taebo widget | floating, all pages | A-020 | A-012a | Ask a question | Instant answer or escalate to Admin; "Chat with a person" → Support chat |
+| — Chat with Support | `/account/support`, `/account/support/new`, `/account/support/:id` | A-025 | A-004 | Message the support team in real time, optionally about an order/request | — |
 
 ### Admin screens
 
@@ -197,6 +205,7 @@ here.
 | Admin Languages / Translations | `/admin/settings/languages`, `/admin/settings/translations` | A-021, A-022 | A-021 | Enable language, edit UI strings | Language selector live |
 | Admin Exports | `/admin/exports` | A-005e | A-005 | Request named dataset export | Download file |
 | Admin Audit Log | `/admin/audit-log` | A-005 | A-002 | Review admin action history | — |
+| Admin Live Chat | `/admin/support/live-chat`, `/admin/support/live-chat/:id` | A-025 | A-004 | Triage, reply, set Open/Pending/Resolved | Customer / Order record |
 | Admin Live Preview | `/admin/preview` | A-005g | A-005 | View current published public site | — |
 | Admin Notifications | `/admin/notifications` | A-004 | A-002 | Mark read, review unread badge | Linked record |
 

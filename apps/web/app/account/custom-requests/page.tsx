@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -156,6 +157,14 @@ export default function MyCustomRequestsPage() {
 
               {expanded?.id === r.id && (
                 <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 text-sm">
+                  {/* A-025 — account/payment/delivery questions go to the support team; the message thread
+                      below stays the production discussion for this request (spec §19.3). */}
+                  <Link
+                    href={`/account/support/new?context=custom_request&id=${r.id}&label=${encodeURIComponent(r.requestNumber)}`}
+                    className="inline-block text-xs font-medium text-brand-navy underline"
+                  >
+                    {t('supportChat.askAboutRequest')}
+                  </Link>
                   <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                     <p>{t('customRequest.machineFormatValue', { value: expanded.machineFormat })}</p>
                     <p>{t('customRequest.sizeValue', { value: expanded.sizeValue ?? '—' })}</p>

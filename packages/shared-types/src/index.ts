@@ -9,3 +9,4 @@ export * from './custom-requests';
 export * from './i18n';
 export * from './taebo';
 export * from './contact';
+export * from './support-chat';

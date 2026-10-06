@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { ApiError } from '@czd/shared-types';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { clientError } from '@/i18n/api-errors';
+import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/locale-context';
 
 interface PublicSettings {
@@ -24,7 +26,8 @@ const SOCIAL_LINKS: { key: keyof PublicSettings['social']; label: string }[] = [
 // contact.service.ts doc comment for why. Reuses the same GET /api/settings/public call
 // Footer.tsx already makes (A-005a) for WhatsApp/email/social, so both surfaces stay in sync.
 export default function ContactPage() {
-  const { t, errorMessage } = useLocale();
+  const { t, rich, errorMessage } = useLocale();
+  const { user } = useAuth();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -63,6 +66,18 @@ export default function ContactPage() {
 
       <div className="mt-8 grid gap-10 sm:grid-cols-2">
         <section aria-label={t('contact.directOptions')} className="space-y-3">
+          {/* A-025 — signed-in customers can chat with the team instead of the one-way form (spec §8.1). */}
+          {user?.role === 'customer' && (
+            <p className="text-sm text-brand-navy">
+              {rich('supportChat.preferChat', {
+                link: (chunk) => (
+                  <Link href="/account/support/new" className="font-semibold underline">
+                    {chunk}
+                  </Link>
+                ),
+              })}
+            </p>
+          )}
           {settings?.contactEmail && (
             <a href={`mailto:${settings.contactEmail}`} className="block text-sm text-brand-navy hover:underline">
               {t('contact.emailLabel')} <span dir="ltr">{settings.contactEmail}</span>

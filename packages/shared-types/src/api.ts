@@ -76,4 +76,6 @@ export type ApiErrorCode =
   // Guest checkout (POST /api/cart/guest-checkout): the email belongs to a staff or disabled account,
   // or the caller is already signed in and should use the normal checkout.
   | 'GUEST_CHECKOUT_SIGN_IN_REQUIRED'
-  | 'GUEST_CHECKOUT_SIGNED_IN';
+  | 'GUEST_CHECKOUT_SIGNED_IN'
+  // Customer ↔ Admin Live Chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §10.4)
+  | 'CONVERSATION_ALREADY_OPEN';

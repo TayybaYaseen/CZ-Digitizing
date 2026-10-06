@@ -23,7 +23,10 @@ export type NotificationType =
   | 'receipt_uploaded'
   | 'admin_alert'
   | 'system_alert'
-  | 'order_status_change';
+  | 'order_status_change'
+  // A-025 live chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §17)
+  | 'support_reply'
+  | 'support_message';
 
 export type NotificationChannel = 'email' | 'whatsapp' | 'in_app' | 'push' | 'sms';
 
@@ -36,6 +39,7 @@ export interface NotificationDto {
   relatedQuoteId: string | null;
   relatedCustomRequestId: string | null;
   relatedContactMessageId: string | null;
+  relatedSupportConversationId: string | null;
   isRead: boolean;
   readAt: string | null;
   createdAt: string;

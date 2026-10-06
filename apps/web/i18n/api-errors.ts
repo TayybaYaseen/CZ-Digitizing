@@ -121,6 +121,7 @@ const CODE_KEYS: Record<string, string> = {
   FILE_FORMAT_REQUEST_ALREADY_FULFILLED: 'apiErrors.fileFormatAlreadyFulfilled',
   GUEST_CHECKOUT_SIGN_IN_REQUIRED: 'apiErrors.guestCheckoutSignInRequired',
   GUEST_CHECKOUT_SIGNED_IN: 'apiErrors.guestCheckoutSignedIn',
+  CONVERSATION_ALREADY_OPEN: 'apiErrors.conversationAlreadyOpen',
   CONFLICT: 'apiErrors.conflict',
   INTERNAL_ERROR: 'apiErrors.generic',
   SERVICE_UNAVAILABLE: 'apiErrors.generic',

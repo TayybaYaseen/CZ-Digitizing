@@ -17,6 +17,7 @@ export interface NotifyInput {
   relatedQuoteId?: string;
   relatedCustomRequestId?: string;
   relatedContactMessageId?: string;
+  relatedSupportConversationId?: string;
   channels: NotificationChannel[];
 }
 
@@ -76,6 +77,7 @@ export class NotificationService {
         relatedQuoteId: input.relatedQuoteId ? BigInt(input.relatedQuoteId) : undefined,
         relatedCustomRequestId: input.relatedCustomRequestId ? BigInt(input.relatedCustomRequestId) : undefined,
         relatedContactMessageId: input.relatedContactMessageId ? BigInt(input.relatedContactMessageId) : undefined,
+        relatedSupportConversationId: input.relatedSupportConversationId ? BigInt(input.relatedSupportConversationId) : undefined,
         expiresAt: isCustomerFacing ? addDays(new Date(), CUSTOMER_RETENTION_DAYS) : null,
       },
     });
