@@ -669,8 +669,17 @@ const ja: Messages = {
     metaItemDescription: 'CZ Digitizing のポートフォリオより：{category}の作品例。',
   },
   taebo: {
-    greeting: 'こんにちは、Taebo です！何でも聞いてください。お困りのときはいつでもチャットを開いてくださいね。',
-    escalated: 'スタッフに確認しています — わかり次第お知らせします。',
+    greeting: 'こんにちは！Taebo です。👋\n今日はどのようなご用件でしょうか？',
+    escalated: 'その点についてはまだ確かではないため、ご質問をチームに送りました。担当者からご連絡します。CZ Digitizing のサービス、デザイン、注文、ファイル形式、料金、カスタム依頼についてお手伝いできます。',
+    escalatedAccount: 'お支払いや注文状況などのアカウント情報はここでは確認できないため、ご質問をチームに送りました。注文はこちらからも確認できます：',
+    didYouMean: 'もう少し詳しく教えていただけますか？次のいずれかのご質問でしょうか？',
+    notice: {
+      hello: 'こんにちは！今日はどのようなご用件でしょうか？',
+      thanks: 'どういたしまして！ほかにお手伝いできることはありますか？',
+      ack: '承知しました！ほかにお手伝いできることはありますか？',
+      help: '喜んでお手伝いします！デザイン、刺繍デジタイズ、Vector Art、料金、ファイル形式、注文、カスタム依頼についてお気軽にどうぞ。',
+      internal: '申し訳ありませんが、内部情報や個人情報はお伝えできません。CZ Digitizing のデザイン、サービス、注文、料金についてはお気軽にどうぞ。',
+    },
     subtitle: 'CZ Digitizing のアシスタント',
     online: 'Taebo はオンラインです',
     open: 'Taebo アシスタントを開く',
@@ -684,7 +693,6 @@ const ja: Messages = {
     inputPlaceholder: 'Taebo に質問する…',
     send: '送信',
     resetPosition: 'Taebo の位置をリセット',
-    proactiveOffer: '<q></q> についてお困りですか？',
     pandaAlt: 'パンダの Taebo',
     pandaStandingAlt: '立っているパンダの Taebo',
     quick: {

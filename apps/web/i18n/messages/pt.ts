@@ -681,8 +681,17 @@ const pt: Messages = {
     metaItemDescription: 'Amostra de trabalho de {category} do portfólio da CZ Digitizing.',
   },
   taebo: {
-    greeting: 'Olá, eu sou o Taebo! Pergunte o que quiser ou abra o chat sempre que precisar de ajuda.',
-    escalated: 'Estou verificando isso com a nossa equipe — aviso você assim que possível.',
+    greeting: 'Olá! Eu sou o Taebo. 👋\nComo posso ajudar você hoje?',
+    escalated: 'Ainda não tenho certeza sobre isso, então enviei sua pergunta para a nossa equipe — eles vão retornar para você. Posso ajudar com serviços, designs, pedidos, formatos de arquivo, preços e solicitações personalizadas da CZ Digitizing.',
+    escalatedAccount: 'Não consigo ver dados da sua conta, como pagamentos ou status de pedidos, por aqui, então enviei sua pergunta para a nossa equipe. Você também pode conferir seus pedidos aqui:',
+    didYouMean: 'Pode me contar um pouco mais? Você quis dizer uma destas?',
+    notice: {
+      hello: 'Olá! Como posso ajudar você hoje?',
+      thanks: 'Por nada! Posso ajudar em mais alguma coisa?',
+      ack: 'Entendido! Posso ajudar em mais alguma coisa?',
+      help: 'Será um prazer ajudar! Pergunte sobre nossos designs, digitalização de bordados, Vector Art, preços, formatos de arquivo, pedidos ou solicitações personalizadas.',
+      internal: 'Desculpe, não posso compartilhar informações internas ou privadas. Posso ajudar com designs, serviços, pedidos e preços da CZ Digitizing.',
+    },
     subtitle: 'Seu assistente CZ Digitizing',
     online: 'Taebo está on-line',
     open: 'Abrir o assistente Taebo',
@@ -696,7 +705,6 @@ const pt: Messages = {
     inputPlaceholder: 'Faça uma pergunta ao Taebo…',
     send: 'Enviar',
     resetPosition: 'Redefinir a posição do Taebo',
-    proactiveOffer: 'Precisa de ajuda com <q></q>?',
     pandaAlt: 'Taebo, o panda',
     pandaStandingAlt: 'Taebo, o panda, em pé',
     quick: {
