@@ -4,16 +4,16 @@
 // is — JPEG/PNG/WebP screenshots and photos, or a PDF — is accepted; everything else (executables,
 // HTML, SVG, archives, text) is refused by the caller with UNSUPPORTED_FILE_TYPE.
 
+import { detectRasterImageType } from '../common/files/image-type.util';
+
 export type ReceiptContentType = 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
 
 export function detectReceiptContentType(buffer: Buffer): ReceiptContentType | null {
   if (buffer.length < 12) return null;
 
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
-
-  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
-
-  if (buffer.subarray(0, 4).toString('latin1') === 'RIFF' && buffer.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  // JPEG/PNG/WebP detection is shared with A-026 review images.
+  const image = detectRasterImageType(buffer);
+  if (image) return image;
 
   if (buffer.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
 

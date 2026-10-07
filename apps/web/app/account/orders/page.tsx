@@ -76,10 +76,16 @@ export default function YourOrdersPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {orders.map((order) => (
             <OrderCard key={order.id} order={order} guest={!signedIn}>
-              {signedIn && (order.status === 'completed' || order.status === 'processing' || order.status === 'ready') && (
+              {signedIn && (order.filesUnlocked || order.status === 'completed' || order.status === 'processing' || order.status === 'ready') && (
                 <div className="mt-3 border-t border-gray-100 pt-2">
-                  {order.status === 'completed' && <ReviewButton orderId={order.id} accessToken={accessToken} />}
-                  <FileFormatRequestButton orderId={order.id} accessToken={accessToken} />
+                  {/* A-026 §6/§7 — any fully paid, non-refunded order (the same rule that unlocks files)
+                      can be reviewed; the full form lives at /testimonials/write. */}
+                  {order.filesUnlocked && (
+                    <Link href={`/testimonials/write?order=${order.id}`} className="mt-1 block text-xs text-brand-navy underline">
+                      {t('orders.leaveReview')}
+                    </Link>
+                  )}
+                  {(order.status === 'completed' || order.status === 'processing' || order.status === 'ready') && <FileFormatRequestButton orderId={order.id} accessToken={accessToken} />}
                 </div>
               )}
             </OrderCard>
@@ -140,76 +146,6 @@ function FileFormatRequestButton({ orderId, accessToken }: { orderId: string; ac
       />
       <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('orders.notesOptional')} aria-label={t('orders.notesOptional')} className="w-full rounded border border-gray-300 px-2 py-1 text-xs" rows={2} />
       <button disabled={busy || !requestedFormat.trim()} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
-        {t('common.submit')}
-      </button>
-    </div>
-  );
-}
-
-// AC-7 — customer submits a review tied to this completed order; stored pending Admin moderation.
-function ReviewButton({ orderId, accessToken }: { orderId: string; accessToken: string | null }) {
-  const { t } = useLocale();
-  const [open, setOpen] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [feedback, setFeedback] = useState('');
-  const [serviceUsed, setServiceUsed] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  if (submitted) return <p className="mt-1 text-xs text-emerald-600">{t('orders.reviewSubmitted')}</p>;
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="mt-1 block text-xs text-brand-navy underline">
-        {t('orders.leaveReview')}
-      </button>
-    );
-  }
-
-  async function submit() {
-    if (!accessToken || !feedback.trim() || !serviceUsed.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch('/api/testimonials/submit', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ orderId, rating, feedback, serviceUsed }),
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.error : clientError('errors.submitReviewFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mt-2 w-56 space-y-2 rounded-md border border-gray-200 bg-white p-3 text-start">
-      <ErrorBanner error={error} />
-      <select value={rating} onChange={(e) => setRating(Number(e.target.value))} aria-label={t('orders.rating')} className="w-full rounded border border-gray-300 px-2 py-1 text-xs">
-        {[5, 4, 3, 2, 1].map((r) => (
-          <option key={r} value={r}>
-            {'★'.repeat(r)} ({r})
-          </option>
-        ))}
-      </select>
-      <input
-        value={serviceUsed}
-        onChange={(e) => setServiceUsed(e.target.value)}
-        placeholder={t('orders.serviceUsed')}
-        aria-label={t('orders.serviceUsed')}
-        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
-      />
-      <textarea
-        value={feedback}
-        onChange={(e) => setFeedback(e.target.value)}
-        placeholder={t('orders.yourFeedback')}
-        aria-label={t('orders.yourFeedback')}
-        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
-        rows={3}
-      />
-      <button disabled={busy} onClick={submit} className="w-full rounded bg-gold-500 px-2 py-1 text-xs font-semibold text-navy-800">
         {t('common.submit')}
       </button>
     </div>

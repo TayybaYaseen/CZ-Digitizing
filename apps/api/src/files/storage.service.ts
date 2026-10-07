@@ -54,6 +54,18 @@ export class StorageService implements OnModuleInit {
     return path;
   }
 
+  // A-026 (docs/specs/2026-10-06-22-customer-review-submission.md §8) — same private root and
+  // content addressing, but under its own sub-directory so a namespaced file (e.g. a review image)
+  // can never share a path with a receipt or embroidery file. That matters because review images are
+  // deleted when their review is, and must never take another feature's file with them.
+  async saveInNamespace(namespace: string, buffer: Buffer, hash: string, extension: string): Promise<string> {
+    if (!/^[a-z0-9-]+$/.test(namespace) || !/^[a-z0-9]+$/.test(extension)) throw new Error('Invalid storage namespace or extension');
+    const path = join(this.root, namespace, hash.slice(0, 2), `${hash}.${extension}`);
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, buffer);
+    return path;
+  }
+
   async read(storagePath: string): Promise<Buffer> {
     return readFile(storagePath);
   }

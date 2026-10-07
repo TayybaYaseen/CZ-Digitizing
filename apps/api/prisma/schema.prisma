@@ -354,6 +354,8 @@ enum NotificationType {
   // to the customer when Admin replies; support_message goes to staff when a customer writes.
   support_reply
   support_message
+  // A-026 — a customer submitted a review (Admin-only, docs/specs/2026-10-06-22-customer-review-submission.md §20).
+  review_submitted
 }
 
 enum NotificationChannel {
@@ -1230,28 +1232,40 @@ model TipFaqLink {
 // from customer-submitted reviews (AC-7: source=customer_submitted, moderationStatus=pending,
 // isPublished=false until Admin approves) — orderId is required for the latter so a submission is
 // always tied to a real completed purchase, never free-form.
+// A-026 (docs/specs/2026-10-06-22-customer-review-submission.md §10/§25): the four review statuses
+// (Pending/Published/Hidden/Rejected) are derived from moderationStatus + isPublished — no separate
+// status column. A DB CHECK (raw SQL in the migration) enforces is_published ⇒ approved. The
+// customer image lives in PRIVATE storage (imageStoragePath, never returned by the API) and is only
+// served publicly while the review is published. country is nullable: customers may omit it.
 model Testimonial {
-  id               BigInt                @id @default(autoincrement())
-  customerName     String                @map("customer_name")
-  country          String
-  business         String?
-  photoUrl         String?               @map("photo_url")
-  rating           Int
-  feedback         String
-  serviceUsed      String                @map("service_used")
-  isPublished      Boolean               @default(false) @map("is_published")
-  source           TestimonialSource     @default(admin_curated)
-  moderationStatus TestimonialModeration @default(approved) @map("moderation_status")
-  customerId       BigInt?               @map("customer_id")
-  customer         User?                 @relation("TestimonialSubmittedBy", fields: [customerId], references: [id], onDelete: SetNull)
-  orderId          BigInt?               @map("order_id")
-  order            Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdByAdminId BigInt?               @map("created_by_admin_id")
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  id                    BigInt                @id @default(autoincrement())
+  customerName          String                @map("customer_name")
+  country               String?
+  business              String?
+  photoUrl              String?               @map("photo_url")
+  rating                Int
+  feedback              String
+  serviceUsed           String                @map("service_used")
+  isPublished           Boolean               @default(false) @map("is_published")
+  source                TestimonialSource     @default(admin_curated)
+  moderationStatus      TestimonialModeration @default(approved) @map("moderation_status")
+  customerId            BigInt?               @map("customer_id")
+  customer              User?                 @relation("TestimonialSubmittedBy", fields: [customerId], references: [id], onDelete: SetNull)
+  orderId               BigInt?               @map("order_id")
+  order                 Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customRequestId       BigInt?               @map("custom_request_id")
+  customRequest         CustomRequest?        @relation(fields: [customRequestId], references: [id], onDelete: SetNull)
+  originalFeedback      String?               @map("original_feedback")
+  imageStoragePath      String?               @map("image_storage_path")
+  imageContentType      String?               @map("image_content_type")
+  imageOriginalFilename String?               @map("image_original_filename")
+  createdByAdminId      BigInt?               @map("created_by_admin_id")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
 
   @@index([isPublished, moderationStatus], map: "idx_testimonials_visibility")
   @@index([customerId], map: "idx_testimonials_customer")
+  @@index([customRequestId], map: "idx_testimonials_custom_request")
   @@map("testimonials")
 }
 
@@ -1671,6 +1685,8 @@ model CustomRequest {
   productionFiles      CustomRequestProductionFile[]
   // A-025 — support conversations about this request (distinct from `messages`, the production thread).
   supportConversations SupportConversation[]
+  // A-026 — customer reviews linked to this (delivered/completed) request.
+  testimonials         Testimonial[]
 
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")

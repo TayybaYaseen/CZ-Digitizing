@@ -109,21 +109,25 @@ describe('Content & Knowledge Base (docs/specs/2026-08-28-10-content-knowledge-b
     expect(list.body.data.map((t: { id: string }) => t.id)).toContain(tip.body.data.id);
   });
 
-  it('AC-7: a customer review requires a completed order and starts pending/unpublished; Admin approval publishes it', async () => {
+  // Eligibility widened by A-026 (docs/specs/2026-10-06-22-customer-review-submission.md §6, D1): a fully
+  // paid, non-refunded order (not only status=completed); the customer response now carries the derived
+  // `status` instead of the raw moderation columns, and review text has a 20-character minimum.
+  it('AC-7: a customer review requires a paid order and starts pending/unpublished; Admin approval publishes it', async () => {
     const customer = await createCustomer();
     const admin = await createAdmin();
     const order = await prisma.order.create({
-      data: { customerId: customer.id, status: 'completed', paymentMethod: 'bank_transfer', totalPkr: 1000 },
+      data: { customerId: customer.id, status: 'completed', paymentStatus: 'completed', paymentMethod: 'bank_transfer', totalPkr: 1000 },
     });
 
     const submitted = await request(app.getHttpServer())
       .post('/api/testimonials/submit')
       .set(authHeader(customer))
-      .send({ orderId: order.id.toString(), rating: 5, feedback: 'Excellent work!', serviceUsed: 'Embroidery Digitizing' })
+      .send({ orderId: order.id.toString(), rating: 5, feedback: 'Excellent work, stitched out perfectly!', serviceUsed: 'Embroidery Digitizing', customerName: 'Test Customer' })
       .expect(201);
 
-    expect(submitted.body.data.isPublished).toBe(false);
-    expect(submitted.body.data.moderationStatus).toBe('pending');
+    expect(submitted.body.data.status).toBe('pending');
+    const row = await prisma.testimonial.findUniqueOrThrow({ where: { id: BigInt(submitted.body.data.id) } });
+    expect(row).toMatchObject({ isPublished: false, moderationStatus: 'pending' });
     expect((await request(app.getHttpServer()).get('/api/testimonials')).body.data).toHaveLength(0);
 
     await request(app.getHttpServer()).put(`/api/testimonials/${submitted.body.data.id}/moderate`).set(authHeader(admin)).send({ decision: 'approved' }).expect(200);
@@ -132,15 +136,18 @@ describe('Content & Knowledge Base (docs/specs/2026-08-28-10-content-knowledge-b
     expect(publicList.body.data.map((t: { id: string }) => t.id)).toContain(submitted.body.data.id);
   });
 
-  it('AC-7: rejects a review for an order that is not completed', async () => {
+  it('AC-7: rejects a review linked to an order that is not fully paid', async () => {
     const customer = await createCustomer();
-    const order = await prisma.order.create({ data: { customerId: customer.id, status: 'processing', paymentMethod: 'bank_transfer', totalPkr: 1000 } });
+    // Eligible overall (one paid order), but the review is linked to an unpaid one.
+    await prisma.order.create({ data: { customerId: customer.id, status: 'completed', paymentStatus: 'completed', paymentMethod: 'bank_transfer', totalPkr: 1000 } });
+    const unpaid = await prisma.order.create({ data: { customerId: customer.id, status: 'processing', paymentMethod: 'bank_transfer', totalPkr: 1000 } });
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/api/testimonials/submit')
       .set(authHeader(customer))
-      .send({ orderId: order.id.toString(), rating: 5, feedback: 'x', serviceUsed: 'y' })
+      .send({ orderId: unpaid.id.toString(), rating: 5, feedback: 'Great service overall, very happy.', serviceUsed: 'Digitizing', customerName: 'Test Customer' })
       .expect(409);
+    expect(res.body.error.code).toBe('ORDER_NOT_ELIGIBLE_FOR_REVIEW');
   });
 
   it('AC-9/AC-15/AC-16: Blog create -> edit reflects -> hard delete removes it', async () => {

@@ -63,6 +63,13 @@ export type ApiErrorCode =
   // Content & Knowledge Base spec (docs/specs/2026-08-28-10-content-knowledge-base.md §3)
   | 'SLUG_ALREADY_EXISTS'
   | 'ORDER_NOT_ELIGIBLE_FOR_REVIEW'
+  // A-026 customer reviews (docs/specs/2026-10-06-22-customer-review-submission.md §27)
+  | 'NOT_ELIGIBLE_TO_REVIEW'
+  | 'ALREADY_REVIEWED'
+  | 'DUPLICATE_REVIEW'
+  | 'TOO_MANY_PENDING_REVIEWS'
+  | 'INVALID_IMAGE'
+  | 'INVALID_REVIEW_TRANSITION'
   // Home Promotions CMS spec (docs/specs/2026-08-28-13-home-promotions-cms.md §3, §8 risk #2)
   | 'ADVERTISEMENT_TARGET_CONFLICT'
   // Smart Get a Quote spec (docs/specs/2026-08-28-11-smart-get-a-quote.md §3, AC-7/§8 risk #2)

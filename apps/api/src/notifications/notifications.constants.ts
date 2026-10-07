@@ -41,6 +41,8 @@ export const DEFAULT_CHANNELS: Record<NotificationType, NotificationChannel[]> =
   system_alert: ['in_app'],
   // A-025 live chat — a customer wrote to Support.
   support_message: ['email', 'in_app'],
+  // A-026 — a customer submitted a review (docs/specs/2026-10-06-22-customer-review-submission.md §20).
+  review_submitted: ['email', 'in_app'],
 };
 
 // AC-3 — 30-day in-app retention for customer-facing notifications. Admin-only types (no
@@ -55,6 +57,7 @@ export const ADMIN_ONLY_TYPES: readonly NotificationType[] = [
   'admin_alert',
   'system_alert',
   'support_message',
+  'review_submitted',
 ];
 
 // Architecture's Admin Notifications table is Dashboard/email only for every Admin trigger, with

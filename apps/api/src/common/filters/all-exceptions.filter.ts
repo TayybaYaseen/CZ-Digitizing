@@ -112,6 +112,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return 'CONFLICT';
       case HttpStatus.TOO_MANY_REQUESTS:
         return 'RATE_LIMITED';
+      // multer's `limits.fileSize` (receipts, A-026 review images) raises a bare 413.
+      case HttpStatus.PAYLOAD_TOO_LARGE:
+        return 'FILE_TOO_LARGE';
       default:
         return 'INTERNAL_ERROR';
     }
