@@ -10,6 +10,8 @@ import { useSupportUnreadCount } from '@/lib/support-chat';
 const MENU_LINKS: { href: string; label: TranslationKey }[] = [
   { href: '/account', label: 'nav.myAccount' },
   { href: '/account/orders', label: 'account.orders' },
+  // A-026 §21.
+  { href: '/account/reviews', label: 'reviews.myReviews' },
   { href: '/account/credits', label: 'account.credits' },
   { href: '/account/subscription', label: 'nav.subscription' },
 ];

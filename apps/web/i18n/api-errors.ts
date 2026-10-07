@@ -117,6 +117,12 @@ const CODE_KEYS: Record<string, string> = {
   ALREADY_SUBSCRIBED: 'apiErrors.alreadySubscribed',
   SUBSCRIPTION_LOGO_LIMIT_REACHED: 'apiErrors.logoLimitReached',
   ORDER_NOT_ELIGIBLE_FOR_REVIEW: 'apiErrors.orderNotReviewable',
+  // A-026 customer reviews (docs/specs/2026-10-06-22-customer-review-submission.md §27).
+  NOT_ELIGIBLE_TO_REVIEW: 'apiErrors.notEligibleToReview',
+  ALREADY_REVIEWED: 'apiErrors.alreadyReviewed',
+  DUPLICATE_REVIEW: 'apiErrors.duplicateReview',
+  TOO_MANY_PENDING_REVIEWS: 'apiErrors.tooManyPendingReviews',
+  INVALID_IMAGE: 'apiErrors.invalidImage',
   CUSTOM_REQUEST_NOT_QUOTED: 'apiErrors.customRequestNotQuoted',
   FILE_FORMAT_REQUEST_ALREADY_FULFILLED: 'apiErrors.fileFormatAlreadyFulfilled',
   GUEST_CHECKOUT_SIGN_IN_REQUIRED: 'apiErrors.guestCheckoutSignInRequired',

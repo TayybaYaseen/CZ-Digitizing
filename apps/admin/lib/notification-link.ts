@@ -34,6 +34,9 @@ export function getNotificationHref(
     // A-025 — Customer Support → Live Chat, opened on that conversation.
     case 'support_message':
       return n.relatedSupportConversationId ? `/support/live-chat/${n.relatedSupportConversationId}` : '/support/live-chat';
+    // A-026 — opens Testimonials on the Pending moderation tab.
+    case 'review_submitted':
+      return '/testimonials?status=pending';
     case 'contact_message':
       return n.relatedContactMessageId ? `/contact-messages/${n.relatedContactMessageId}` : '/contact-messages';
     default:

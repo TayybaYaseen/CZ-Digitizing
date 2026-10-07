@@ -26,7 +26,9 @@ export type NotificationType =
   | 'order_status_change'
   // A-025 live chat (docs/specs/2026-10-06-21-customer-admin-live-chat.md §17)
   | 'support_reply'
-  | 'support_message';
+  | 'support_message'
+  // A-026 — a customer submitted a review (Admin-only).
+  | 'review_submitted';
 
 export type NotificationChannel = 'email' | 'whatsapp' | 'in_app' | 'push' | 'sms';
 

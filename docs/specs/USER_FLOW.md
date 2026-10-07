@@ -80,11 +80,16 @@ Chat with Support  [A-025]  ⚠ requires Login
         Account menu / Taebo "Chat with a person" / Contact Us / "Ask about this order|request"
         → real-time conversation with the CZ Digitizing team, optionally tied to an order, custom
           request, quote or file-format request; Admin replies → customer notified [A-004] if away
+        ↓
+Write a Review  [A-026]  ⚠ requires Login + a paid order or delivered custom request
+        Testimonials "Write a Review" / Home "Share your experience" / order card / My Reviews
+        → text + rating + optional photo → Pending → Admin notified [A-004] → Admin approves
+          (Published on Testimonials/Home) · hides · rejects · deletes → status shown in My Reviews
 ```
 
 **Auth-gating points (⚠ above):** browsing the Catalog, Services, Content, and Pricing pages is
 fully anonymous. Login/Register [A-002] is only forced at: Favoriting a design, Checkout,
-subscribing/buying credits, and viewing My Account. This matches SRS §14 ("Customer and Admin
+subscribing/buying credits, writing a review [A-026], and viewing My Account. This matches SRS §14 ("Customer and Admin
 accounts must be completely separated") without forcing an artificial login wall on discovery.
 
 ---
@@ -169,10 +174,12 @@ here.
 | — Credits | `/account/credits` | A-019 | A-015b | View balance, transaction history | Buy more credits |
 | — Subscription | `/account/subscription` | A-019 | A-015a | View/cancel active plan | Pricing |
 | — Activity | `/account/activity` | A-019a | A-019 | Review Viewed/Cart/Purchased/Paid/Downloaded timeline | — |
+| — My Reviews | `/account/reviews` | A-026 | A-012c | See review status, withdraw a review | Write a Review |
 | — Notifications | `/account/notifications` | A-004 | A-002 | Mark read | — |
 | FAQ | `/faq` | A-012a | A-012 | Search/filter by topic | Get a Quote / Taebo |
 | Tips for Embroiderers | `/tips`, `/tips/:id` | A-012b | A-012 | Read articles | Linked FAQ |
-| Testimonials | `/testimonials` | A-012c | A-012 | View More | — |
+| Testimonials | `/testimonials` | A-012c | A-012 | View More | Write a Review |
+| — Write a Review | `/testimonials/write` | A-026 | A-012c | Submit text, rating, optional photo (login required) | My Reviews |
 | Blog | `/blog`, `/blog/:slug` | A-012d | A-012 | Read post | Search results |
 | About Us | `/about` | A-012e | A-012 | Read company info | Contact Us |
 | Portfolio | `/portfolio`, `/portfolio/:id` | A-012f | A-012 | Browse work samples | Get a Quote |
@@ -206,6 +213,7 @@ here.
 | Admin Exports | `/admin/exports` | A-005e | A-005 | Request named dataset export | Download file |
 | Admin Audit Log | `/admin/audit-log` | A-005 | A-002 | Review admin action history | — |
 | Admin Live Chat | `/admin/support/live-chat`, `/admin/support/live-chat/:id` | A-025 | A-004 | Triage, reply, set Open/Pending/Resolved | Customer / Order record |
+| Admin Review Moderation | `/admin/testimonials?status=pending` | A-026 | A-012c | Approve, reject, hide/unhide, edit, delete customer reviews; manage review images | Public Testimonials |
 | Admin Live Preview | `/admin/preview` | A-005g | A-005 | View current published public site | — |
 | Admin Notifications | `/admin/notifications` | A-004 | A-002 | Mark read, review unread badge | Linked record |
 

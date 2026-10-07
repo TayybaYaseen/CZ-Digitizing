@@ -51,6 +51,12 @@ export default function AccountPage() {
           </Link>
         </li>
         <li>
+          {/* A-026 §21 — My Reviews. */}
+          <Link href="/account/reviews" className="block px-4 py-3 text-sm hover:bg-gray-50">
+            {t('reviews.myReviews')}
+          </Link>
+        </li>
+        <li>
           <Link href="/account/quotes" className="block px-4 py-3 text-sm hover:bg-gray-50">
             {t('nav.myQuotes')}
           </Link>

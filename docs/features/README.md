@@ -41,3 +41,4 @@ Each feature file must cover:
 |---|---|---|
 | 2026-09-07 | [Per-method payment account detail boxes](2026-09-07-payment-account-details-boxes.md) | `2026-08-28-08-orders-payment-processing.md` (AC-3/AC-9) |
 | 2026-10-06 | [Customer ↔ Admin Live Chat (spec approved, implemented)](2026-10-06-customer-admin-live-chat.md) | `2026-10-06-21-customer-admin-live-chat.md` (A-025, AC-1–AC-26) |
+| 2026-10-06 | [Customer review submission & admin moderation](2026-10-06-customer-review-submission.md) | `2026-10-06-22-customer-review-submission.md` (A-026, AC-1–AC-29) |
